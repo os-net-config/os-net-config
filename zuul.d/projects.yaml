@@ -1,0 +1,7 @@
+---
+- project:
+    name: os-net-config/os-net-config
+    github-check:
+      jobs:
+        - tox-linters:
+            nodeset: rdo-centos-9-stream
