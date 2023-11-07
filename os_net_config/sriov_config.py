@@ -53,7 +53,7 @@ MAX_RETRIES = 10
 MLNX_LAG_PATH = "/sys/kernel/debug/mlx5/{pf_pci}/lag/state"
 PF_FUNC_RE = re.compile(r"\.(\d+)$", 0)
 
-VF_PCI_RE = re.compile(r'/[\d]{4}\:(\d+):(\d+)\.(\d+)/net/[^\/]+$')
+VF_PCI_RE = re.compile(r'^[0-9a-f]{4}:[0-9a-f]{2}:[0-1][0-9a-f].[0-7]$')
 # In order to keep VF representor name consistent specially after the upgrade
 # proccess, we should have a udev rule to handle that.
 # The udev rule will rename the VF representor as "<sriov_pf_name>_<vf_num>"
@@ -329,20 +329,22 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
             # we create the VFs
             is_mlnx = common.is_mellanox_interface(item['name'])
             vdpa = item.get('vdpa')
-            # Configure switchdev mode when vdpa
             # It has to happen before we set_numvfs
-            if vdpa and is_mlnx:
-                configure_switchdev(item['name'])
             set_numvfs(item['name'], item['numvfs'])
             # Configure switchdev, unbind driver and configure vdpa
             if item.get('link_mode') == "switchdev" and is_mlnx:
                 logger.info(f"{item['name']}: Mellanox card")
                 vf_pcis_list = get_vf_pcis_list(item['name'])
                 for vf_pci in vf_pcis_list:
-                    if not vdpa:
-                        # For DPDK, we need to unbind the driver
-                        _driver_unbind(vf_pci)
-                    else:
+                    # For DPDK, we need to unbind the driver
+                    _driver_unbind(vf_pci)
+                    # This is used for the sriov_bind_config
+                    dpdk_vfs_pcis_list += vf_pcis_list
+                configure_switchdev(item['name'])
+                sriov_bind_pcis_map = {_MLNX_DRIVER: dpdk_vfs_pcis_list}
+                sriov_bind_config.bind_vfs(sriov_bind_pcis_map)
+                for vf_pci in vf_pcis_list:
+                    if vdpa:
                         if vf_pci not in vdpa_devices:
                             configure_vdpa_vhost_device(vf_pci)
                         else:
@@ -365,15 +367,10 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
                     item['name']) or trigger_udev_rule
 
                 if not vdpa:
-                    # This is used for the sriov_bind_config
-                    dpdk_vfs_pcis_list += vf_pcis_list
-
                     # Configure flow steering mode, default to smfs
                     configure_flow_steering(item['name'],
                                             item.get('steering_mode', 'smfs'))
 
-                    # Configure switchdev mode
-                    configure_switchdev(item['name'])
                     # Add sriovpf to vf_lag_sriov_pfs_list if it's
                     # a linux bond member (lag_candidate)
                     if item.get('lag_candidate', False):
@@ -405,7 +402,6 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
             sriov_bind_config.update_sriov_bind_pcis_map(sriov_bind_pcis_map)
         else:
             sriov_bind_config.configure_sriov_bind_service()
-            sriov_bind_config.bind_vfs(sriov_bind_pcis_map)
 
     # Trigger udev rules if there is new rules written
     if trigger_udev_rule:
