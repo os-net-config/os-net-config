@@ -1594,8 +1594,14 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         (bond_name, bond_path, bond_data))
                 update_files[bond_path] = bond_data
             else:
-                logger.info('No changes required for linux bond: %s' %
-                            bond_name)
+                for child in children:
+                    if child in restart_interfaces and \
+                       bond_name not in restart_linux_bonds:
+                        restart_linux_bonds.append(bond_name)
+                        break
+                else:
+                    logger.info('No changes required for linux bond: %s' %
+                                bond_name)
             if utils.diff(bond_route_path, route_data):
                 update_files[bond_route_path] = route_data
                 if bond_name not in restart_linux_bonds:
