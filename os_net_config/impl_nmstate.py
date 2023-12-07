@@ -1310,11 +1310,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.add_bridge(bridge, dpdk=True)
 
     def add_ovs_interface(self, ovs_interface):
-        """Add a OvsDpdkPort object to the net config object.
+        """Add a OvsInterface object to the net config object.
 
-        :param ovs_dpdk_port: The OvsDpdkPort object to add.
+        :param ovs_interface: The OvsInterface object to add.
         """
-        logger.info('adding ovs dpdk port: %s' % ovs_interface.name)
+        logger.info('adding ovs interface: %s' % ovs_interface.name)
         data = self._add_common(ovs_interface)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
