@@ -9,6 +9,7 @@
                     "name": "p2p1",
                     "numvfs": 10,
                     "vdpa": true,
+                    "vdpa_queues": 50,
                     "use_dhcp": false,
                     "link_mode": "switchdev"
                 },
@@ -16,6 +17,7 @@
                     "type": "sriov_pf",
                     "name": "p2p2",
                     "numvfs": 10,
+                    "vdpa_queues": 50,
                     "vdpa": true,
                     "use_dhcp": false,
                     "link_mode": "switchdev"
