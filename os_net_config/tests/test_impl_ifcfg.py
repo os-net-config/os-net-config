@@ -694,6 +694,12 @@ class TestIfcfgNetConfig(base.TestCase):
             return True
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
+        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     steering_mode="smfs"):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      test_update_sriov_pf_map)
 
     def tearDown(self):
         super(TestIfcfgNetConfig, self).tearDown()
@@ -1366,12 +1372,6 @@ DHCLIENTARGS=--foobar
         self.assertEqual(em1_config, self.get_interface_config('em1'))
 
     def test_sriov_pf_ethtool_opts(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         ifc = objects.SriovPF('enp3s0f0', 16,
                               ethtool_opts='speed 1000 duplex full')
         self.provider.add_interface(ifc)
@@ -1697,15 +1697,6 @@ NETMASK=255.255.255.0
         self.assertEqual(vf_config, self.get_interface_config('eth2_7'))
 
     def test_network_sriov_pf_without_promisc(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            self.assertEqual(name, 'eth2')
-            self.assertEqual(numvfs, 10)
-            self.assertEqual(promisc, None)
-            self.assertEqual(link_mode, 'legacy')
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
@@ -1722,15 +1713,6 @@ BOOTPROTO=none
         self.assertEqual(pf_config, self.get_interface_config('eth2'))
 
     def test_network_sriov_pf_with_promisc_on(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            self.assertEqual(name, 'eth2')
-            self.assertEqual(numvfs, 10)
-            self.assertTrue(promisc)
-            self.assertEqual(link_mode, 'legacy')
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
@@ -1747,15 +1729,6 @@ BOOTPROTO=none
         self.assertEqual(pf_config, self.get_interface_config('eth2'))
 
     def test_network_sriov_pf_with_promisc_off(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            self.assertEqual(name, 'eth2')
-            self.assertEqual(numvfs, 10)
-            self.assertFalse(promisc)
-            self.assertEqual(link_mode, 'legacy')
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 

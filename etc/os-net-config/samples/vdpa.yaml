@@ -15,6 +15,8 @@ network_config:
       name: p2p1
       # Flag this PF as a vDPA device
       vdpa: true
+      # multi queue size for vDPA device
+      vdpa_queues: 50
       # number of VFs required on the particular NIC
       # Should be at least one when vdpa is true
       numvfs: 10
@@ -27,5 +29,6 @@ network_config:
       name: p2p2
       vdpa: true
       numvfs: 10
+      vdpa_queues: 50
       use_dhcp: false
       link_mode: switchdev
