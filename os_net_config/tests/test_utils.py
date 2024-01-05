@@ -198,7 +198,7 @@ class TestUtils(base.TestCase):
                       get_numvfs_stub)
         pf_initial = [{'device_type': 'pf', 'link_mode': 'legacy',
                        'name': 'eth1', 'numvfs': 10}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
         self.assertRaises(sriov_config.SRIOVNumvfsException,
                           utils.update_sriov_pf_map, 'eth1', 20, False)
 
@@ -210,7 +210,7 @@ class TestUtils(base.TestCase):
         pf_initial = [{'device_type': 'pf', 'link_mode': 'legacy',
                        'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
                        'vdpa': False}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
 
         utils.update_sriov_pf_map('eth1', 10, False, promisc='off')
         pf_final = [{'device_type': 'pf', 'link_mode': 'legacy',
@@ -230,7 +230,7 @@ class TestUtils(base.TestCase):
         pf_initial = [{'device_type': 'pf', 'link_mode': 'legacy',
                        'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
                        'vdpa': False}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
 
         utils.update_sriov_pf_map('eth1', 10, False, vdpa=True)
         pf_final = [{'device_type': 'pf', 'link_mode': 'legacy',
@@ -264,7 +264,7 @@ class TestUtils(base.TestCase):
         pf_initial = [{'device_type': 'pf', 'link_mode': 'legacy',
                        'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
                        'vdpa': False, 'lag_candidate': False}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
 
         utils.update_sriov_pf_map('eth1', 10, False, lag_candidate=True)
         pf_final = [{'device_type': 'pf', 'link_mode': 'legacy',
@@ -285,7 +285,7 @@ class TestUtils(base.TestCase):
         pf_initial = [{'device_type': 'pf', 'link_mode': 'legacy',
                        'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
                        'vdpa': False}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
 
         utils.update_sriov_pf_map('eth1', 10, False, lag_candidate=True)
         pf_final = [{'device_type': 'pf', 'link_mode': 'legacy',
@@ -306,7 +306,7 @@ class TestUtils(base.TestCase):
         pf_initial = [{'device_type': 'pf', 'link_mode': 'legacy',
                        'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
                        'vdpa': False}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
 
         utils.update_sriov_pf_map('eth1', 10, False, lag_candidate=False)
         pf_final = [{'device_type': 'pf', 'link_mode': 'legacy',
@@ -381,7 +381,7 @@ class TestUtils(base.TestCase):
     def test_update_sriov_vf_map_exist(self):
         vf_initial = [{'device_type': 'vf', 'name': 'eth1_2',
                        'device': {"name": "eth1", "vfid": 2}}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, vf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, vf_initial)
 
         utils.update_sriov_vf_map('eth1', 2, 'eth1_2', vlan_id=10, qos=5,
                                   spoofcheck="on", trust="on", state="enable",
@@ -412,7 +412,7 @@ class TestUtils(base.TestCase):
                        'macaddr': 'AA:BB:CC:DD:EE:FF',
                        'promisc': 'off',
                        'pci_address': "0000:80:00.1"}]
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, vf_initial)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, vf_initial)
 
         utils.update_sriov_vf_map('eth1', 2, 'eth1_2', vlan_id=100, qos=15,
                                   spoofcheck="off", trust="off", state="auto",
@@ -684,7 +684,7 @@ class TestUtils(base.TestCase):
         dpdk_test = [{'name': 'eth1', 'pci_address': '0000:03:00.0',
                       'mac_address': '01:02:03:04:05:06',
                       'driver': 'vfio-pci'}]
-        utils.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_test)
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_test)
 
         utils._update_dpdk_map('eth1', '0000:03:00.0', '01:02:03:04:05:06',
                                'vfio-pci')
@@ -697,7 +697,7 @@ class TestUtils(base.TestCase):
     def test_update_dpdk_map_value_change(self):
         dpdk_test = [{'name': 'eth1', 'pci_address': '0000:03:00.0',
                       'driver': 'vfio-pci'}]
-        utils.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_test)
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_test)
 
         dpdk_test = [{'name': 'eth1', 'pci_address': '0000:03:00.0',
                       'mac_address': '01:02:03:04:05:06',

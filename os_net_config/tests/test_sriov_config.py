@@ -24,7 +24,6 @@ import tempfile
 from os_net_config import common
 from os_net_config import sriov_config
 from os_net_config.tests import base
-from os_net_config import utils
 
 
 class TestSriovConfig(base.TestCase):
@@ -354,7 +353,7 @@ class TestSriovConfig(base.TestCase):
             self._write_numvfs(ifname)
 
         self._action_order = []
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
         sriov_config.configure_sriov_pf()
         self.assertEqual(exp_actions, self._action_order)
         f = open(sriov_config._UDEV_LEGACY_RULE_FILE, 'r')
@@ -402,7 +401,7 @@ class TestSriovConfig(base.TestCase):
             self._write_numvfs(ifname)
 
         self._action_order = []
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
         sriov_config.configure_sriov_pf()
         self.assertEqual(exp_actions, self._action_order)
         f = open(sriov_config._UDEV_LEGACY_RULE_FILE, 'r')
@@ -451,7 +450,7 @@ class TestSriovConfig(base.TestCase):
             self._write_numvfs(ifname)
 
         self._action_order = []
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
         sriov_config.configure_sriov_pf()
         self.assertEqual(exp_actions, self._action_order)
         f = open(sriov_config._UDEV_LEGACY_RULE_FILE, 'r')
@@ -502,7 +501,7 @@ class TestSriovConfig(base.TestCase):
             self._write_numvfs(ifname)
 
         self._action_order = []
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_config)
         sriov_config.configure_sriov_pf()
         self.assertEqual(exp_actions, self._action_order)
         self.assertEqual(10, sriov_config.get_numvfs('p2p1'))
@@ -621,7 +620,7 @@ class TestSriovConfig(base.TestCase):
         self.stub_out('os_net_config.sriov_config.run_ip_config_cmd',
                       run_ip_config_cmd_stub)
 
-        utils.write_yaml_config(common.SRIOV_CONFIG_FILE, vf_config)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, vf_config)
         sriov_config.configure_sriov_vf()
 
         for cmd in exp_cmds:
