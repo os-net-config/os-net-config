@@ -19,9 +19,9 @@ import os.path
 import random
 
 
+from os_net_config import common
 from os_net_config import sriov_bind_config
 from os_net_config.tests import base
-from os_net_config import utils
 
 
 class TestSriovBindConfig(base.TestCase):
@@ -48,6 +48,6 @@ class TestSriovBindConfig(base.TestCase):
         os.makedirs(sriov_bind_config._PCI_DRIVER_BIND_FILE_PATH %
                     {"driver": vfs_driver})
 
-        utils.write_yaml_config(sriov_bind_config._SRIOV_BIND_CONFIG_FILE,
-                                sriov_bind_pcis_map)
+        common.write_yaml_config(sriov_bind_config._SRIOV_BIND_CONFIG_FILE,
+                                 sriov_bind_pcis_map)
         sriov_bind_config.bind_vfs()

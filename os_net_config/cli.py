@@ -22,6 +22,7 @@ import sys
 import yaml
 
 from os_net_config import common
+from os_net_config import dcb_config
 from os_net_config import impl_eni
 from os_net_config import impl_ifcfg
 from os_net_config import impl_iproute
@@ -273,6 +274,11 @@ def main(argv=sys.argv, main_logger=None):
         else:
             main_logger.warning('\n'.join(validation_errors))
 
+    # Reset the DCB Config during rerun.
+    # This is required to apply the new values and clear the old ones
+    if utils.is_dcb_config_required():
+        common.reset_dcb_map()
+
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
     # devices are created.
@@ -341,6 +347,13 @@ def main(argv=sys.argv, main_logger=None):
 
     files_changed = provider.apply(cleanup=opts.cleanup,
                                    activate=not opts.no_activate)
+
+    if utils.is_dcb_config_required():
+        # Apply the DCB Config
+        utils.configure_dcb_config_service()
+        dcb_apply = dcb_config.DcbApplyConfig()
+        dcb_apply.apply()
+
     if opts.noop:
         if configure_sriov:
             files_changed.update(pf_files_changed)

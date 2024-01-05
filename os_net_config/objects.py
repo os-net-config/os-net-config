@@ -24,6 +24,7 @@ import netaddr
 from oslo_utils import strutils
 
 from os_net_config import common
+from os_net_config import dcb_netlink
 from os_net_config import utils
 
 
@@ -94,6 +95,8 @@ def object_from_json(json):
         return SriovVF.from_json(json)
     elif obj_type == "linux_tap":
         return LinuxTap.from_json(json)
+    elif obj_type == "dcb":
+        return Dcb.from_json(json)
 
 
 def _get_required_field(json, name, object_name, datatype=None):
@@ -284,6 +287,33 @@ class Address(object):
     def from_json(json):
         ip_netmask = _get_required_field(json, 'ip_netmask', 'Address')
         return Address(ip_netmask)
+
+
+class Dcb(object):
+    """Base class for DCB configuration"""
+
+    def __init__(self, name, dscp2prio=[]):
+        self.name = name
+        self.dscp2prio = dscp2prio
+        self.pci_addr = utils.get_pci_address(name, False)
+        self.driver = utils.get_driver(name, False)
+
+    @staticmethod
+    def from_json(json):
+        dscp2prio = []
+        name = _get_required_field(json, 'name', 'Dcb')
+        dscp2prio_lst = _get_required_field(json, 'dscp2prio', 'Dcb')
+        for entry in dscp2prio_lst:
+            priority = _get_required_field(entry, 'priority', 'dscp2prio')
+            selector = entry.get('selector',
+                                 dcb_netlink.IEEE_8021QAZ_APP_SEL_DSCP)
+            protocol = _get_required_field(entry, 'protocol', 'dscp2prio')
+            dscp2prio_entry = {'selector': selector,
+                               'priority': priority,
+                               'protocol': protocol}
+            dscp2prio.append(dscp2prio_entry)
+
+        return Dcb(name, dscp2prio)
 
 
 class RouteRule(object):
@@ -490,6 +520,14 @@ class Interface(_BaseOpts):
         opts = _BaseOpts.base_opts_from_json(json)
         ethtool_opts = json.get('ethtool_opts', None)
         linkdelay = json.get('linkdelay', None)
+        dcb_config_json = json.get('dcb')
+        if dcb_config_json:
+            dcb_config_json['name'] = name
+            dcb_config = Dcb.from_json(dcb_config_json)
+            common.update_dcb_map(ifname=name, pci_addr=dcb_config.pci_addr,
+                                  driver=dcb_config.driver, noop=False,
+                                  dscp2prio=dcb_config.dscp2prio)
+
         return Interface(name, *opts, ethtool_opts=ethtool_opts,
                          hotplug=hotplug, linkdelay=linkdelay)
 
@@ -1588,6 +1626,15 @@ class SriovPF(_BaseOpts):
         if link_mode not in ['legacy', 'switchdev']:
             msg = 'Expecting link_mode to match legacy/switchdev'
             raise InvalidConfigException(msg)
+
+        dcb_config_json = json.get('dcb')
+        if dcb_config_json:
+            dcb_config_json['name'] = name
+            dcb_config = Dcb.from_json(dcb_config_json)
+            common.update_dcb_map(ifname=name, pci_addr=dcb_config.pci_addr,
+                                  driver=dcb_config.driver, noop=False,
+                                  dscp2prio=dcb_config.dscp2prio)
+
         opts = _BaseOpts.base_opts_from_json(json)
         return SriovPF(name, numvfs, *opts, promisc=promisc,
                        link_mode=link_mode, ethtool_opts=ethtool_opts,

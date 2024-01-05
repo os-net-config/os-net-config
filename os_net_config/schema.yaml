@@ -144,6 +144,25 @@ definitions:
         items:
             $ref: "#/definitions/address"
         minItems: 1
+    dscp2prio:
+        type: object
+        properties:
+            priority:
+                $ref: "#/definitions/int_or_param"
+            protocol:
+                $ref: "#/definitions/int_or_param"
+            selector:
+                $ref: "#/definitions/int_or_param"
+        required:
+          - priority
+          - protocol
+        additionalProperties: False
+
+    list_of_dscp2prio:
+        type: array
+        items:
+            $ref: "#/definitions/dscp2prio"
+        minItems: 0
 
     route:
         type: object
@@ -208,6 +227,24 @@ definitions:
     bonding_options:
         type: string
 
+    dscp_priority:
+        type: object
+        properties:
+            priotity:
+                $ref: "#/definitions/int_or_param"
+            protocol:
+                $ref: "#/definitions/int_or_param"
+            selector:
+                $ref: "#/definitions/int_or_param"
+        required:
+          - priotity
+          - protocol
+
+    list_of_dscp_prio:
+        type: array
+        items:
+            $ref: "#/definitions/dscp_priority"
+        minItems: 0
     ovs_options_string:
         type: string
         pattern: "^((?:[a-zA-Z][a-zA-Z0-9: _-]*)=(?:[a-zA-Z0-9:._-]+)[ ]*)+$"
@@ -253,7 +290,30 @@ definitions:
           - $ref: "#/definitions/ovs_tunnel_type"
           - $ref: "#/definitions/param"
 
+    dcb:
+        type: object
+        properties:
+            dscp2prio:
+                $ref: "#/definitions/list_of_dscp2prio"
+            name:
+                $ref: "#/definitions/string_or_param"
+        required:
+          - dscp2prio
+
     # os-net-config device types
+    dcb_config:
+        type: object
+        properties:
+            type:
+              enum: ["dcb"]
+            name:
+                $ref: "#/definitions/string_or_param"
+            dscp2prio:
+                $ref: "#/definitions/list_of_dscp2prio"
+        required:
+          - type
+          - name
+          - dscp2prio
     interface:
         type: object
         properties:
@@ -298,6 +358,8 @@ definitions:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
             linkdelay:
                 $ref: "#/definitions/int_or_param"
+            dcb:
+                $ref: "#/definitions/dcb"
         required:
           - type
           - name
@@ -372,6 +434,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             steering_mode:
                 $ref: "#/definitions/sriov_steering_mode_or_param"
+            dcb:
+                $ref: "#/definitions/dcb"
         required:
           - type
           - name
@@ -1581,4 +1645,5 @@ items:
       - $ref: "#/definitions/contrail_vrouter"
       - $ref: "#/definitions/contrail_vrouter_dpdk"
       - $ref: "#/definitions/linux_tap"
+      - $ref: "#/definitions/dcb_config"
 minItems: 1
