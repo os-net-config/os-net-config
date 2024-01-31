@@ -1129,6 +1129,96 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(expected_vlan1_cfg),
                          self.get_vlan_config('vlan5'))
 
+    def test_add_ovs_patch_port_to_bridge(self):
+        expected_bridge_cfg = """
+        name: br-phys-0
+        bridge:
+           options:
+              fail-mode: standalone
+              mcast-snooping-enable: false
+              rstp: false
+              stp: false
+           port:
+             - name: physnet0-br-ex-patch
+             - name: br-phys-0-p
+        ovs-db:
+           external_ids: {}
+           other_config: {}
+        state: up
+        type: ovs-bridge
+        """
+        expected_bridge_ex_cfg = """
+        name: br-ex
+        bridge:
+           options:
+              fail-mode: standalone
+              mcast-snooping-enable: false
+              rstp: false
+              stp: false
+           port:
+             - name: br-ex-physnet0-patch
+             - name: br-ex-p
+             - name: br-ex-physnet1-patch
+        ovs-db:
+           external_ids: {}
+           other_config: {}
+        state: up
+        type: ovs-bridge
+        """
+        expected_patch_port_cfg = """
+        name: physnet0-br-ex-patch
+        ipv4:
+            dhcp: false
+            enabled: false
+        ipv6:
+            autoconf: false
+            dhcp: false
+            enabled: false
+        patch:
+          peer: br-ex-physnet0-patch
+        state: up
+        type: ovs-interface
+        """
+        expected_patch_port_cfg_x = """
+        name:  br-ex-physnet0-patch
+        ipv4:
+            dhcp: false
+            enabled: false
+        ipv6:
+            autoconf: false
+            dhcp: false
+            enabled: false
+        patch:
+          peer: physnet0-br-ex-patch
+        state: up
+        type: ovs-interface
+        """
+        interface1 = objects.OvsPatchPort(
+            'physnet0-br-ex-patch', peer='br-ex-physnet0-patch')
+        interface2 = objects.OvsPatchPort(
+            'br-ex-physnet0-patch', peer='physnet0-br-ex-patch')
+        self.provider.add_ovs_patch_port(interface1)
+        self.provider.add_ovs_patch_port(interface2)
+        bridge = objects.OvsBridge('br-phys-0', use_dhcp=True,
+                                   members=[interface1])
+        bridge_ex = objects.OvsBridge('br-ex', use_dhcp=True,
+                                      members=[interface2])
+        self.provider.add_bridge(bridge)
+        self.provider.add_bridge(bridge_ex)
+
+        interface3 = objects.OvsPatchPort(
+            'br-ex-physnet1-patch', peer='physnet1-br-ex-patch',
+            bridge_name='br-ex')
+        self.provider.add_ovs_patch_port(interface3)
+        self.assertEqual(yaml.safe_load(expected_patch_port_cfg),
+                         self.get_interface_config('physnet0-br-ex-patch'))
+        self.assertEqual(yaml.safe_load(expected_patch_port_cfg_x),
+                         self.get_interface_config('br-ex-physnet0-patch'))
+        self.assertEqual(yaml.safe_load(expected_bridge_cfg),
+                         self.get_bridge_config('br-phys-0'))
+        self.assertEqual(yaml.safe_load(expected_bridge_ex_cfg),
+                         self.get_bridge_config('br-ex'))
+
     def test_vlan_over_linux_bond(self):
         expected_vlan1_cfg = """
         name: vlan5
