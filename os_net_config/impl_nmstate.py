@@ -1178,6 +1178,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # Create the internal ovs interface. Some of the settings of the
         # bridge like MTU, ip address are to be applied on this interface
         ovs_port_name = f"{bridge.name}-p"
+
+        if bridge.primary_interface_name:
+            mac = self.interface_mac(bridge.primary_interface_name)
+        else:
+            mac = None
+
         ovs_interface_port = objects.OvsInterface(
             ovs_port_name, use_dhcp=bridge.use_dhcp,
             use_dhcpv6=bridge.use_dhcpv6,
@@ -1187,7 +1193,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             defroute=bridge.defroute, dhclient_args=bridge.dhclient_args,
             dns_servers=bridge.dns_servers,
             nm_controlled=None, onboot=bridge.onboot,
-            domain=bridge.domain)
+            domain=bridge.domain, hwaddr=mac)
         self.add_ovs_interface(ovs_interface_port)
 
         ovs_int_port = {'name': ovs_interface_port.name}
@@ -1294,10 +1300,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
             elif ovs_bond:
                 bond_data[OVSBridge.Port.LinkAggregation.PORT_SUBTREE] = bps
 
-        if bridge.primary_interface_name:
-            mac = self.interface_mac(bridge.primary_interface_name)
-            data[Interface.MAC] = mac
-
         self.bridge_data[bridge.name] = data
         logger.debug('bridge data: %s' % data)
 
@@ -1318,6 +1320,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data = self._add_common(ovs_interface)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
+        if ovs_interface.hwaddr:
+            data[Interface.MAC] = ovs_interface.hwaddr
         logger.debug(f'add ovs_interface data: {data}')
         self.interface_data[ovs_interface.name] = data
 
