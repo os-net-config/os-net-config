@@ -5,3 +5,5 @@
       jobs:
         - tox-linters:
             nodeset: rdo-centos-9-stream
+        - cifmw-crc-podified-edpm-deployment
+        - cifmw-crc-podified-edpm-baremetal
