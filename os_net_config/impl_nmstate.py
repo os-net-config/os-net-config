@@ -1226,10 +1226,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
                               OVSBridge.Options.MCAST_SNOOPING_ENABLED: False,
                               OVSBridge.Options.RSTP: False,
                               OVSBridge.Options.STP: False}
-        data[OVSBridge.CONFIG_SUBTREE] = {
-            OVSBridge.OPTIONS_SUBTREE: ovs_bridge_options,
-            OVSBridge.PORT_SUBTREE: [],
-        }
+
+        if bridge.name in self.bridge_data:
+            data[OVSBridge.CONFIG_SUBTREE] = self.bridge_data[
+                bridge.name][OVSBridge.CONFIG_SUBTREE]
+            data[OVSBridge.CONFIG_SUBTREE
+                 ][OVSBridge.OPTIONS_SUBTREE] = ovs_bridge_options
+        else:
+            data[OVSBridge.CONFIG_SUBTREE] = {
+                OVSBridge.OPTIONS_SUBTREE: ovs_bridge_options,
+                OVSBridge.PORT_SUBTREE: [],
+            }
         data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {},
                            OvsDB.OTHER_CONFIG: {}}
         if bridge.primary_interface_name:
@@ -1296,7 +1303,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if ovs_port:
                 # Add the internal ovs interface
                 bps.append(ovs_int_port)
-                data[OVSBridge.CONFIG_SUBTREE][OVSBridge.PORT_SUBTREE] = bps
+                data[OVSBridge.CONFIG_SUBTREE][
+                    OVSBridge.PORT_SUBTREE].extend(bps)
             elif ovs_bond:
                 bond_data[OVSBridge.Port.LinkAggregation.PORT_SUBTREE] = bps
 
@@ -1310,6 +1318,45 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
         logger.info('adding ovs user bridge: %s' % bridge.name)
         self.add_bridge(bridge, dpdk=True)
+
+    def attach_patch_port_with_bridge(self, patch_port):
+        """Add a patch port to bridge from patch port settings in json.
+
+        :param patch_port: The patch_port object to add.
+        """
+        patch_br_data = self.bridge_data.get(patch_port.bridge_name, {})
+        if OVSBridge.CONFIG_SUBTREE not in patch_br_data:
+            patch_br_data[OVSBridge.CONFIG_SUBTREE] = {
+                OVSBridge.OPTIONS_SUBTREE: {},
+                OVSBridge.PORT_SUBTREE: [],
+            }
+        config = patch_br_data[OVSBridge.CONFIG_SUBTREE]
+        if OVSBridge.PORT_SUBTREE not in config:
+            config[OVSBridge.PORT_SUBTREE] = []
+        port = config[OVSBridge.PORT_SUBTREE]
+        patch_port_config = {OVSBridge.Port.NAME: patch_port.name}
+        if patch_port_config not in port:
+            port.append(patch_port_config)
+
+        self.bridge_data[patch_port.bridge_name] = patch_br_data
+        logger.info('bridge_data: %s' % self.bridge_data)
+        return
+
+    def add_ovs_patch_port(self, ovs_patch_port):
+        """Add a OvsPatchPort object to the net config object.
+
+        :param ovs_patch_port: The OvsPatchPort object to add.
+        """
+        logger.info('adding ovs patch port: %s' % ovs_patch_port.name)
+        data = self._add_common(ovs_patch_port)
+        data[Interface.TYPE] = OVSInterface.TYPE
+        data[Interface.STATE] = InterfaceState.UP
+        data[OVSInterface.PATCH_CONFIG_SUBTREE] = \
+            {OVSInterface.Patch.PEER: ovs_patch_port.peer}
+        logger.debug('ovs patch port data: %s' % data)
+        self.interface_data[ovs_patch_port.name] = data
+
+        self.attach_patch_port_with_bridge(ovs_patch_port)
 
     def add_ovs_interface(self, ovs_interface):
         """Add a OvsInterface object to the net config object.
