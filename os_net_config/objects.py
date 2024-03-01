@@ -587,7 +587,7 @@ class OvsInterface(_BaseOpts):
                  routes=None, rules=None, mtu=None, primary=False,
                  nic_mapping=None, persist_mapping=False, defroute=True,
                  dhclient_args=None, dns_servers=None, nm_controlled=False,
-                 onboot=True, domain=None):
+                 onboot=True, domain=None, hwaddr=None):
         addresses = addresses or []
         routes = routes or []
         rules = rules or []
@@ -598,6 +598,7 @@ class OvsInterface(_BaseOpts):
             nic_mapping, persist_mapping, defroute,
             dhclient_args, dns_servers,
             nm_controlled, onboot, domain)
+        self.hwaddr = hwaddr
 
     @staticmethod
     def from_json(json):
