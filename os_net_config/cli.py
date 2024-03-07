@@ -323,7 +323,8 @@ def main(argv=sys.argv, main_logger=None):
         # os-net-config skips the ifup <ifcfg-pfs>, since the ifcfgs for PFs
         # wouldn't have changed.
         pf_files_changed = provider.apply(cleanup=opts.cleanup,
-                                          activate=not opts.no_activate)
+                                          activate=not opts.no_activate,
+                                          config_rules_dns=False)
         if opts.provider == 'ifcfg' and not opts.noop:
             restart_ovs = bool(sriovpf_bond_ovs_ports)
             # Avoid ovs restart for os-net-config re-runs, which will

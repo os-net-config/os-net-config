@@ -1570,7 +1570,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data[InfiniBand.CONFIG_SUBTREE] = config
         self.interface_data[ib_child_interface.name] = data
 
-    def apply(self, cleanup=False, activate=True):
+    def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
 
         :param cleanup: A boolean which indicates whether any undefined
@@ -1580,6 +1580,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             be activated by stopping/starting interfaces
             NOTE: if cleanup is specified we will deactivate interfaces even
             if activate is false
+        :param config_rules_dns: A boolean that indicates if the rules
+            should be applied. This makes sure that the rules are configured
+            only if config_rules_dns is set to True.
         :returns: a dict of the format: filename/data which contains info
             for each file that was changed (or would be changed if in --noop
             mode).
@@ -1646,12 +1649,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
         apply_data.update(self.set_ifaces(list(updated_interfaces.values())))
         apply_data.update(self.set_routes(apply_routes))
 
-        rules_data = self.generate_rules()
-        logger.info(f'Rules_data {rules_data}')
+        if config_rules_dns:
+            rules_data = self.generate_rules()
+            logger.info(f'Rules_data {rules_data}')
 
-        apply_data.update(self.set_rules(rules_data))
+            apply_data.update(self.set_rules(rules_data))
 
-        apply_data.update(self.set_dns())
+            apply_data.update(self.set_dns())
 
         if activate:
             if not self.noop:
