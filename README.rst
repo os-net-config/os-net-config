@@ -15,7 +15,7 @@ Overview
 backend configuration providers.
 
 * Documentation: https://docs.openstack.org/os-net-config/latest
-* Source: https://opendev.org/openstack/os-net-config
+* Source: https://github.com/os-net-config/os-net-config
 * Bugs: https://bugs.launchpad.net/os-net-config
 * Release Notes: https://docs.openstack.org/releasenotes/os-net-config
 * Free software: Apache License (2.0)
