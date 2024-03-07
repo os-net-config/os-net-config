@@ -1312,7 +1312,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         % (id, route_tables[id])
         return data
 
-    def apply(self, cleanup=False, activate=True):
+    def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
 
         :param cleanup: A boolean which indicates whether any undefined
