@@ -1596,6 +1596,11 @@ class SriovPF(_BaseOpts):
         self.ethtool_opts = ethtool_opts
         self.vdpa = vdpa
         self.steering_mode = steering_mode
+        utils.update_sriov_pf_map(self.name, self.numvfs, False,
+                                  promisc=self.promisc,
+                                  link_mode=self.link_mode,
+                                  vdpa=self.vdpa,
+                                  steering_mode=self.steering_mode)
 
     @staticmethod
     def get_on_off(config):
