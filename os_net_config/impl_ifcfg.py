@@ -1098,11 +1098,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         logger.info('adding sriov pf: %s' % sriov_pf.name)
         data = self._add_common(sriov_pf)
         logger.debug('sriov pf data: %s' % data)
-        utils.update_sriov_pf_map(sriov_pf.name, sriov_pf.numvfs,
-                                  self.noop, promisc=sriov_pf.promisc,
-                                  link_mode=sriov_pf.link_mode,
-                                  vdpa=sriov_pf.vdpa,
-                                  steering_mode=sriov_pf.steering_mode)
         self.interface_data[sriov_pf.name] = data
         if sriov_pf.routes:
             self._add_routes(sriov_pf.name, sriov_pf.routes)
@@ -1312,7 +1307,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         % (id, route_tables[id])
         return data
 
-    def apply(self, cleanup=False, activate=True):
+    def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
 
         :param cleanup: A boolean which indicates whether any undefined
