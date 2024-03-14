@@ -47,6 +47,13 @@ class TestCli(base.TestCase):
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
 
+        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     steering_mode="smfs"):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      test_update_sriov_pf_map)
+
     def tearDown(self):
         super(TestCli, self).tearDown()
         if os.path.isfile(common._LOG_FILE):
@@ -210,12 +217,6 @@ class TestCli(base.TestCase):
                                            % interface_yaml, exitcodes=(0,))
 
     def test_sriov_noop_output(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
 
@@ -258,12 +259,6 @@ class TestCli(base.TestCase):
         self.assertCountEqual(sriov_config_yaml, sriov_config_json)
 
     def test_sriov_vf_with_dpdk_noop_output(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
 
