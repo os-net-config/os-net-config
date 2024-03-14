@@ -1580,6 +1580,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             be activated by stopping/starting interfaces
             NOTE: if cleanup is specified we will deactivate interfaces even
             if activate is false
+        :param config_rules_dns: A boolean that indicates if the rules should
+            be applied. This makes sure that the rules are configured only if
+            config_rules_dns is set to True.
         :returns: a dict of the format: filename/data which contains info
             for each file that was changed (or would be changed if in --noop
             mode).

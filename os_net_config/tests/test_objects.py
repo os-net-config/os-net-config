@@ -1921,13 +1921,17 @@ class TestNicMapping(base.TestCase):
 
 class TestSriovPF(base.TestCase):
 
-    def test_from_json_numvfs(self):
+    def setUp(self):
+        super(TestSriovPF, self).setUp()
+
         def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
                                      steering_mode="smfs"):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
                       test_update_sriov_pf_map)
+
+    def test_from_json_numvfs(self):
         data = '{"type": "sriov_pf", "name": "em1", "numvfs": 16,' \
                '"use_dhcp": false, "promisc": false}'
         pf = objects.object_from_json(json.loads(data))
@@ -1939,16 +1943,6 @@ class TestSriovPF(base.TestCase):
         self.assertIsNone(pf.ethtool_opts)
 
     def test_from_json_numvfs_nic1(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            self.assertEqual(name, 'em4')
-            self.assertEqual(numvfs, 16)
-            self.assertEqual(promisc, 'on')
-            self.assertEqual(link_mode, 'legacy')
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
-
         def dummy_mapped_nics(nic_mapping=None):
             return {"nic1": "em4"}
         self.stub_out('os_net_config.objects.mapped_nics', dummy_mapped_nics)
@@ -1962,13 +1956,6 @@ class TestSriovPF(base.TestCase):
         self.assertEqual('on', pf.promisc)
 
     def test_from_json_without_promisc(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
-
         def dummy_mapped_nics(nic_mapping=None):
             return {"nic1": "em4"}
         self.stub_out('os_net_config.objects.mapped_nics', dummy_mapped_nics)
@@ -1982,12 +1969,6 @@ class TestSriovPF(base.TestCase):
         self.assertEqual('on', pf.promisc)
 
     def test_from_json_link_mode(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                          test_update_sriov_pf_map)
         data = '{"type": "sriov_pf", "name": "p6p1", "numvfs": 8,' \
                '"use_dhcp": false, "promisc": false, "link_mode":' \
                '"switchdev"}'
@@ -2019,12 +2000,6 @@ class TestSriovPF(base.TestCase):
         self.assertIn(expected, str(err))
 
     def test_from_json_vdpa_no_numvfs(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         data = '{"type": "sriov_pf", "name": "p6p1", "numvfs": 0,' \
                '"use_dhcp": false, "promisc": false, "link_mode":' \
                '"switchdev", "vdpa": true}'
@@ -2035,12 +2010,6 @@ class TestSriovPF(base.TestCase):
         self.assertIn(expected, str(err))
 
     def test_from_json_steering_mode_dmfs(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         data = '{"type": "sriov_pf", "name": "p6p1", "numvfs": 8,' \
                '"use_dhcp": false, "promisc": false, "link_mode":' \
                '"switchdev", "steering_mode": "dmfs"}'
@@ -2053,12 +2022,6 @@ class TestSriovPF(base.TestCase):
         self.assertEqual("dmfs", pf.steering_mode)
 
     def test_from_json_steering_mode_smfs(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         data = '{"type": "sriov_pf", "name": "p6p1", "numvfs": 8,' \
                '"use_dhcp": false, "promisc": false, "link_mode":' \
                '"switchdev", "steering_mode": "smfs"}'
@@ -2071,13 +2034,6 @@ class TestSriovPF(base.TestCase):
         self.assertEqual("smfs", pf.steering_mode)
 
     def test_from_json_steering_mode_none(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
-
         data = '{"type": "sriov_pf", "name": "p6p1", "numvfs": 8,' \
                '"use_dhcp": false, "promisc": false, "link_mode":' \
                '"switchdev"}'
@@ -2100,12 +2056,6 @@ class TestSriovPF(base.TestCase):
         self.assertIn(expected, str(err))
 
     def test_from_json_ethtool_opts(self):
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
         data = '{"type": "sriov_pf", "name": "em1", "numvfs": 16, ' \
                '"use_dhcp": false, "promisc": false, ' \
                '"ethtool_opts": "speed 1000 duplex full"}'
