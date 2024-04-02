@@ -506,9 +506,18 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for c_route in curr_routes:
             no_metric = copy.deepcopy(c_route)
-            if NMRoute.METRIC in no_metric:
+            no_tableid = copy.deepcopy(c_route)
+            bare_min_route = copy.deepcopy(c_route)
+            if NMRoute.METRIC in bare_min_route:
+                del bare_min_route[NMRoute.METRIC]
                 del no_metric[NMRoute.METRIC]
-            if c_route not in reqd_route and no_metric not in reqd_route:
+            if NMRoute.TABLE_ID in bare_min_route:
+                del bare_min_route[NMRoute.TABLE_ID]
+                del no_tableid[NMRoute.TABLE_ID]
+            if c_route not in reqd_route and \
+                no_metric not in reqd_route and \
+                no_tableid not in reqd_route and \
+                bare_min_route not in reqd_route:
                 c_route[NMRoute.STATE] = NMRoute.STATE_ABSENT
                 routes.append(c_route)
                 logger.info(f'Removing route {c_route}')
