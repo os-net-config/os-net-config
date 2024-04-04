@@ -1951,6 +1951,7 @@ class TestSriovPF(base.TestCase):
 
         def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode="smfs"):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',

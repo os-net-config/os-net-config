@@ -1535,7 +1535,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
         data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
-            Ethernet.SRIOV.TOTAL_VFS: sriov_pf.numvfs}
+            Ethernet.SRIOV.TOTAL_VFS: sriov_pf.numvfs,
+            Ethernet.SRIOV.DRIVERS_AUTOPROBE: sriov_pf.drivers_autoprobe,
+        }
 
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
