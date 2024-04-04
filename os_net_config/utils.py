@@ -393,7 +393,7 @@ def _update_dpdk_map(ifname, pci_address, mac_address, driver):
 
 def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                         link_mode='legacy', vdpa=False, steering_mode=None,
-                        lag_candidate=None):
+                        lag_candidate=None, drivers_autoprobe=True):
     if not noop:
         cur_numvfs = sriov_config.get_numvfs(ifname)
         if cur_numvfs > 0 and cur_numvfs != numvfs:
@@ -403,6 +403,7 @@ def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
         for item in sriov_map:
             if item['device_type'] == 'pf' and item['name'] == ifname:
                 item['numvfs'] = numvfs
+                item['drivers_autoprobe'] = drivers_autoprobe
                 item['vdpa'] = vdpa
                 if promisc is not None:
                     item['promisc'] = promisc
@@ -417,6 +418,7 @@ def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
             new_item['device_type'] = 'pf'
             new_item['name'] = ifname
             new_item['numvfs'] = numvfs
+            new_item['drivers_autoprobe'] = drivers_autoprobe
             new_item['vdpa'] = vdpa
             if promisc is not None:
                 new_item['promisc'] = promisc

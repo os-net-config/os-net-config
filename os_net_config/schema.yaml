@@ -397,6 +397,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             numvfs:
                 $ref: "#/definitions/int_or_param"
+            drivers_autoprobe:
+                $ref: "#/definitions/bool_or_param"
             promisc:
                 $ref: "#/definitions/bool_or_param"
             hotplug:
