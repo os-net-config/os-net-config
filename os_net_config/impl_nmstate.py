@@ -797,7 +797,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 value = get_route_options(route.route_options, 'table')
                 if value:
                     route.route_table = value
-
             if route.metric:
                 route_data[NMRoute.METRIC] = route.metric
             if route.ip_netmask:
@@ -840,6 +839,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data = self.generate_route_table_config(self.route_table_data)
         self.write_config(location, data)
 
+    def rules_table_value_parse(self, table_id):
+        rt_tables = self.get_route_tables()
+        if table_id:
+            if str(table_id).isdigit():
+                return table_id
+            elif table_id in rt_tables:
+                return rt_tables[table_id]
+            else:
+                logger.error(f'Unidentified mapping for table_id '
+                             '{table_id}')
+
     def _parse_ip_rules(self, rule):
         nm_rule_map = {
             'blackhole': {'nm_key': NMRouteRule.ACTION,
@@ -854,7 +864,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             'from': {'nm_key': NMRouteRule.IP_FROM, 'nm_value': None},
             'to': {'nm_key': NMRouteRule.IP_TO, 'nm_value': None},
             'priority': {'nm_key': NMRouteRule.PRIORITY, 'nm_value': None},
-            'table': {'nm_key': NMRouteRule.ROUTE_TABLE, 'nm_value': None}}
+            'table': {'nm_key': NMRouteRule.ROUTE_TABLE, 'nm_value': None,
+                      'nm_parse_value': self.rules_table_value_parse }}
         logger.debug(f"Parse Rule {rule}")
         items = rule.split()
         keyword = items[0]
@@ -881,6 +892,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     if not value:
                         parse_complete = False
                         value = _get_type_value(next(items_iter))
+                        if 'nm_parse_value' in nm_rule_map[item]:
+                            value = nm_rule_map[item]['nm_parse_value'](value)
                     rule_config[nm_rule_map[item]['nm_key']] = value
                 else:
                     msg = f"unhandled ip rule command {rule}"
