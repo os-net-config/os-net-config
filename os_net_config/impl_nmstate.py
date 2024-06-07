@@ -878,7 +878,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             'to': {'nm_key': NMRouteRule.IP_TO, 'nm_value': None},
             'priority': {'nm_key': NMRouteRule.PRIORITY, 'nm_value': None},
             'table': {'nm_key': NMRouteRule.ROUTE_TABLE, 'nm_value': None,
-                      'nm_parse_value': self.rules_table_value_parse }}
+                      'nm_parse_value': self.rules_table_value_parse}}
         logger.debug(f"Parse Rule {rule}")
         items = rule.split()
         keyword = items[0]
@@ -1514,9 +1514,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
         if sriov_pf.link_mode == 'switchdev':
+            logger.info(f'enabling switchdev for sriov pf: {sriov_pf.name}')
             data[Ethtool.CONFIG_SUBTREE] = {}
             data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
                 'hw-tc-offload': True}
+        # Disable offload, in case default is set true
+        else:
+            data[Ethtool.CONFIG_SUBTREE] = {}
+            data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
+                'hw-tc-offload': False}
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
 
