@@ -332,7 +332,7 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
             # Configure switchdev mode when vdpa
             # It has to happen before we set_numvfs
             if vdpa and is_mlnx:
-                configure_switchdev(item['name'])
+                configure_switchdev(item['name'], item['link_mode'])
             set_numvfs(item['name'], item['numvfs'])
             # Configure switchdev, unbind driver and configure vdpa
             if item.get('link_mode') == "switchdev" and is_mlnx:
@@ -373,7 +373,7 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
                                             item.get('steering_mode', 'smfs'))
 
                     # Configure switchdev mode
-                    configure_switchdev(item['name'])
+                    configure_switchdev(item['name'], item['link_mode'])
                     # Add sriovpf to vf_lag_sriov_pfs_list if it's
                     # a linux bond member (lag_candidate)
                     if item.get('lag_candidate', False):
@@ -574,7 +574,7 @@ def trigger_udev_rules():
         raise
 
 
-def configure_switchdev(pf_name):
+def configure_switchdev(pf_name, link_mode='legacy'):
     pf_pci = get_pf_pci(pf_name)
     pf_device_id = get_pf_device_id(pf_name)
     if pf_device_id == "0x1013" or pf_device_id == "0x1015":
@@ -587,12 +587,12 @@ def configure_switchdev(pf_name):
             raise
     try:
         processutils.execute('/usr/sbin/devlink', 'dev', 'eswitch', 'set',
-                             f'pci/{pf_pci}', 'mode', 'switchdev')
+                             f'pci/{pf_pci}', 'mode', f'{link_mode}')
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"{pf_name}: Failed to set mode to switchdev for "
+        logger.error(f"{pf_name}: Failed to set mode to {link_mode} for "
                      f"{pf_pci}: {exc}")
         raise
-    logger.info(f"{pf_name}: Device pci/{pf_pci} set to switchdev mode.")
+    logger.info(f"{pf_name}: Device pci/{pf_pci} set to {link_mode} mode.")
 
     # WA to make sure that the uplink_rep is ready after moving to switchdev,
     # as moving to switchdev will remove the sriov_pf and create uplink
@@ -601,11 +601,15 @@ def configure_switchdev(pf_name):
     _wait_for_uplink_rep_creation(pf_name)
 
     try:
+        if link_mode == 'switchdev':
+            flag = 'on'
+        else:
+            flag = 'off'
         processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
-                             'hw-tc-offload', 'on')
-        logger.info(f"{pf_name}: Enabled \"hw-tc-offload\" for PF.")
+                             'hw-tc-offload', f'{flag}')
+        logger.info(f"{pf_name}: Setting \"hw-tc-offload\" {flag} for PF.")
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"{pf_name}: Failed to enable hw-tc-offload: {exc}")
+        logger.error(f"{pf_name}: Failed to set hw-tc-offload: {exc}")
         raise
 
 
