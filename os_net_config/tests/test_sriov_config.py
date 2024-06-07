@@ -256,7 +256,7 @@ class TestSriovConfig(base.TestCase):
         self.stub_out('os_net_config.common.get_vendor_id',
                       get_vendor_id_stub)
 
-        def configure_switchdev_stub(pf_name):
+        def configure_switchdev_stub(pf_name, link_mode):
             self._save_action('configure_switchdev')
             return
         self.stub_out('os_net_config.sriov_config.configure_switchdev',

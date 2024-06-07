@@ -1333,6 +1333,9 @@ class TestNmstateNetConfig(base.TestCase):
         ethernet:
            sr-iov:
                total-vfs: 10
+        ethtool:
+           feature:
+               hw-tc-offload: False
         ipv4:
             dhcp: False
             enabled: False
@@ -1408,6 +1411,9 @@ class TestNmstateNetConfig(base.TestCase):
                     trust: true
                     vlan-id: 112
                     qos: 4
+          ethtool:
+             feature:
+                hw-tc-offload: False
           ipv4:
               dhcp: False
               enabled: False
@@ -1427,6 +1433,9 @@ class TestNmstateNetConfig(base.TestCase):
                     trust: true
                     vlan-id: 112
                     qos: 4
+          ethtool:
+             feature:
+                hw-tc-offload: False
           ipv4:
               dhcp: False
               enabled: False
@@ -1528,6 +1537,9 @@ class TestNmstateNetConfig(base.TestCase):
                     trust: true
                     vlan-id: 113
                     qos: 5
+          ethtool:
+             feature:
+                hw-tc-offload: False
           ipv4:
               dhcp: False
               enabled: False
@@ -1547,6 +1559,9 @@ class TestNmstateNetConfig(base.TestCase):
                     trust: true
                     vlan-id: 113
                     qos: 5
+          ethtool:
+             feature:
+                hw-tc-offload: False
           ipv4:
               dhcp: False
               enabled: False
