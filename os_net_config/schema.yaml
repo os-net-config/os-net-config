@@ -436,6 +436,8 @@ definitions:
                 $ref: "#/definitions/sriov_link_mode_or_param"
             vdpa:
                 $ref: "#/definitions/bool_or_param"
+            vdpa_queues:
+                $ref: "#/definitions/int_or_param"
             steering_mode:
                 $ref: "#/definitions/sriov_steering_mode_or_param"
             dcb:
