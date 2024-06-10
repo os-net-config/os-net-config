@@ -1672,6 +1672,10 @@ class SriovPF(_BaseOpts):
         link_mode = json.get('link_mode', 'legacy')
         ethtool_opts = json.get('ethtool_opts', None)
         vdpa = json.get('vdpa', False)
+        vdpa_queues = json.get('vdpa_queues', None)
+        if vdpa_queues and not strutils.is_int_like(vdpa_queues):
+            msg = 'vdpa_queues config value must be an integer'
+            raise InvalidConfigException(msg)
         steering_mode = json.get('steering_mode')
         if steering_mode is not None and steering_mode not in ['smfs', 'dmfs']:
             msg = 'Expecting steering_mode to match smfs/dmfs'
