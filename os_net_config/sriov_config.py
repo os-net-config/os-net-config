@@ -344,7 +344,8 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
                         _driver_unbind(vf_pci)
                     else:
                         if vf_pci not in vdpa_devices:
-                            configure_vdpa_vhost_device(vf_pci)
+                            vdpa_queues = item.get('vdpa_queues')
+                            configure_vdpa_vhost_device(vf_pci, vdpa_queues)
                         else:
                             logger.info(
                                 f"{item['name']}: vDPA device already created "
@@ -623,11 +624,22 @@ def get_vdpa_vhost_devices():
     return loads(stdout)['dev']
 
 
-def configure_vdpa_vhost_device(pci):
+def _configure_vdpa_queues(pci, vdpa_queues):
+    processutils.execute('devlink', 'dev', 'param', 'set', pci,
+                         'name', 'enable_eth', 'value', 'false',
+                         'cmode', 'driverinit')
+    processutils.execute('devlink', 'dev', 'reload', pci)
+
+
+def configure_vdpa_vhost_device(pci, vdpa_queues=None):
     logger.info(f"{pci}: Creating vdpa device")
     try:
-        processutils.execute('vdpa', 'dev', 'add', 'name', pci,
-                             'mgmtdev', f'pci/{pci}')
+        pci_path = f'pci/{pci}'
+        _configure_vdpa_queues(pci_path, vdpa_queues)
+        cmd = ['vdpa', 'dev', 'add', 'name', pci, 'mgmtdev', pci_path]
+        if vdpa_queues:
+            cmd.extend(['max_vqp', vdpa_queues])
+        processutils.execute(*cmd)
     except processutils.ProcessExecutionError as exc:
         logger.error(f"{pci}: Failed to create vdpa vhost device: {exc}")
         raise
