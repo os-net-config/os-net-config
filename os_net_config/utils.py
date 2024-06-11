@@ -43,6 +43,23 @@ ExecStart=/usr/bin/os-net-config-sriov
 WantedBy=basic.target
 """
 
+# dcb_config service shall be created and enabled so that the various
+# dcb configurations shall be done during reboot as well using
+# dcb_config.py installed in path /usr/bin/os-net-config-dcb
+_DCB_CONFIG_SERVICE_FILE = \
+    '/etc/systemd/system/os-net-config-dcb-config.service'
+_DCB_CONFIG_DEVICE_CONTENT = """[Unit]
+Description=DCB configuration
+After=NetworkManager
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/os-net-config-dcb
+
+[Install]
+WantedBy=basic.target
+"""
+
 # VPP startup operational configuration file. The content of this file will
 # be executed when VPP starts as if typed from CLI.
 _VPP_EXEC_FILE = '/etc/vpp/vpp-exec'
@@ -67,18 +84,6 @@ class SriovVfNotFoundException(ValueError):
 def write_config(filename, data):
     with open(filename, 'w') as f:
         f.write(str(data))
-
-
-def write_yaml_config(filepath, data):
-    ensure_directory_presence(filepath)
-    with open(filepath, 'w') as f:
-        yaml.safe_dump(data, f, default_flow_style=False)
-
-
-def ensure_directory_presence(filepath):
-    dir_path = os.path.dirname(filepath)
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
 
 
 def is_active_nic(interface_name):
@@ -296,6 +301,24 @@ def get_stored_pci_address(ifname, noop):
                     'ethtool' % ifname)
 
 
+def get_driver(ifname, noop):
+    if not noop:
+        try:
+            out, err = processutils.execute('ethtool', '-i', ifname)
+            if not err:
+                for item in out.split('\n'):
+                    if 'driver' in item:
+                        return item.split(' ')[1]
+        except processutils.ProcessExecutionError:
+            # If ifname is already bound, then ethtool will not be able to
+            # list the device, in which case, binding is already done, proceed
+            # with scripts generation.
+            return
+
+    else:
+        logger.info('Fetch the driver of the interface {ifname} using ethtool')
+
+
 def translate_ifname_to_pci_address(ifname, noop):
     pci_address = get_stored_pci_address(ifname, noop)
     if pci_address is None and not noop:
@@ -365,7 +388,7 @@ def _update_dpdk_map(ifname, pci_address, mac_address, driver):
         new_item['driver'] = driver
         dpdk_map.append(new_item)
 
-    write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
+    common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
 
 
 def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
@@ -404,7 +427,7 @@ def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                 new_item['lag_candidate'] = lag_candidate
             sriov_map.append(new_item)
 
-        write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
 
 
 def _set_vf_fields(vf_name, vlan_id, qos, spoofcheck, trust, state, macaddr,
@@ -464,7 +487,7 @@ def update_sriov_vf_map(pf_name, vfid, vf_name, vlan_id=0, qos=0,
         _clear_empty_values(new_item)
         sriov_map.append(new_item)
 
-    write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
+    common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
 
 
 def _get_vf_name_from_map(pf_name, vfid):
@@ -500,6 +523,23 @@ def nicpart_udev_rules_check():
                     fp.write(line)
             else:
                 fp.write(line)
+
+
+def is_dcb_config_required():
+    if os.path.isfile(common.DCB_CONFIG_FILE):
+        return True
+    return False
+
+
+def configure_dcb_config_service():
+    """Generate the os-net-config-dcb-config.service
+
+     This service shall reconfigure the dcb configuration
+     during reboot of the nodes.
+    """
+    with open(_DCB_CONFIG_SERVICE_FILE, 'w') as f:
+        f.write(_DCB_CONFIG_DEVICE_CONTENT)
+    processutils.execute('systemctl', 'enable', 'os-net-config-dcb-config')
 
 
 def _configure_sriov_config_service():
