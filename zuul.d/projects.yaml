@@ -16,7 +16,7 @@
             nodeset: rdo-centos-9-stream
         - openstack-services-content-provider:
             files: &_files
-              - ^os_net_config/*.py
+              - ^os_net_config/*
         - podified-multinode-edpm-deployment-crc:
             override-checkout: main
             files: *_files
