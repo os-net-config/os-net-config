@@ -24,6 +24,7 @@ from os_net_config import common
 from os_net_config import dcb_netlink
 from os_net_config import objects
 from os_net_config import validator
+from os_net_config import utils
 from oslo_concurrency import processutils
 from pyroute2 import netlink
 from pyroute2.netlink.nlsocket import NetlinkSocket
@@ -523,6 +524,7 @@ def main(argv=sys.argv):
     else:
         # Apply the new DCB configuration
         dcb_apply.apply()
+        utils.configure_dcb_config_service()
         common.logger_level(logger, True, opts.debug)
         dcb_apply.show()
 
