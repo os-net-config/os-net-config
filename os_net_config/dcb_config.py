@@ -510,6 +510,7 @@ def parse_config(user_config_file):
 
 def main(argv=sys.argv):
     opts = parse_opts(argv)
+    common.configure_logger(log_file=True)
     common.logger_level(logger, opts.verbose, opts.debug)
 
     if opts.config_file:
