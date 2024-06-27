@@ -23,8 +23,8 @@ from collections import defaultdict
 from os_net_config import common
 from os_net_config import dcb_netlink
 from os_net_config import objects
-from os_net_config import validator
 from os_net_config import utils
+from os_net_config import validator
 from oslo_concurrency import processutils
 from pyroute2 import netlink
 from pyroute2.netlink.nlsocket import NetlinkSocket
@@ -75,7 +75,7 @@ class DcbAppTable:
     def dump(self, selector):
         s = ["", "", "", "", "", "", "", ""]
 
-        for i in range(len(self.apps)):
+        for i in self.apps.keys():
             if self.apps[i].selector == selector:
                 s[self.apps[i].priority] += '%02d ' % self.apps[i].protocol
 
@@ -91,21 +91,21 @@ class DcbAppTable:
         return msg
 
     def set_values(self, dcb_cfg):
-        for i in range(len(self.apps)):
+        for i in self.apps.keys():
             dcb_cfg.set_ieee_app(self.apps[i].selector,
                                  self.apps[i].priority,
                                  self.apps[i].protocol)
 
     def count_app_selector(self, selector):
         count = 0
-        for i in range(len(self.apps)):
+        for i in self.apps.keys():
             if self.apps[i].selector == selector:
                 count = count + 1
         return count
 
     def del_app_entry(self, dcb_cfg,
                       selector=dcb_netlink.IEEE_8021QAZ_APP_SEL_DSCP):
-        for i in range(len(self.apps)):
+        for i in self.apps.keys():
             if self.apps[i].selector == selector:
                 dcb_cfg.del_ieee_app(self.apps[i].selector,
                                      self.apps[i].priority,
@@ -386,9 +386,8 @@ class DcbApplyConfig():
                         break
                 else:
                     logger.debug(f'Adding {dcb_app.dump()}')
-                    add_app_table.apps[i] = dcb_app
+                    add_app_table.apps.update({i: dcb_app})
                     i += 1
-
             curr_apptable.del_app_entry(dcb_config,
                                         dcb_netlink.IEEE_8021QAZ_APP_SEL_DSCP)
             add_app_table.set_values(dcb_config)
