@@ -401,12 +401,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if Interface.NAME in iface and \
                iface[Interface.NAME] not in exclude_nics:
                 if iface[Interface.STATE] == InterfaceState.IGNORE:
-                    msg=f"Skip cleaning {iface[Interface.NAME]}"
-                    self.__dump_config(state, msg)
+                    logger.info(f"Skip cleaning {iface[Interface.NAME]}")
                     continue
                 iface[Interface.STATE] = InterfaceState.DOWN
                 state = {Interface.KEY: [iface]}
-                self.__dump_config(state,
+                self.__dump_config(iface,
                                    msg=f"Cleaning up {iface[Interface.NAME]}")
                 if not self.noop:
                     netapplier.apply(state, verify_change=True)

@@ -695,6 +695,13 @@ class TestIfcfgNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
 
+        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     steering_mode="smfs"):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      test_update_sriov_pf_map)
+
     def tearDown(self):
         super(TestIfcfgNetConfig, self).tearDown()
         if os.path.isfile(common.SRIOV_CONFIG_FILE):

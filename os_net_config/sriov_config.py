@@ -325,6 +325,8 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
                 if not is_partitioned_pf(item['name']):
                     add_udev_rule_for_legacy_sriov_pf(item['name'],
                                                       item['numvfs'])
+                # Disable flag for legacy mode
+                configure_tc_offload(item['name'], False)
             # When configuring vdpa, we need to configure switchdev before
             # we create the VFs
             is_mlnx = common.is_mellanox_interface(item['name'])
@@ -332,7 +334,7 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
             # Configure switchdev mode when vdpa
             # It has to happen before we set_numvfs
             if vdpa and is_mlnx:
-                configure_switchdev(item['name'], item['link_mode'])
+                configure_switchdev(item['name'])
             set_numvfs(item['name'], item['numvfs'])
             # Configure switchdev, unbind driver and configure vdpa
             if item.get('link_mode') == "switchdev" and is_mlnx:
@@ -374,7 +376,7 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
                                             item.get('steering_mode', 'smfs'))
 
                     # Configure switchdev mode
-                    configure_switchdev(item['name'], item['link_mode'])
+                    configure_switchdev(item['name'])
                     # Add sriovpf to vf_lag_sriov_pfs_list if it's
                     # a linux bond member (lag_candidate)
                     if item.get('lag_candidate', False):
@@ -574,7 +576,7 @@ def trigger_udev_rules():
         raise
 
 
-def configure_switchdev(pf_name, link_mode='legacy'):
+def configure_switchdev(pf_name):
     pf_pci = get_pf_pci(pf_name)
     pf_device_id = get_pf_device_id(pf_name)
     if pf_device_id == "0x1013" or pf_device_id == "0x1015":
@@ -587,30 +589,38 @@ def configure_switchdev(pf_name, link_mode='legacy'):
             raise
     try:
         processutils.execute('/usr/sbin/devlink', 'dev', 'eswitch', 'set',
-                             f'pci/{pf_pci}', 'mode', f'{link_mode}')
+                             f'pci/{pf_pci}', 'mode', 'switchdev')
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"{pf_name}: Failed to set mode to {link_mode} for "
+        logger.error(f"{pf_name}: Failed to set mode to switchdev for "
                      f"{pf_pci}: {exc}")
         raise
-    logger.info(f"{pf_name}: Device pci/{pf_pci} set to {link_mode} mode.")
+    logger.info(f"{pf_name}: Device pci/{pf_pci} set to switchdev mode.")
 
     # WA to make sure that the uplink_rep is ready after moving to switchdev,
     # as moving to switchdev will remove the sriov_pf and create uplink
     # representor, so we need to make sure that uplink representor is ready
     # before proceed
     _wait_for_uplink_rep_creation(pf_name)
+    configure_tc_offload(pf_name, True)
 
-    try:
-        if link_mode == 'switchdev':
-            flag = 'on'
-        else:
-            flag = 'off'
-        processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
-                             'hw-tc-offload', f'{flag}')
-        logger.info(f"{pf_name}: Setting \"hw-tc-offload\" {flag} for PF.")
-    except processutils.ProcessExecutionError as exc:
-        logger.error(f"{pf_name}: Failed to set hw-tc-offload: {exc}")
-        raise
+
+def configure_tc_offload(pf_name, switchdev_mode=False):
+    if switchdev_mode:
+        try:
+            processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
+                                 'hw-tc-offload', 'on')
+            logger.info(f"{pf_name}: Enabled \"hw-tc-offload\" for PF.")
+        except processutils.ProcessExecutionError as exc:
+            logger.error(f"{pf_name}: Failed to enable hw-tc-offload: {exc}")
+            raise
+    else:
+        try:
+            processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
+                                 'hw-tc-offload', 'off')
+            logger.info(f"{pf_name}: Disabled \"hw-tc-offload\" for PF.")
+        except processutils.ProcessExecutionError as exc:
+            logger.error(f"{pf_name}: Failed to disable hw-tc-offload: {exc}")
+            raise
 
 
 def get_vdpa_vhost_devices():
