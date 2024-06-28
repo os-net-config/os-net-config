@@ -694,6 +694,7 @@ class TestIfcfgNetConfig(base.TestCase):
             return True
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
+
         def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
                                      steering_mode="smfs"):
