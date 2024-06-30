@@ -1629,7 +1629,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.debug("----------------------------")
         vf_config = self.prepare_sriov_vf_config()
         apply_data = {}
-        apply_data.update(self.set_ifaces(vf_config))
+        if vf_config and activate:
+            if not self.noop:
+                logger.debug("Applying the VF parameters")
+                self.nmstate_apply(self.set_ifaces(vf_config),
+                                   verify=True)
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)
