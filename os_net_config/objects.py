@@ -527,9 +527,15 @@ class Interface(_BaseOpts):
         linkdelay = json.get('linkdelay', None)
         dcb_config_json = json.get('dcb')
         if dcb_config_json:
-            dcb_config_json['name'] = name
+            nic_mapping = json.get('nic_mapping', None)
+            mapped_nic_names = mapped_nics(nic_mapping)
+            if name in mapped_nic_names:
+                ifname = mapped_nic_names[name]
+            else:
+                ifname = name
+            dcb_config_json['name'] = ifname
             dcb_config = Dcb.from_json(dcb_config_json)
-            common.update_dcb_map(ifname=name, pci_addr=dcb_config.pci_addr,
+            common.update_dcb_map(ifname=ifname, pci_addr=dcb_config.pci_addr,
                                   driver=dcb_config.driver, noop=False,
                                   dscp2prio=dcb_config.dscp2prio)
 
@@ -1679,9 +1685,15 @@ class SriovPF(_BaseOpts):
 
         dcb_config_json = json.get('dcb')
         if dcb_config_json:
-            dcb_config_json['name'] = name
+            nic_mapping = json.get('nic_mapping', None)
+            mapped_nic_names = mapped_nics(nic_mapping)
+            if name in mapped_nic_names:
+                ifname = mapped_nic_names[name]
+            else:
+                ifname = name
+            dcb_config_json['name'] = ifname
             dcb_config = Dcb.from_json(dcb_config_json)
-            common.update_dcb_map(ifname=name, pci_addr=dcb_config.pci_addr,
+            common.update_dcb_map(ifname=ifname, pci_addr=dcb_config.pci_addr,
                                   driver=dcb_config.driver, noop=False,
                                   dscp2prio=dcb_config.dscp2prio)
 
