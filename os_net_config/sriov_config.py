@@ -280,24 +280,6 @@ def udev_monitor_stop(observer):
     observer.stop()
 
 
-def is_partitioned_pf(dev_name: str) -> bool:
-    """Check if any nic-partition(VF) is already used
-
-    Given a PF device, returns True if any VFs of this
-    device are in-use.
-    """
-    sriov_map = common.get_sriov_map()
-    for config in sriov_map:
-        devtype = config.get('device_type', None)
-        if devtype == 'vf':
-            name = config.get('device', {}).get('name')
-            vf_name = config.get('name')
-            if dev_name == name:
-                logger.warning(f"{name} has VF({vf_name}) used by host")
-                return True
-    return False
-
-
 def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
     observer = udev_monitor_setup()
     udev_monitor_start(observer)
@@ -322,9 +304,7 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
             if item.get('link_mode') == "legacy":
                 # Add a udev rule to configure the VF's when PF's are
                 # released by a guest
-                if not is_partitioned_pf(item['name']):
-                    add_udev_rule_for_legacy_sriov_pf(item['name'],
-                                                      item['numvfs'])
+                add_udev_rule_for_legacy_sriov_pf(item['name'], item['numvfs'])
                 # Disable flag for legacy mode
                 configure_tc_offload(item['name'], False)
             # When configuring vdpa, we need to configure switchdev before
@@ -466,9 +446,11 @@ def add_udev_rule_for_sriov_pf(pf_name):
 
 def add_udev_rule_for_legacy_sriov_pf(pf_name, numvfs):
     logger.info(f"{pf_name}: adding udev rules for legacy sriov: {numvfs}")
-    udev_line = f'KERNEL=="{pf_name}", '\
-                f'RUN+="/bin/os-net-config-sriov -n %k:{numvfs}"'
-    pattern = f'KERNEL=="{pf_name}", RUN+="/bin/os-net-config-sriov -n'
+    udev_line = (
+        f'SUBSYSTEM=="net", ACTION=="add|move", KERNEL=="{pf_name}", '
+        f'RUN+="/bin/os-net-config-sriov -n %k:{numvfs}"'
+    )
+    pattern = f'.*KERNEL=="{pf_name}", RUN+="/bin/os-net-config-sriov -n'
     return add_udev_rule(udev_line, _UDEV_LEGACY_RULE_FILE, pattern)
 
 

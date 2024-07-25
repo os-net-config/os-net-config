@@ -28,6 +28,7 @@ from os_net_config import impl_ifcfg
 from os_net_config import impl_iproute
 from os_net_config import impl_nmstate
 from os_net_config import objects
+from os_net_config import sriov_config
 from os_net_config import utils
 from os_net_config import validator
 from os_net_config import version
@@ -329,7 +330,7 @@ def main(argv=sys.argv, main_logger=None):
             restart_ovs = bool(sriovpf_bond_ovs_ports)
             # Avoid ovs restart for os-net-config re-runs, which will
             # dirupt the offload configuration
-            if os.path.exists(utils._SRIOV_CONFIG_SERVICE_FILE):
+            if os.path.exists(sriov_config._UDEV_LEGACY_RULE_FILE):
                 restart_ovs = False
 
             utils.configure_sriov_pfs(

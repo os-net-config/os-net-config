@@ -26,22 +26,8 @@ from os_net_config import sriov_config
 from oslo_concurrency import processutils
 
 logger = logging.getLogger(__name__)
-# sriov_config service shall be created and enabled so that the various
-# SR-IOV PF and VF configurations shall be done during reboot as well using
-# sriov_config.py installed in path /usr/bin/os-net-config-sriov
+# sriov_config service shall be deleted if present.
 _SRIOV_CONFIG_SERVICE_FILE = "/etc/systemd/system/sriov_config.service"
-_SRIOV_CONFIG_DEVICE_CONTENT = """[Unit]
-Description=SR-IOV numvfs configuration
-After=systemd-udev-settle.service openibd.service
-Before=network-pre.target  openvswitch.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/os-net-config-sriov
-
-[Install]
-WantedBy=basic.target
-"""
 
 # dcb_config service shall be created and enabled so that the various
 # dcb configurations shall be done during reboot as well using
@@ -499,32 +485,6 @@ def _get_vf_name_from_map(pf_name, vfid):
             return item['name']
 
 
-def nicpart_udev_rules_check():
-    """Clean-up UDEV rules on initial deployment
-
-     After writing sriov_config.yaml file, clean-up
-     UDEV rule(s) of PF for which VFs are used by host
-    """
-    if not os.path.exists(sriov_config._UDEV_LEGACY_RULE_FILE):
-        return
-
-    udev = '^KERNEL=="(.*)", RUN.*'
-    udev_reg = re.compile(udev, 0)
-
-    with open(sriov_config._UDEV_LEGACY_RULE_FILE, "r") as fp:
-        rules = fp.readlines()
-
-    with open(sriov_config._UDEV_LEGACY_RULE_FILE, "w") as fp:
-        for line in rules:
-            match = udev_reg.match(line)
-            if match:
-                dev_name = match.group(1)
-                if not sriov_config.is_partitioned_pf(dev_name):
-                    fp.write(line)
-            else:
-                fp.write(line)
-
-
 def is_dcb_config_required():
     if os.path.isfile(common.DCB_CONFIG_FILE):
         return True
@@ -543,14 +503,14 @@ def configure_dcb_config_service():
 
 
 def _configure_sriov_config_service():
-    """Generate the sriov_config.service
+    """Disable and delete the sriov_config service file.
 
-     sriov_config service shall configure the numvfs for the SriovPF nics
-     during reboot of the nodes.
+    This service is now deprecated and replaced with UDEV rules.
     """
-    with open(_SRIOV_CONFIG_SERVICE_FILE, 'w') as f:
-        f.write(_SRIOV_CONFIG_DEVICE_CONTENT)
-    processutils.execute('systemctl', 'enable', 'sriov_config')
+    if os.path.exists(_SRIOV_CONFIG_SERVICE_FILE):
+        processutils.execute('systemctl', 'disable', 'sriov_config')
+        os.unlink(_SRIOV_CONFIG_SERVICE_FILE)
+        processutils.execute('systemctl', 'daemon-reload')
 
 
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):
@@ -564,7 +524,6 @@ def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):
 def configure_sriov_vfs():
     logger.info("Configuring VFs now")
     sriov_config.configure_sriov_vf()
-    nicpart_udev_rules_check()
 
 
 def get_vf_devname(pf_name, vfid):
