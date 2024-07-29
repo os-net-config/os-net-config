@@ -73,6 +73,7 @@ _SYS_BUS_PCI_DEV = '/sys/bus/pci/devices'
 SYS_CLASS_NET = '/sys/class/net'
 _LOG_FILE = '/var/log/os-net-config.log'
 MLNX_VENDOR_ID = "0x15b3"
+MAC_TABLE_SIZE = 50000
 
 logger = logging.getLogger(__name__)
 

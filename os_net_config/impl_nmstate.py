@@ -1264,6 +1264,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             }
         data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {},
                            OvsDB.OTHER_CONFIG: {}}
+        bridge.ovs_extra.append("set bridge %s other-config:mac-table-size=%d"
+                                % (bridge.name, common.MAC_TABLE_SIZE))
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
             bridge.ovs_extra.append("set bridge %s other_config:hwaddr=%s" %
