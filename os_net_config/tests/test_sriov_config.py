@@ -33,8 +33,12 @@ class TestSriovConfig(base.TestCase):
         super(TestSriovConfig, self).setUp()
         rand = str(int(random.random() * 100000))
 
+        def execute_noop(*args, **kw):
+            pass
+
         tmpdir = tempfile.mkdtemp()
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        self.stub_out('oslo_concurrency.processutils.execute', execute_noop)
 
         common._LOG_FILE = '/tmp/' + rand + 'os_net_config.log'
         sriov_config._UDEV_RULE_FILE = '/tmp/' + rand + 'etc_udev_rules.d'\
