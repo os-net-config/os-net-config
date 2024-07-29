@@ -709,7 +709,7 @@ class TestNmstateNetConfig(base.TestCase):
                 - name: br-ctlplane-p
         ovs-db:
             external_ids: {}
-            other_config: {}
+            other_config: { mac-table-size: 50000 }
         state: up
         """
 
@@ -760,7 +760,7 @@ class TestNmstateNetConfig(base.TestCase):
                 - name: br-ctlplane2-p
         ovs-db:
             external_ids: {}
-            other_config: {}
+            other_config: { mac-table-size: 50000 }
         state: up
         """
 
@@ -805,7 +805,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         ovs-db:
             external_ids: {}
-            other_config: {}
+            other_config: { mac-table-size: 50000 }
         """
         interface1 = objects.Interface('em2')
         interface2 = objects.Interface('em3')
@@ -853,6 +853,7 @@ class TestNmstateNetConfig(base.TestCase):
             external_ids:
                 bridge-id: br-ctlplane
             other_config:
+                mac-table-size: 50000
                 stp-priority: '0x7800'
         state: up
         """
@@ -896,6 +897,7 @@ class TestNmstateNetConfig(base.TestCase):
             external_ids:
                 bridge-id: br-ctlplane
             other_config:
+                mac-table-size: 50000
                 stp-priority: '0x7800'
         state: up
         """
@@ -935,7 +937,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         ovs-db:
             external_ids: {}
-            other_config: {}
+            other_config: { mac-table-size: 50000 }
         """
         expected_bond0_config = """
       name: bond0
@@ -1049,7 +1051,7 @@ class TestNmstateNetConfig(base.TestCase):
                 - name: br-ctlplane-p
         ovs-db:
             external_ids: {}
-            other_config: {}
+            other_config: { mac-table-size: 50000 }
         state: up
         type: ovs-bridge
         """
@@ -1115,7 +1117,7 @@ class TestNmstateNetConfig(base.TestCase):
                 - name: br-ctlplane-p
         ovs-db:
             external_ids: {}
-            other_config: {}
+            other_config: { mac-table-size: 50000 }
         state: up
         type: ovs-bridge
         """
@@ -1143,7 +1145,7 @@ class TestNmstateNetConfig(base.TestCase):
              - name: br-phys-0-p
         ovs-db:
            external_ids: {}
-           other_config: {}
+           other_config: { mac-table-size: 50000 }
         state: up
         type: ovs-bridge
         """
@@ -1161,7 +1163,7 @@ class TestNmstateNetConfig(base.TestCase):
              - name: br-ex-physnet1-patch
         ovs-db:
            external_ids: {}
-           other_config: {}
+           other_config: { mac-table-size: 50000 }
         state: up
         type: ovs-bridge
         """
@@ -1468,7 +1470,7 @@ class TestNmstateNetConfig(base.TestCase):
                 - name: br-bond-p
         ovs-db:
             external_ids: {}
-            other_config: {}
+            other_config: { mac-table-size: 50000 }
         """
 
         vf_config = self.provider.prepare_sriov_vf_config()
