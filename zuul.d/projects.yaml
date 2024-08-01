@@ -14,6 +14,10 @@
       jobs:
         - tox-linters:
             nodeset: rdo-centos-9-stream
+        - tox-py39:
+            nodeset: rdo-centos-9-stream
+        - tox-pep8:
+            nodeset: rdo-centos-9-stream
         - openstack-services-content-provider:
             files: &_files
               - ^os_net_config/*
