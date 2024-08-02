@@ -19,6 +19,7 @@
         - tox-pep8:
             nodeset: rdo-centos-9-stream
         - openstack-services-content-provider:
+            override-checkout: main
             files: &_files
               - ^os_net_config/*
         - podified-multinode-edpm-deployment-crc:
