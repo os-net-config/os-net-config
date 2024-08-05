@@ -15,6 +15,7 @@
 # under the License.
 
 import argparse
+import logging
 import os
 import sys
 import yaml
@@ -42,7 +43,7 @@ IEEE_8021QAZ_TSA_STRICT = 0
 IEEE_8021QAZ_TSA_ETS = 2
 IEEE_8021QAZ_TSA_VENDOR = 255
 
-logger = common.configure_logger()
+logger = logging.getLogger(__name__)
 
 
 class DCBErrorException(ValueError):
@@ -511,7 +512,7 @@ def parse_config(user_config_file):
 
 def main(argv=sys.argv):
     opts = parse_opts(argv)
-    common.configure_logger(log_file=True)
+    logger = common.configure_logger(log_file=True)
     common.logger_level(logger, opts.verbose, opts.debug)
 
     if opts.config_file:

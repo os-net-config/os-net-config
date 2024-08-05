@@ -315,7 +315,11 @@ class NetConfig(object):
         """
         logger.info('%s%s' % (self.log_prefix, msg))
         if not self.noop:
-            processutils.execute(cmd, *args, **kwargs)
+            out, err = processutils.execute(cmd, *args, **kwargs)
+            if err:
+                logger.error(f"stderr : {err}")
+            if out:
+                logger.debug(f"stdout : {out}")
 
     def write_config(self, filename, data, msg=None):
         msg = msg or "Writing config %s" % filename
