@@ -22,6 +22,7 @@
 # An entry point os-net-config-sriov is added for invocation of this module.
 
 import argparse
+import logging
 import os
 import pyudev
 import queue
@@ -34,7 +35,7 @@ from os_net_config import common
 from os_net_config import sriov_bind_config
 from oslo_concurrency import processutils
 
-logger = common.configure_logger()
+logger = logging.getLogger(__name__)
 
 _UDEV_RULE_FILE = '/etc/udev/rules.d/80-persistent-os-net-config.rules'
 _UDEV_LEGACY_RULE_FILE = '/etc/udev/rules.d/70-os-net-config-sriov.rules'
@@ -821,18 +822,17 @@ def parse_opts(argv):
     return opts
 
 
-def main(argv=sys.argv, main_logger=None):
+def main(argv=sys.argv):
     opts = parse_opts(argv)
-    if not main_logger:
-        main_logger = common.configure_logger(log_file=True)
-    common.logger_level(main_logger, opts.verbose, opts.debug)
+    logger = common.configure_logger(log_file=True)
+    common.logger_level(logger, opts.verbose, opts.debug)
 
     if opts.numvfs:
         if re.match(r"^\w+:\d+$", opts.numvfs):
             device_name, numvfs = opts.numvfs.split(':')
             set_numvfs(device_name, int(numvfs))
         else:
-            main_logger.error(f"Invalid arguments for --numvfs {opts.numvfs}")
+            logger.error(f"Invalid arguments for --numvfs {opts.numvfs}")
             return 1
     else:
         # Configure the PF's
