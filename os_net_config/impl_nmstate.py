@@ -403,7 +403,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if iface[Interface.STATE] == InterfaceState.IGNORE:
                     logger.info(f"Skip cleaning {iface[Interface.NAME]}")
                     continue
-                iface[Interface.STATE] = InterfaceState.DOWN
+                iface[Interface.STATE] = InterfaceState.ABSENT
                 state = {Interface.KEY: [iface]}
                 self.__dump_config(iface,
                                    msg=f"Cleaning up {iface[Interface.NAME]}")
