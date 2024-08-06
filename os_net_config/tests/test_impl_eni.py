@@ -325,6 +325,7 @@ class TestENINetConfigApply(base.TestCase):
             if args[0] == '/sbin/ifup':
                 self.ifup_interface_names.append(args[1])
             pass
+            return ('stdout', 'stderr')
 
         self.stub_out('oslo_concurrency.processutils.execute', test_execute)
 
@@ -379,6 +380,7 @@ class TestENINetConfigApply(base.TestCase):
             raise processutils.ProcessExecutionError('Test stderr',
                                                      'Test stdout',
                                                      str(kwargs))
+        return ('stdout', 'stderr')
 
     def test_interface_failure(self):
         self.stub_out('oslo_concurrency.processutils.execute',

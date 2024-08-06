@@ -2297,6 +2297,7 @@ class TestIfcfgNetConfigApply(base.TestCase):
             elif args[0] == '/sbin/ip' or args[0] == '/usr/sbin/ip':
                 self.ip_reconfigure_commands.append(' '.join(args[1:]))
             pass
+            return ('stdout', 'stderr')
         self.stub_out('oslo_concurrency.processutils.execute', test_execute)
 
         def stub_is_ovs_installed():
@@ -2846,6 +2847,7 @@ class TestIfcfgNetConfigApply(base.TestCase):
             raise processutils.ProcessExecutionError('Test stderr',
                                                      'Test stdout',
                                                      str(kwargs))
+        return ('stdout', 'stderr')
 
     def test_interface_failure(self):
         self.stub_out('oslo_concurrency.processutils.execute',
