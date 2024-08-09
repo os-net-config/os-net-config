@@ -1,0 +1,24 @@
+network_config:
+  -
+    type: sriov_pf
+    name: ens1f0np0
+    numvfs: 4
+    use_dhcp: false
+    dcb:
+      dscp2prio:
+        # Add the dscp configs.
+        # It requires priority and protocol
+        - priority: 5
+          protocol: 45
+        - priority: 5
+          protocol: 46
+        - priority: 6
+          protocol: 47
+  -
+    type: sriov_pf
+    name: ens1f1np1
+    numvfs: 4
+    use_dhcp: false
+    dcb:
+      # Remove the dscp configurations
+      dscp2prio: []
