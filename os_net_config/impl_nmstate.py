@@ -247,6 +247,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to add
         """
+        logger.info(f'VF Config for vfid {sriov_vf.vfid} '
+                    f'device {sriov_vf.device} Trust={sriov_vf.trust} '
+                    f'vlan={sriov_vf.vlan_id} Qos={sriov_vf.qos}'
+                    f'Max Rate= {sriov_vf.max_tx_rate} '
+                    f'Min Rate={sriov_vf.min_tx_rate}'
+                    f'Spoofcheck={sriov_vf.spoofcheck}')
         vf_config = {}
         vf_config[Ethernet.SRIOV.VFS.ID] = sriov_vf.vfid
         if sriov_vf.macaddr:
@@ -270,6 +276,21 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if sriov_vf.qos:
                 vf_config[Ethernet.SRIOV.VFS.QOS] = sriov_vf.qos
         return vf_config
+
+    def update_vf_config(self, sriov_vf):
+        if sriov_vf.device in self.sriov_vf_data:
+            logger.info(f'Updating the VF data for VF: {sriov_vf.vfid} '
+                        f'Device: {sriov_vf.device} Trust: {sriov_vf.trust} '
+                        f'Spoofcheck: {sriov_vf.spoofcheck} '
+                        f'Vlan: {sriov_vf.vlan_id} Qos: {sriov_vf.qos} '
+                        f'Min Rate: {sriov_vf.min_tx_rate} '
+                        f'Max Rate: {sriov_vf.max_tx_rate}')
+            vf_config = self.get_vf_config(sriov_vf)
+            self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
+        else:
+            msg = (f'SR-IOV PF is not configured on {sriov_vf.device}, '
+                   f'while the VF {sriov_vf.vfid} is used')
+            raise objects.InvalidConfigException(msg)
 
     def prepare_sriov_vf_config(self):
         iface_schema = []
@@ -785,6 +806,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if base_opt.dhclient_args:
             msg = "DHCP Client args not supported in impl_nmstate, ignoring"
             logger.error(msg)
+        if hasattr(base_opt, 'members'):
+            for member in base_opt.members:
+                if isinstance(member, objects.SriovVF):
+                    self.update_vf_config(member)
         if base_opt.dns_servers:
             self._add_dns_servers(base_opt.dns_servers)
         if base_opt.domain:
