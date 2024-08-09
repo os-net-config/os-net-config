@@ -26,6 +26,7 @@ from os_net_config import dcb_config
 from os_net_config import impl_eni
 from os_net_config import impl_ifcfg
 from os_net_config import impl_iproute
+from os_net_config import impl_nmstate
 from os_net_config import objects
 from os_net_config import utils
 from os_net_config import validator
@@ -54,7 +55,7 @@ def parse_opts(argv):
                         nargs='*', default=None)
     parser.add_argument('-p', '--provider', metavar='PROVIDER',
                         help="""The provider to use. """
-                        """One of: ifcfg, eni, iproute.""",
+                        """One of: ifcfg, eni, nmstate, iproute.""",
                         default=None)
     parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
                         help="""The root directory of the filesystem.""",
@@ -123,7 +124,7 @@ def parse_opts(argv):
     return opts
 
 
-def check_configure_sriov(obj):
+def _is_sriovpf_obj_found(obj):
     configure_sriov = False
     if isinstance(obj, objects.SriovPF):
         configure_sriov = True
@@ -133,7 +134,7 @@ def check_configure_sriov(obj):
                 configure_sriov = True
                 break
             else:
-                configure_sriov = check_configure_sriov(member)
+                configure_sriov = _is_sriovpf_obj_found(member)
     return configure_sriov
 
 
@@ -164,7 +165,7 @@ def main(argv=sys.argv, main_logger=None):
     main_logger.info(f"Using config file at: {opts.config_file}")
     iface_array = []
     configure_sriov = False
-    sriovpf_member_of_bond_ovs_port_list = []
+    sriovpf_bond_ovs_ports = []
     provider = None
     if opts.provider:
         if opts.provider == 'ifcfg':
@@ -176,6 +177,9 @@ def main(argv=sys.argv, main_logger=None):
         elif opts.provider == 'iproute':
             provider = impl_iproute.IPRouteNetConfig(noop=opts.noop,
                                                      root_dir=opts.root_dir)
+        elif opts.provider == 'nmstate':
+            provider = impl_nmstate.NmstateNetConfig(noop=opts.noop,
+                                                     root_dir=opts.root_dir)
         else:
             main_logger.error("Invalid provider specified.")
             return 1
@@ -183,9 +187,11 @@ def main(argv=sys.argv, main_logger=None):
         if os.path.exists('%s/etc/sysconfig/network-scripts/' % opts.root_dir):
             provider = impl_ifcfg.IfcfgNetConfig(noop=opts.noop,
                                                  root_dir=opts.root_dir)
+            opts.provider = "ifcfg"
         elif os.path.exists('%s/etc/network/' % opts.root_dir):
             provider = impl_eni.ENINetConfig(noop=opts.noop,
                                              root_dir=opts.root_dir)
+            opts.provider = "eni"
         else:
             main_logger.error("Unable to set provider for this operating "
                               "system.")
@@ -292,12 +298,12 @@ def main(argv=sys.argv, main_logger=None):
             obj = objects.object_from_json(iface_json)
         except utils.SriovVfNotFoundException:
             continue
-        if check_configure_sriov(obj):
+        if _is_sriovpf_obj_found(obj):
             configure_sriov = True
             provider.add_object(obj)
             # Look for the presence of SriovPF as members of LinuxBond and that
             # LinuxBond is member of OvsBridge
-            sriovpf_member_of_bond_ovs_port_list.extend(
+            sriovpf_bond_ovs_ports.extend(
                 get_sriovpf_member_of_bond_ovs_port(obj))
 
     # After reboot, shared_block for pf interface in switchdev mode will be
@@ -306,8 +312,8 @@ def main(argv=sys.argv, main_logger=None):
     # manages the slaves.
     # So as a workaround for that case we are disabling IPv6 over pfs so that
     # OVS creates the shared_blocks ingress
-    if sriovpf_member_of_bond_ovs_port_list:
-        disable_ipv6_for_netdevs(sriovpf_member_of_bond_ovs_port_list)
+    if sriovpf_bond_ovs_ports:
+        disable_ipv6_for_netdevs(sriovpf_bond_ovs_ports)
 
     if configure_sriov:
         # Apply the ifcfgs for PFs now, so that NM_CONTROLLED=no is applied
@@ -317,9 +323,10 @@ def main(argv=sys.argv, main_logger=None):
         # os-net-config skips the ifup <ifcfg-pfs>, since the ifcfgs for PFs
         # wouldn't have changed.
         pf_files_changed = provider.apply(cleanup=opts.cleanup,
-                                          activate=not opts.no_activate)
-        if not opts.noop:
-            restart_ovs = bool(sriovpf_member_of_bond_ovs_port_list)
+                                          activate=not opts.no_activate,
+                                          config_rules_dns=False)
+        if opts.provider == 'ifcfg' and not opts.noop:
+            restart_ovs = bool(sriovpf_bond_ovs_ports)
             # Avoid ovs restart for os-net-config re-runs, which will
             # dirupt the offload configuration
             if os.path.exists(utils._SRIOV_CONFIG_SERVICE_FILE):
@@ -339,10 +346,10 @@ def main(argv=sys.argv, main_logger=None):
         except utils.SriovVfNotFoundException:
             if not opts.noop:
                 raise
-        if not check_configure_sriov(obj):
+        if not _is_sriovpf_obj_found(obj):
             provider.add_object(obj)
 
-    if configure_sriov and not opts.noop:
+    if opts.provider == 'ifcfg' and configure_sriov and not opts.noop:
         utils.configure_sriov_vfs()
 
     files_changed = provider.apply(cleanup=opts.cleanup,

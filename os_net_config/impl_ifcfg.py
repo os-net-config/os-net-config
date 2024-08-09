@@ -623,6 +623,14 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 data += "RX_QUEUE=%i\n" % base_opt.rx_queue
                 ovs_extra.append("set Interface $DEVICE " +
                                  "options:n_rxq=$RX_QUEUE")
+            if base_opt.rx_queue_size:
+                data += "RX_QUEUE_SIZE=%i\n" % base_opt.rx_queue_size
+                ovs_extra.append("set Interface $DEVICE " +
+                                 "options:n_rxq_desc=$RX_QUEUE_SIZE")
+            if base_opt.tx_queue_size:
+                data += "TX_QUEUE_SIZE=%i\n" % base_opt.tx_queue_size
+                ovs_extra.append("set Interface $DEVICE " +
+                                 "options:n_txq_desc=$TX_QUEUE_SIZE")
         elif isinstance(base_opt, objects.OvsDpdkBond):
             ovs_extra.extend(base_opt.ovs_extra)
             # Referring to bug:1643026, the below commenting of the interfaces,
@@ -659,6 +667,17 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     for member in base_opt.members:
                         ovs_extra.append("set Interface %s options:n_rxq="
                                          "$RX_QUEUE" % member.name)
+                if base_opt.rx_queue_size:
+                    data += "RX_QUEUE_SIZE=%i\n" % base_opt.rx_queue_size
+                    for member in base_opt.members:
+                        ovs_extra.append("set Interface %s options:n_rxq_desc="
+                                         "$RX_QUEUE_SIZE" % member.name)
+                if base_opt.tx_queue_size:
+                    data += "TX_QUEUE_SIZE=%i\n" % base_opt.tx_queue_size
+                    for member in base_opt.members:
+                        ovs_extra.append("set Interface %s options:n_txq_desc="
+                                         "$TX_QUEUE_SIZE" % member.name)
+
             if base_opt.ovs_options:
                 data += "OVS_OPTIONS=\"%s\"\n" % base_opt.ovs_options
             ovs_extra.extend(base_opt.ovs_extra)
@@ -1079,11 +1098,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         logger.info('adding sriov pf: %s' % sriov_pf.name)
         data = self._add_common(sriov_pf)
         logger.debug('sriov pf data: %s' % data)
-        utils.update_sriov_pf_map(sriov_pf.name, sriov_pf.numvfs,
-                                  self.noop, promisc=sriov_pf.promisc,
-                                  link_mode=sriov_pf.link_mode,
-                                  vdpa=sriov_pf.vdpa,
-                                  steering_mode=sriov_pf.steering_mode)
         self.interface_data[sriov_pf.name] = data
         if sriov_pf.routes:
             self._add_routes(sriov_pf.name, sriov_pf.routes)
@@ -1293,7 +1307,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         % (id, route_tables[id])
         return data
 
-    def apply(self, cleanup=False, activate=True):
+    def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
 
         :param cleanup: A boolean which indicates whether any undefined
@@ -1303,6 +1317,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             be activated by stopping/starting interfaces
             NOTE: if cleanup is specified we will deactivate interfaces even
             if activate is false
+        :param config_rules_dns: A boolean that indicates if the rules should
+            be applied. This makes sure that the rules are configured only if
+            config_rules_dns is set to True.
         :returns: a dict of the format: filename/data which contains info
             for each file that was changed (or would be changed if in --noop
             mode).

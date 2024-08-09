@@ -55,6 +55,8 @@ def object_from_json(json):
         return OvsUserBridge.from_json(json)
     elif obj_type == "ovs_bond":
         return OvsBond.from_json(json)
+    elif obj_type == "ovs_interface":
+        return OvsInterface.from_json(json)
     elif obj_type == "linux_bond":
         return LinuxBond.from_json(json)
     elif obj_type == "team":
@@ -239,12 +241,13 @@ class Route(object):
     """Base class for network routes."""
 
     def __init__(self, next_hop, ip_netmask="", default=False,
-                 route_options="", route_table=None):
+                 route_options="", route_table=None, metric=None):
         self.next_hop = next_hop
         self.ip_netmask = ip_netmask
         self.default = default
         self.route_options = route_options
         self.route_table = route_table
+        self.metric = metric
 
     @staticmethod
     def from_json(json):
@@ -269,7 +272,9 @@ class Route(object):
         default = strutils.bool_from_string(str(json.get('default', False)))
         route_options = json.get('route_options', "")
         route_table = json.get('table', "")
-        return Route(next_hop, ip_netmask, default, route_options, route_table)
+        metric = json.get('metric', "")
+        return Route(next_hop, ip_netmask, default,
+                     route_options, route_table, metric)
 
 
 class Address(object):
@@ -605,6 +610,39 @@ class IvsInterface(_BaseOpts):
         vlan_id = _get_required_field(json, 'vlan_id', 'IvsInterface')
         opts = _BaseOpts.base_opts_from_json(json)
         return IvsInterface(vlan_id, name, *opts)
+
+
+class OvsInterface(_BaseOpts):
+    """Base class for ovs interfaces.
+
+       Nmstate requires an OvS interafce to be attached to the bridge where
+       the settings like MTU, IP address could be applied. This interface is
+       created internaly to accomodate the same. Also ovs_extra / ovs_options
+       support is also added along with
+    """
+
+    def __init__(self, name, use_dhcp=False, use_dhcpv6=False, addresses=None,
+                 routes=None, rules=None, mtu=None, primary=False,
+                 nic_mapping=None, persist_mapping=False, defroute=True,
+                 dhclient_args=None, dns_servers=None, nm_controlled=False,
+                 onboot=True, domain=None, hwaddr=None):
+        addresses = addresses or []
+        routes = routes or []
+        rules = rules or []
+        dns_servers = dns_servers or []
+        super(OvsInterface, self).__init__(
+            name, use_dhcp, use_dhcpv6, addresses,
+            routes, rules, mtu, primary,
+            nic_mapping, persist_mapping, defroute,
+            dhclient_args, dns_servers,
+            nm_controlled, onboot, domain)
+        self.hwaddr = hwaddr
+
+    @staticmethod
+    def from_json(json):
+        name = _get_required_field(json, 'name', 'OvsInterface')
+        opts = _BaseOpts.base_opts_from_json(json)
+        return OvsInterface(name, *opts)
 
 
 class NfvswitchInternal(_BaseOpts):
@@ -1355,7 +1393,8 @@ class OvsDpdkPort(_BaseOpts):
                  nic_mapping=None, persist_mapping=False, defroute=True,
                  dhclient_args=None, dns_servers=None, nm_controlled=False,
                  onboot=True, domain=None, members=None, driver='vfio-pci',
-                 ovs_options=None, ovs_extra=None, rx_queue=None):
+                 ovs_options=None, ovs_extra=None, rx_queue=None,
+                 rx_queue_size=None, tx_queue_size=None):
 
         check_ovs_installed(self.__class__.__name__)
 
@@ -1370,6 +1409,8 @@ class OvsDpdkPort(_BaseOpts):
         self.ovs_extra = format_ovs_extra(self, ovs_extra)
         self.driver = driver
         self.rx_queue = rx_queue
+        self.rx_queue_size = rx_queue_size
+        self.tx_queue_size = tx_queue_size
 
     @staticmethod
     def update_vf_config(iface, driver=None):
@@ -1441,6 +1482,8 @@ class OvsDpdkPort(_BaseOpts):
             raise InvalidConfigException(msg)
 
         rx_queue = json.get('rx_queue', None)
+        rx_queue_size = json.get('rx_queue_size', None)
+        tx_queue_size = json.get('tx_queue_size', None)
         ovs_options = json.get('ovs_options', [])
         ovs_options = ['options:%s' % opt for opt in ovs_options]
         ovs_extra = json.get('ovs_extra', [])
@@ -1455,7 +1498,9 @@ class OvsDpdkPort(_BaseOpts):
                            nm_controlled=nm_controlled, onboot=onboot,
                            domain=domain, members=members, driver=driver,
                            ovs_options=ovs_options,
-                           ovs_extra=ovs_extra, rx_queue=rx_queue)
+                           ovs_extra=ovs_extra, rx_queue=rx_queue,
+                           rx_queue_size=rx_queue_size,
+                           tx_queue_size=tx_queue_size)
 
 
 class SriovVF(_BaseOpts):
@@ -1589,6 +1634,11 @@ class SriovPF(_BaseOpts):
         self.ethtool_opts = ethtool_opts
         self.vdpa = vdpa
         self.steering_mode = steering_mode
+        utils.update_sriov_pf_map(self.name, self.numvfs, False,
+                                  promisc=self.promisc,
+                                  link_mode=self.link_mode,
+                                  vdpa=self.vdpa,
+                                  steering_mode=self.steering_mode)
 
     @staticmethod
     def get_on_off(config):
@@ -1649,7 +1699,8 @@ class OvsDpdkBond(_BaseOpts):
                  members=None, ovs_options=None, ovs_extra=None,
                  nic_mapping=None, persist_mapping=False, defroute=True,
                  dhclient_args=None, dns_servers=None, nm_controlled=False,
-                 onboot=True, domain=None, rx_queue=None):
+                 onboot=True, domain=None, rx_queue=None,
+                 rx_queue_size=None, tx_queue_size=None):
 
         check_ovs_installed(self.__class__.__name__)
 
@@ -1663,6 +1714,8 @@ class OvsDpdkBond(_BaseOpts):
         self.ovs_options = ovs_options
         self.ovs_extra = format_ovs_extra(self, ovs_extra)
         self.rx_queue = rx_queue
+        self.rx_queue_size = rx_queue_size
+        self.tx_queue_size = tx_queue_size
 
         for member in self.members:
             if member.primary:
@@ -1686,6 +1739,8 @@ class OvsDpdkBond(_BaseOpts):
          onboot, domain) = _BaseOpts.base_opts_from_json(
              json, include_primary=False)
         rx_queue = json.get('rx_queue', None)
+        rx_queue_size = json.get('rx_queue_size', None)
+        tx_queue_size = json.get('tx_queue_size', None)
         ovs_options = json.get('ovs_options')
         ovs_extra = json.get('ovs_extra', [])
         if not isinstance(ovs_extra, list):
@@ -1718,7 +1773,9 @@ class OvsDpdkBond(_BaseOpts):
                            defroute=defroute, dhclient_args=dhclient_args,
                            dns_servers=dns_servers,
                            nm_controlled=nm_controlled, onboot=onboot,
-                           domain=domain, rx_queue=rx_queue)
+                           domain=domain, rx_queue=rx_queue,
+                           rx_queue_size=rx_queue_size,
+                           tx_queue_size=tx_queue_size)
 
 
 class VppInterface(_BaseOpts):

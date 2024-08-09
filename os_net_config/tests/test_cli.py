@@ -47,6 +47,13 @@ class TestCli(base.TestCase):
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
 
+        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     steering_mode="smfs"):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      test_update_sriov_pf_map)
+
     def tearDown(self):
         super(TestCli, self).tearDown()
         if os.path.isfile(common._LOG_FILE):
@@ -262,18 +269,18 @@ class TestCli(base.TestCase):
                       test_get_vf_devname)
         self.stub_out('os_net_config.utils.get_pci_address',
                       test_get_pci_address)
-        ivs_yaml = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.yaml')
-        ivs_json = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.json')
+        pf_yaml = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.yaml')
+        pf_json = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
-                                           '-c %s' % ivs_yaml)
+                                           '-c %s' % pf_yaml)
         self.assertEqual('', stderr)
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         sriov_config_yaml = yaml.safe_load(contents)
         os.remove(common.SRIOV_CONFIG_FILE)
         stdout_json, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
-                                           '-c %s' % ivs_json)
+                                           '-c %s' % pf_json)
         self.assertEqual('', stderr)
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         sriov_config_json = yaml.safe_load(contents)

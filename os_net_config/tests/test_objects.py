@@ -1921,6 +1921,16 @@ class TestNicMapping(base.TestCase):
 
 class TestSriovPF(base.TestCase):
 
+    def setUp(self):
+        super(TestSriovPF, self).setUp()
+
+        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     steering_mode="smfs"):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      test_update_sriov_pf_map)
+
     def test_from_json_numvfs(self):
         data = '{"type": "sriov_pf", "name": "em1", "numvfs": 16,' \
                '"use_dhcp": false, "promisc": false}'
