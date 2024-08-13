@@ -134,8 +134,8 @@ class DcbMessage(dcb_netlink.dcbmsg):
 
 
 class DcbConfig():
-    def __init__(self, iface_name):
-        self.iface_name = iface_name
+    def __init__(self, device):
+        self.device = device
         self._seq = 0
         self.nlsock = NetlinkSocket(family=netlink.NETLINK_ROUTE)
         self.nlsock.bind()
@@ -157,7 +157,7 @@ class DcbConfig():
         seq = self.seq()
         msg.set_header(cmd=cmd, msg_type=msg_type,
                        seq=seq)
-        iface_attr = ['DCB_ATTR_IFNAME', self.iface_name]
+        iface_attr = ['DCB_ATTR_IFNAME', self.device]
         msg.set_attr(attr=[iface_attr] + attr)
         msg.encode()
         try:
@@ -166,7 +166,7 @@ class DcbConfig():
             self.nlsock.sendto(msg.data, (0, 0))
         except Exception:
             e_msg = (f'Failed to send {msg_type_to_name(msg_type)}'
-                     f' to {self.iface_name}')
+                     f' to {self.device}')
             raise DCBErrorException(e_msg)
 
         try:
@@ -194,25 +194,25 @@ class DcbConfig():
                                       msg_type=RTM_GETDCB,
                                       attr=[])
         dcbx = r_msg.get_encoded('DCB_ATTR_DCBX')
-        logger.debug(f"DCBX mode for {self.iface_name} is {dcbx}")
+        logger.debug(f"DCBX mode for {self.device} is {dcbx}")
         return dcbx
 
     def set_dcbx(self, mode):
         dcbx_data = ['DCB_ATTR_DCBX', mode]
-        logger.debug(f'Setting DCBX mode for {self.iface_name}\
+        logger.debug(f'Setting DCBX mode for {self.device}\
                        mode:{dcbx_data}')
         r_msg = self.send_and_receive(cmd=dcb_netlink.DCB_CMD_SDCBX,
                                       msg_type=RTM_SETDCB,
                                       attr=[dcbx_data])
         dcbx = r_msg.get_encoded('DCB_ATTR_DCBX')
-        logger.debug(f"Got DCBX mode for {self.iface_name} mode:{dcbx}")
+        logger.debug(f"Got DCBX mode for {self.device} mode:{dcbx}")
         return dcbx
 
     def get_ieee_ets(self):
         r_msg = self.send_and_receive(cmd=dcb_netlink.DCB_CMD_IEEE_GET,
                                       msg_type=RTM_GETDCB,
                                       attr=[])
-        iface_name = r_msg.get_encoded('DCB_ATTR_IFNAME')
+        device = r_msg.get_encoded('DCB_ATTR_IFNAME')
         ieee_ets = r_msg.get_nested('DCB_ATTR_IEEE',
                                     'DCB_ATTR_IEEE_ETS')
         if ieee_ets:
@@ -223,7 +223,7 @@ class DcbConfig():
         else:
             return None, None, None
 
-        logger.debug(f'Received for interface {iface_name}\n'
+        logger.debug(f'Received for interface {device}\n'
                      f'tc_tx_bw: {tc_tx_bw} tc_tsa: {tc_tsa}'
                      f'prio_tc: {prio_tc}')
 
@@ -296,8 +296,8 @@ class DcbApplyConfig():
         mode = {0: 'FW Controlled', 1: 'OS Controlled'}
 
         for cfg in self.dcb_user_config:
-            iface_name = cfg['name']
-            dcb_config = DcbConfig(iface_name)
+            device = cfg['device']
+            dcb_config = DcbConfig(device)
             dscp_map = None
 
             dcbx_mode = dcb_config.get_dcbx() & DCB_CAP_DCBX_HOST
@@ -314,7 +314,7 @@ class DcbApplyConfig():
             prio_tc, tsa, tc_bw = dcb_config.get_ieee_ets()
 
             logger.info(f'-----------------------------')
-            logger.info(f'Interface: {iface_name}')
+            logger.info(f'Interface: {device}')
             logger.info(f'DCBX Mode : {mode[dcbx_mode]}')
             logger.info(f'Trust mode: {trust}')
             if dscp_map:
@@ -358,15 +358,17 @@ class DcbApplyConfig():
     def apply(self):
 
         for cfg in self.dcb_user_config:
-            dcb_config = DcbConfig(cfg['name'])
+            if 'device' not in cfg:
+                continue
+            dcb_config = DcbConfig(cfg['device'])
 
             dcbx_mode = dcb_config.get_dcbx() & DCB_CAP_DCBX_HOST
             # In case of mellanox nic, set the mstconfig and do fwreset
             # If the DCBX mode is already set to FW (0), ignore
             # performing mstconfig and mstfwreset.
             if 'mlx' in cfg['driver'] and dcbx_mode != 0:
-                mstconfig(cfg['name'], cfg['pci_addr'])
-                mstfwreset(cfg['name'], cfg['pci_addr'])
+                mstconfig(cfg['device'], cfg['pci_addr'])
+                mstfwreset(cfg['device'], cfg['pci_addr'])
 
             # Set the mode to Firmware
             dcb_config.set_dcbx(mode=0)
@@ -393,32 +395,32 @@ class DcbApplyConfig():
             add_app_table.set_values(dcb_config)
 
 
-def mstconfig(name, pci_addr):
+def mstconfig(device, pci_addr):
     """Allow FW controlled mode for mellanox devices.
 
-    :name Interface name where firmware configurations needs change
+    :device Interface name where firmware configurations needs change
     :pci_addr pci address of the interface
     """
 
-    logger.info(f"Running mstconfig for {name}")
+    logger.info(f"Running mstconfig for {device}")
     try:
         processutils.execute('mstconfig', '-y', '-d', pci_addr, 'set',
                              'LLDP_NB_DCBX_P1=TRUE', 'LLDP_NB_TX_MODE_P1=2',
                              'LLDP_NB_RX_MODE_P1=2', 'LLDP_NB_DCBX_P2=TRUE',
                              'LLDP_NB_TX_MODE_P2=2', 'LLDP_NB_RX_MODE_P2=2')
     except processutils.ProcessExecutionError:
-        logger.error(f"mstconfig failed for {name}")
+        logger.error(f"mstconfig failed for {device}")
         raise
 
 
-def mstfwreset(name, pci_addr):
+def mstfwreset(device, pci_addr):
     """mstfwreset is an utility to reset the PCI device and load new FW"""
-    logger.info(f"Running mstfwreset for {name}")
+    logger.info(f"Running mstfwreset for {device}")
     try:
         processutils.execute('mstfwreset', '--device', pci_addr,
                              '--level', '3', '-y', 'r')
     except processutils.ProcessExecutionError:
-        logger.error(f"mstfwreset failed for {name}")
+        logger.error(f"mstfwreset failed for {device}")
         raise
 
 

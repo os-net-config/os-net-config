@@ -295,7 +295,7 @@ definitions:
         properties:
             dscp2prio:
                 $ref: "#/definitions/list_of_dscp2prio"
-            name:
+            device:
                 $ref: "#/definitions/string_or_param"
         required:
           - dscp2prio
@@ -306,13 +306,13 @@ definitions:
         properties:
             type:
               enum: ["dcb"]
-            name:
+            device:
                 $ref: "#/definitions/string_or_param"
             dscp2prio:
                 $ref: "#/definitions/list_of_dscp2prio"
         required:
           - type
-          - name
+          - device
           - dscp2prio
     interface:
         type: object
