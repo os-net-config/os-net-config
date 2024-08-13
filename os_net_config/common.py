@@ -164,12 +164,12 @@ def write_yaml_config(filepath, data):
         yaml.safe_dump(data, f, default_flow_style=False)
 
 
-def update_dcb_map(ifname, pci_addr, driver, noop, dscp2prio=None):
+def update_dcb_map(device, pci_addr, driver, noop, dscp2prio=None):
     if not noop:
         dcb_map = get_dcb_config_map()
         for item in dcb_map:
             if item['pci_addr'] == pci_addr:
-                item['name'] = ifname
+                item['device'] = device
                 item['driver'] = driver
                 item['dscp2prio'] = dscp2prio
                 break
@@ -177,7 +177,7 @@ def update_dcb_map(ifname, pci_addr, driver, noop, dscp2prio=None):
             new_item = {}
             new_item['pci_addr'] = pci_addr
             new_item['driver'] = driver
-            new_item['name'] = ifname
+            new_item['device'] = device
             new_item['dscp2prio'] = dscp2prio
             dcb_map.append(new_item)
 
@@ -206,12 +206,12 @@ def add_dcb_entry(dcb_config_map, data):
     for entry in dcb_config_map:
         if entry['pci_addr'] == data.pci_addr:
             entry['dscp2prio'] = data.dscp2prio
-            entry['name'] = data.name
+            entry['device'] = data.device
             entry['driver'] = data.driver
             break
     else:
         new_entry = {}
-        new_entry['name'] = data.name
+        new_entry['device'] = data.device
         new_entry['pci_addr'] = data.pci_addr
         new_entry['driver'] = data.driver
         new_entry['dscp2prio'] = data.dscp2prio
