@@ -234,7 +234,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.route_table_data = {}
         self.sriov_pf_data = {}
         self.sriov_vf_data = {}
+        self.migration_enabled = False
         logger.info('nmstate net config provider created.')
+
+    def reload_nm(self):
+        cmd = ['nmcli', 'connection', 'reload']
+        msg = "Reloading nmcli connections"
+        self.execute(msg, *cmd)
 
     def __dump_config(self, config, msg="Applying config"):
         cfg_dump = yaml.dump(config, default_flow_style=False,
@@ -727,8 +733,20 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 option = command[0]
                 self.add_ethtool_subtree(data, ethtool_map[option], command)
 
-    def _add_common(self, base_opt):
+    def _clean_iface(self, name, obj_type):
+        iface_data = {Interface.NAME: name,
+                      Interface.TYPE: obj_type,
+                      Interface.STATE: InterfaceState.ABSENT}
+        absent_state_config = {Interface.KEY: [iface_data]}
+        self.__dump_key_config(absent_state_config, msg=f"Cleaning {name}")
+        netapplier.apply(absent_state_config, verify_change=True)
 
+    def enable_migration(self):
+        self.reload_nm()
+        self.migration_enabled = True
+        logger.info('Migration is enabled for nmstate provider.')
+
+    def _add_common(self, base_opt):
         data = {Interface.IPV4: {InterfaceIPv4.ENABLED: False},
                 Interface.IPV6: {InterfaceIPv6.ENABLED: False},
                 Interface.NAME: base_opt.name}
@@ -1009,6 +1027,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self.add_vlan(vlan_port)
             return
 
+        if self.migration_enabled:
+            self._clean_iface(interface.name, InterfaceType.ETHERNET)
         logger.info(f'adding interface: {interface.name}')
         data = self._add_common(interface)
 
@@ -1037,6 +1057,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param vlan: The vlan object to add.
         """
+        if self.migration_enabled:
+            if vlan.bridge_name:
+                self._clean_iface(vlan.name, InterfaceType.OVS_INTERFACE)
+            else:
+                self._clean_iface(vlan.name, InterfaceType.VLAN)
         logger.info(f'adding vlan: {vlan.name}')
 
         data = self._add_common(vlan)
@@ -1230,8 +1255,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         # Create the internal ovs interface. Some of the settings of the
         # bridge like MTU, ip address are to be applied on this interface
-        ovs_port_name = f"{bridge.name}-p"
+        if self.migration_enabled:
+            self._clean_iface(bridge.name, OVSBridge.TYPE)
 
+        ovs_port_name = f"{bridge.name}-p"
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
         else:
@@ -1402,6 +1429,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ovs_patch_port: The OvsPatchPort object to add.
         """
+        if self.migration_enabled:
+            self._clean_iface(ovs_patch_port.name, OVSInterface.TYPE)
+
         logger.info('adding ovs patch port: %s' % ovs_patch_port.name)
         data = self._add_common(ovs_patch_port)
         data[Interface.TYPE] = OVSInterface.TYPE
@@ -1418,10 +1448,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ovs_interface: The OvsInterface object to add.
         """
+        if self.migration_enabled:
+            self._clean_iface(ovs_interface.name, OVSInterface.TYPE)
+
         logger.info('adding ovs interface: %s' % ovs_interface.name)
         data = self._add_common(ovs_interface)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
+
         if ovs_interface.hwaddr:
             data[Interface.MAC] = ovs_interface.hwaddr
         logger.debug(f'add ovs_interface data: {data}')
@@ -1432,6 +1466,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ovs_dpdk_port: The OvsDpdkPort object to add.
         """
+        if self.migration_enabled:
+            self._clean_iface(ovs_dpdk_port.name, OVSInterface.TYPE)
+
         logger.info('adding ovs dpdk port: %s' % ovs_dpdk_port.name)
 
         # DPDK Port will have only one member of type Interface, validation
@@ -1472,6 +1509,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param bridge: The LinuxBridge object to add.
         """
+        if self.migration_enabled:
+            self._clean_iface(bridge.name, InterfaceType.LINUX_BRIDGE)
+
         logger.info(f'adding linux bridge: {bridge.name}')
         data = self._add_common(bridge)
         logger.debug('bridge data: %s' % data)
@@ -1505,6 +1545,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param bond: The LinuxBond object to add.
         """
+        if self.migration_enabled:
+            self._clean_iface(bond.name, InterfaceType.BOND)
+
         logger.info('adding linux bond: %s' % bond.name)
         data = self._add_common(bond)
 
@@ -1533,6 +1576,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param sriov_pf: The SriovPF object to add
         """
+        if self.migration_enabled:
+            self._clean_iface(sriov_pf.name, InterfaceType.ETHERNET)
+
         logger.info(f'adding sriov pf: {sriov_pf.name}')
         data = self._add_common(sriov_pf)
         data[Interface.TYPE] = InterfaceType.ETHERNET
@@ -1585,6 +1631,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to add
         """
+        if self.migration_enabled:
+            self._clean_iface(sriov_vf.name, InterfaceType.ETHERNET)
+
         logger.info('adding sriov vf: %s for pf: %s, vfid: %d'
                     % (sriov_vf.name, sriov_vf.device, sriov_vf.vfid))
         data = self._add_common(sriov_vf)
@@ -1614,6 +1663,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ib_interface: The InfiniBand interface object to add.
         """
+        if self.migration_enabled:
+            self._clean_iface(ib_interface.name, InterfaceType.INFINIBAND)
+
         logger.info('adding ib_interface: %s' % ib_interface.name)
         data = self._add_common(ib_interface)
         logger.debug('ib_interface data: %s' % data)
@@ -1634,6 +1686,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param ib_child_interface: The InfiniBand child
          interface object to add.
         """
+        if self.migration_enabled:
+            self._clean_iface(ib_child_interface.name,
+                              InterfaceType.INFINIBAND)
+
         logger.info('adding ib_child_interface: %s' % ib_child_interface.name)
         data = self._add_common(ib_child_interface)
         logger.debug('ib_child_interface data: %s' % data)
