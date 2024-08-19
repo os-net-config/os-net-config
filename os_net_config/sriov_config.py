@@ -234,6 +234,35 @@ def get_numvfs(ifname):
     return curr_numvfs
 
 
+def reset_sriov_pfs():
+    """Reset the given PF
+
+    Reset the numvfs for all the PFs configured.
+    """
+    sriov_map = common.get_sriov_map()
+    for item in sriov_map:
+        if item['device_type'] == 'pf' and \
+            item.get('link_mode') == "legacy":
+            ifname = item['name']
+            logger.info(f'Resetting the PF {ifname} for numvfs')
+            sriov_numvfs_path = common.get_dev_path(ifname,
+                                                    "sriov_numvfs")
+            try:
+                logger.debug(f"Resetting {sriov_numvfs_path}")
+                with open(sriov_numvfs_path, "w") as f:
+                    f.write("0")
+            except IOError as exc:
+                logger.error(f'{ifname}: Unable to set zero numvfs.'
+                             f'Received {exc}')
+
+
+def wipe_sriov_udev_files():
+    if os.path.exists(_UDEV_LEGACY_RULE_FILE):
+        logger.debug(f'Removing {_UDEV_LEGACY_RULE_FILE}')
+        os.remove(_UDEV_LEGACY_RULE_FILE)
+        reload_udev_rules()
+
+
 def set_numvfs(ifname, numvfs, autoprobe=True):
     """Setting sriov_numvfs for PF
 
