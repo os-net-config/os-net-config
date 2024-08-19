@@ -1398,11 +1398,11 @@ class TestNmstateNetConfig(base.TestCase):
         type: ethernet
         ethernet:
             sr-iov:
-              total-vfs: 10
-              drivers-autoprobe: true
+                total-vfs: 10
+                drivers-autoprobe: true
         ethtool:
-           feature:
-               hw-tc-offload: False
+            feature:
+                hw-tc-offload: False
         ipv4:
             dhcp: False
             enabled: False

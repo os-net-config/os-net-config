@@ -60,6 +60,14 @@ def parse_opts(argv):
     parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
                         help="""The root directory of the filesystem.""",
                         default='')
+    parser.add_argument('--purge-provider', metavar='PURGE_PROVIDER',
+                        help="""Enable a migration from one provider."""
+                        """Cleans the network configurations created by """
+                        """the specified provider and migrates the same """
+                        """network configuration to the desired provider."""
+                        """There shall be no change in the input network """
+                        """configuration during the migration.""",
+                        default=None)
     parser.add_argument('--detailed-exit-codes',
                         action='store_true',
                         help="""Enable detailed exit codes. """
@@ -167,36 +175,42 @@ def main(argv=sys.argv, main_logger=None):
     configure_sriov = False
     sriovpf_bond_ovs_ports = []
     provider = None
+    provider_map = {'ifcfg': impl_ifcfg.IfcfgNetConfig,
+                    'eni': impl_eni.ENINetConfig,
+                    'iproute': impl_iproute.IprouteNetConfig,
+                    'nmstate': impl_nmstate.NmstateNetConfig}
+    purge_enabled = False
+
     if opts.provider:
-        if opts.provider == 'ifcfg':
-            provider = impl_ifcfg.IfcfgNetConfig(noop=opts.noop,
-                                                 root_dir=opts.root_dir)
-        elif opts.provider == 'eni':
-            provider = impl_eni.ENINetConfig(noop=opts.noop,
-                                             root_dir=opts.root_dir)
-        elif opts.provider == 'iproute':
-            provider = impl_iproute.IPRouteNetConfig(noop=opts.noop,
-                                                     root_dir=opts.root_dir)
-        elif opts.provider == 'nmstate':
-            provider = impl_nmstate.NmstateNetConfig(noop=opts.noop,
-                                                     root_dir=opts.root_dir)
-        else:
+        if opts.provider not in provider_map.keys():
             main_logger.error("Invalid provider specified.")
             return 1
+
     else:
-        if os.path.exists('%s/etc/sysconfig/network-scripts/' % opts.root_dir):
-            provider = impl_ifcfg.IfcfgNetConfig(noop=opts.noop,
-                                                 root_dir=opts.root_dir)
+        nm_con_path = f'{opts.root_dir}/etc/NetworkManager/system-connections'
+        ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
+        if os.path.exists(ifcfg_path):
             opts.provider = "ifcfg"
+        elif os.path.exists(nm_con_path):
+            opts.provider = "nmstate"
         elif os.path.exists('%s/etc/network/' % opts.root_dir):
-            provider = impl_eni.ENINetConfig(noop=opts.noop,
-                                             root_dir=opts.root_dir)
             opts.provider = "eni"
         else:
             main_logger.error("Unable to set provider for this operating "
                               "system.")
             return 1
 
+    if opts.purge_provider:
+        if opts.purge_provider == opts.provider:
+            main_logger.error('purge-provider and provider can\'t be the same')
+            return 1
+        if opts.purge_provider in provider_map:
+            purge_provider = provider_map[opts.purge_provider](
+                noop=opts.noop, root_dir=opts.root_dir)
+        else:
+            main.logger.error('Invalid purge-provider specified')
+            return 1
+        purge_enabled = True
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
     # mappings by specifying a specific nicN->name or nicN->MAC mapping
@@ -285,6 +299,16 @@ def main(argv=sys.argv, main_logger=None):
     if utils.is_dcb_config_required():
         common.reset_dcb_map()
 
+    if purge_enabled:
+        for iface_json in iface_array:
+            obj = objects.object_from_json(iface_json)
+            purge_provider.del_object(obj)
+        purge_provider.destroy()
+
+    provider = provider_map[opts.provider](noop=opts.noop,
+                                           root_dir=opts.root_dir)
+    if purge_enabled:
+        provider.enable_migration()
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
     # devices are created.
@@ -368,6 +392,9 @@ def main(argv=sys.argv, main_logger=None):
             print("File: %s\n" % location)
             print(data)
             print("----")
+
+    if purge_enabled:
+        purge_provider.clean_migration()
 
     if opts.detailed_exit_codes and len(files_changed) > 0:
         return 2
