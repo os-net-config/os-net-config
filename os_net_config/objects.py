@@ -297,16 +297,16 @@ class Address(object):
 class Dcb(object):
     """Base class for DCB configuration"""
 
-    def __init__(self, name, dscp2prio=[]):
-        self.name = name
+    def __init__(self, device, dscp2prio=[]):
+        self.device = device
         self.dscp2prio = dscp2prio
-        self.pci_addr = utils.get_pci_address(name, False)
-        self.driver = utils.get_driver(name, False)
+        self.pci_addr = utils.get_pci_address(device, False)
+        self.driver = utils.get_driver(device, False)
 
     @staticmethod
     def from_json(json):
         dscp2prio = []
-        name = _get_required_field(json, 'name', 'Dcb')
+        device = _get_required_field(json, 'device', 'Dcb')
         dscp2prio_lst = _get_required_field(json, 'dscp2prio', 'Dcb')
         for entry in dscp2prio_lst:
             priority = _get_required_field(entry, 'priority', 'dscp2prio')
@@ -318,7 +318,7 @@ class Dcb(object):
                                'protocol': protocol}
             dscp2prio.append(dscp2prio_entry)
 
-        return Dcb(name, dscp2prio)
+        return Dcb(device, dscp2prio)
 
 
 class RouteRule(object):
@@ -530,12 +530,12 @@ class Interface(_BaseOpts):
             nic_mapping = json.get('nic_mapping', None)
             mapped_nic_names = mapped_nics(nic_mapping)
             if name in mapped_nic_names:
-                ifname = mapped_nic_names[name]
+                device = mapped_nic_names[name]
             else:
-                ifname = name
-            dcb_config_json['name'] = ifname
+                device = name
+            dcb_config_json['device'] = device
             dcb_config = Dcb.from_json(dcb_config_json)
-            common.update_dcb_map(ifname=ifname, pci_addr=dcb_config.pci_addr,
+            common.update_dcb_map(device=device, pci_addr=dcb_config.pci_addr,
                                   driver=dcb_config.driver, noop=False,
                                   dscp2prio=dcb_config.dscp2prio)
 
@@ -1692,12 +1692,12 @@ class SriovPF(_BaseOpts):
             nic_mapping = json.get('nic_mapping', None)
             mapped_nic_names = mapped_nics(nic_mapping)
             if name in mapped_nic_names:
-                ifname = mapped_nic_names[name]
+                device = mapped_nic_names[name]
             else:
-                ifname = name
-            dcb_config_json['name'] = ifname
+                device = name
+            dcb_config_json['device'] = device
             dcb_config = Dcb.from_json(dcb_config_json)
-            common.update_dcb_map(ifname=ifname, pci_addr=dcb_config.pci_addr,
+            common.update_dcb_map(device=device, pci_addr=dcb_config.pci_addr,
                                   driver=dcb_config.driver, noop=False,
                                   dscp2prio=dcb_config.dscp2prio)
 
