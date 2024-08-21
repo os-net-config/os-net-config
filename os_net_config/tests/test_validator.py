@@ -442,6 +442,62 @@ class TestDeviceTypes(base.TestCase):
         }
         self.assertTrue(v.is_valid(data))
 
+    def test_ovs_user_bridge_members(self):
+        schema = validator.get_schema_for_defined_type("ovs_user_bridge")
+        v = jsonschema.Draft4Validator(schema)
+        data1 = {
+            "type": "ovs_user_bridge",
+            "name": "br-link0",
+            "members": [{
+                "type": "ovs_dpdk_bond",
+                "name": "dpdkbond0",
+                "mtu": 9000,
+                "rx_queue": 2,
+                "members": [{
+                    "type": "ovs_dpdk_port",
+                    "name": "dpdk0",
+                    "members": [{
+                        "type": "interface",
+                        "name": "nic2"
+                    }]
+                }]
+            }]
+        }
+        data2 = {
+            "type": "ovs_user_bridge",
+            "name": "br-link1",
+            "members": [{
+                "type": "ovs_dpdk_bond",
+                "name": "dpdkbond1",
+                "mtu": 9000,
+                "rx_queue": 1,
+                "members": [{
+                    "type": "ovs_dpdk_port",
+                    "name": "dpdk0",
+                    "members": [{
+                        "type": "interface",
+                        "name": "nic2"
+                    }]
+                }, {
+                    "type": "ovs_dpdk_port",
+                    "name": "dpdk1",
+                    "members": [{
+                        "type": "interface",
+                        "name": "nic3"
+                    }]
+                }, {
+                    "type": "ovs_dpdk_port",
+                    "name": "dpdk2",
+                    "members": [{
+                        "type": "interface",
+                        "name": "nic4"
+                    }]
+                }]
+            }]
+        }
+        self.assertFalse(v.is_valid(data1))
+        self.assertTrue(v.is_valid(data2))
+
 
 class TestSampleFiles(base.TestCase):
 
