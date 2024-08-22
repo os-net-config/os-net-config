@@ -673,6 +673,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             onboot:
                 $ref: "#/definitions/bool_or_param"
+            ovs_internal:
+                $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
         required:
