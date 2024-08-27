@@ -56,6 +56,18 @@ DPDK_MAPPING_FILE = '/var/lib/os-net-config/dpdk_mapping.yaml'
 #   promisc: "on"/"off"
 SRIOV_CONFIG_FILE = '/var/lib/os-net-config/sriov_config.yaml'
 
+# File to contain the list of DCB configurations
+# Format of the file shall be
+# - name: <pf name>
+#   dscp2prio:
+#       - protocol: 44
+#         selector: 5
+#         priority: 6
+#       - protocol: 42
+#         selector: 5
+#         priority: 3
+
+DCB_CONFIG_FILE = '/var/lib/os-net-config/dcb_config.yaml'
 
 _SYS_BUS_PCI_DEV = '/sys/bus/pci/devices'
 SYS_CLASS_NET = '/sys/class/net'
@@ -144,6 +156,74 @@ def get_file_data(filename):
     except IOError:
         logger.error(f"Error reading file: {filename}")
         return ''
+
+
+def write_yaml_config(filepath, data):
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, 'w') as f:
+        yaml.safe_dump(data, f, default_flow_style=False)
+
+
+def update_dcb_map(device, pci_addr, driver, noop, dscp2prio=None):
+    if not noop:
+        dcb_map = get_dcb_config_map()
+        for item in dcb_map:
+            if item['pci_addr'] == pci_addr:
+                item['device'] = device
+                item['driver'] = driver
+                item['dscp2prio'] = dscp2prio
+                break
+        else:
+            new_item = {}
+            new_item['pci_addr'] = pci_addr
+            new_item['driver'] = driver
+            new_item['device'] = device
+            new_item['dscp2prio'] = dscp2prio
+            dcb_map.append(new_item)
+
+        write_yaml_config(DCB_CONFIG_FILE, dcb_map)
+
+
+def write_dcb_map(dcb_map):
+    write_yaml_config(DCB_CONFIG_FILE, dcb_map)
+
+
+def get_dcb_config_map():
+    contents = get_file_data(DCB_CONFIG_FILE)
+    dcb_config_map = yaml.safe_load(contents) if contents else []
+    return dcb_config_map
+
+
+def get_empty_dcb_map():
+    contents = get_file_data(DCB_CONFIG_FILE)
+    dcb_config_map = yaml.safe_load(contents) if contents else []
+    for entry in dcb_config_map:
+        entry['dscp2prio'] = []
+    return dcb_config_map
+
+
+def add_dcb_entry(dcb_config_map, data):
+    for entry in dcb_config_map:
+        if entry['pci_addr'] == data.pci_addr:
+            entry['dscp2prio'] = data.dscp2prio
+            entry['device'] = data.device
+            entry['driver'] = data.driver
+            break
+    else:
+        new_entry = {}
+        new_entry['device'] = data.device
+        new_entry['pci_addr'] = data.pci_addr
+        new_entry['driver'] = data.driver
+        new_entry['dscp2prio'] = data.dscp2prio
+
+        dcb_config_map.append(new_entry)
+    return dcb_config_map
+
+
+def reset_dcb_map():
+    dcb_map = get_empty_dcb_map()
+    if dcb_map != []:
+        write_dcb_map(dcb_map)
 
 
 def get_sriov_map(pf_name=None):

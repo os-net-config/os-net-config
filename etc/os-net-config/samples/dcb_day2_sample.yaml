@@ -1,0 +1,19 @@
+# For reconfiguring the DCB in day 2 operations, the below
+# template could be used.
+# use ``os-net-config-dcb -c <config.yaml> `` to perform the
+# reconfiguration.
+
+dcb_config:
+  -
+    type: dcb_config
+    # NIC numbering is not supported here
+    device: ens1f0np0
+    dscp2prio:
+        # Add the dscp configs.
+        # It requires priority and protocol
+        - priority: 5
+          protocol: 45
+        - priority: 5
+          protocol: 46
+        - priority: 6
+          protocol: 47
