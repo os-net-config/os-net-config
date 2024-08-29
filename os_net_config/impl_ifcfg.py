@@ -527,6 +527,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         elif isinstance(base_opt, objects.OvsUserBridge):
             data += "DEVICETYPE=ovs\n"
             data += "TYPE=OVSUserBridge\n"
+            if base_opt.ovs_internal is False:
+                data += "LINKSTATUS=down\n"
             if base_opt.use_dhcp or base_opt.use_dhcpv6:
                 data += "OVSBOOTPROTO=dhcp\n"
             if base_opt.members:
