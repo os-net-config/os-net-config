@@ -180,6 +180,8 @@ definitions:
                 anyOf:
                     - $ref: "#/definitions/string_or_param"
                     - $ref: "#/definitions/int_or_param"
+            metric:
+                $ref: "#/definitions/int_or_param"
           requires:
             - next_hop
           additionalProperties: False
@@ -196,6 +198,8 @@ definitions:
                 anyOf:
                     - $ref: "#/definitions/string_or_param"
                     - $ref: "#/definitions/int_or_param"
+            metric:
+                $ref: "#/definitions/int_or_param"
           requires:
             - nexthop
           additionalProperties: False
