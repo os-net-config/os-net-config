@@ -850,6 +850,7 @@ definitions:
                 type: array
                 items:
                   - $ref: "#/definitions/ovs_dpdk_port"
+                minItems: 2
             ovs_options:
                 $ref: "#/definitions/ovs_options_string_or_param"
             ovs_extra:

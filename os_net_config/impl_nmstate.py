@@ -247,6 +247,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to add
         """
+        logger.info(f'VF Config for vfid {sriov_vf.vfid} '
+                    f'device {sriov_vf.device} Trust={sriov_vf.trust} '
+                    f'vlan={sriov_vf.vlan_id} Qos={sriov_vf.qos}'
+                    f'Max Rate= {sriov_vf.max_tx_rate} '
+                    f'Min Rate={sriov_vf.min_tx_rate}'
+                    f'Spoofcheck={sriov_vf.spoofcheck}')
         vf_config = {}
         vf_config[Ethernet.SRIOV.VFS.ID] = sriov_vf.vfid
         if sriov_vf.macaddr:
@@ -270,6 +276,21 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if sriov_vf.qos:
                 vf_config[Ethernet.SRIOV.VFS.QOS] = sriov_vf.qos
         return vf_config
+
+    def update_vf_config(self, sriov_vf):
+        if sriov_vf.device in self.sriov_vf_data:
+            logger.info(f'Updating the VF data for VF: {sriov_vf.vfid} '
+                        f'Device: {sriov_vf.device} Trust: {sriov_vf.trust} '
+                        f'Spoofcheck: {sriov_vf.spoofcheck} '
+                        f'Vlan: {sriov_vf.vlan_id} Qos: {sriov_vf.qos} '
+                        f'Min Rate: {sriov_vf.min_tx_rate} '
+                        f'Max Rate: {sriov_vf.max_tx_rate}')
+            vf_config = self.get_vf_config(sriov_vf)
+            self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
+        else:
+            msg = (f'SR-IOV PF is not configured on {sriov_vf.device}, '
+                   f'while the VF {sriov_vf.vfid} is used')
+            raise objects.InvalidConfigException(msg)
 
     def prepare_sriov_vf_config(self):
         iface_schema = []
@@ -401,12 +422,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if Interface.NAME in iface and \
                iface[Interface.NAME] not in exclude_nics:
                 if iface[Interface.STATE] == InterfaceState.IGNORE:
-                    msg=f"Skip cleaning {iface[Interface.NAME]}"
-                    self.__dump_config(state, msg)
+                    logger.info(f"Skip cleaning {iface[Interface.NAME]}")
                     continue
-                iface[Interface.STATE] = InterfaceState.DOWN
+                iface[Interface.STATE] = InterfaceState.ABSENT
                 state = {Interface.KEY: [iface]}
-                self.__dump_config(state,
+                self.__dump_config(iface,
                                    msg=f"Cleaning up {iface[Interface.NAME]}")
                 if not self.noop:
                     netapplier.apply(state, verify_change=True)
@@ -786,6 +806,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if base_opt.dhclient_args:
             msg = "DHCP Client args not supported in impl_nmstate, ignoring"
             logger.error(msg)
+        if hasattr(base_opt, 'members'):
+            for member in base_opt.members:
+                if isinstance(member, objects.SriovVF):
+                    self.update_vf_config(member)
         if base_opt.dns_servers:
             self._add_dns_servers(base_opt.dns_servers)
         if base_opt.domain:
@@ -878,7 +902,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             'to': {'nm_key': NMRouteRule.IP_TO, 'nm_value': None},
             'priority': {'nm_key': NMRouteRule.PRIORITY, 'nm_value': None},
             'table': {'nm_key': NMRouteRule.ROUTE_TABLE, 'nm_value': None,
-                      'nm_parse_value': self.rules_table_value_parse }}
+                      'nm_parse_value': self.rules_table_value_parse}}
         logger.debug(f"Parse Rule {rule}")
         items = rule.split()
         keyword = items[0]
@@ -1265,6 +1289,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             }
         data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {},
                            OvsDB.OTHER_CONFIG: {}}
+        bridge.ovs_extra.append("set bridge %s other-config:mac-table-size=%d"
+                                % (bridge.name, common.MAC_TABLE_SIZE))
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
             bridge.ovs_extra.append("set bridge %s other_config:hwaddr=%s" %
@@ -1514,9 +1540,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
         if sriov_pf.link_mode == 'switchdev':
+            logger.info(f'enabling switchdev for sriov pf: {sriov_pf.name}')
             data[Ethtool.CONFIG_SUBTREE] = {}
             data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
                 'hw-tc-offload': True}
+        # Disable offload, in case default is set true
+        else:
+            data[Ethtool.CONFIG_SUBTREE] = {}
+            data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
+                'hw-tc-offload': False}
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
 
@@ -1624,7 +1656,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.debug("----------------------------")
         vf_config = self.prepare_sriov_vf_config()
         apply_data = {}
-        apply_data.update(self.set_ifaces(vf_config))
+        if vf_config and activate:
+            if not self.noop:
+                logger.debug("Applying the VF parameters")
+                self.nmstate_apply(self.set_ifaces(vf_config),
+                                   verify=True)
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)

@@ -170,6 +170,9 @@ def get_numvfs(ifname):
     :returns: int -- the number of current VFs on ifname
     :raises: SRIOVNumvfsException
     """
+    cmd = ["/usr/bin/udevadm", "wait", "-t", "60", common.get_dev_path(ifname)]
+    logger.debug(f"{ifname}: Running command: {cmd}")
+    processutils.execute(*cmd)
     sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
     logger.debug(f"{ifname}: Getting numvfs for interface")
     try:
@@ -325,6 +328,8 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
                 if not is_partitioned_pf(item['name']):
                     add_udev_rule_for_legacy_sriov_pf(item['name'],
                                                       item['numvfs'])
+                # Disable flag for legacy mode
+                configure_tc_offload(item['name'], False)
             # When configuring vdpa, we need to configure switchdev before
             # we create the VFs
             is_mlnx = common.is_mellanox_interface(item['name'])
@@ -375,7 +380,6 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
 
                     # Configure switchdev mode
                     configure_switchdev(item['name'])
-
                     # Add sriovpf to vf_lag_sriov_pfs_list if it's
                     # a linux bond member (lag_candidate)
                     if item.get('lag_candidate', False):
@@ -600,14 +604,26 @@ def configure_switchdev(pf_name):
     # representor, so we need to make sure that uplink representor is ready
     # before proceed
     _wait_for_uplink_rep_creation(pf_name)
+    configure_tc_offload(pf_name, True)
 
-    try:
-        processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
-                             'hw-tc-offload', 'on')
-        logger.info(f"{pf_name}: Enabled \"hw-tc-offload\" for PF.")
-    except processutils.ProcessExecutionError as exc:
-        logger.error(f"{pf_name}: Failed to enable hw-tc-offload: {exc}")
-        raise
+
+def configure_tc_offload(pf_name, switchdev_mode=False):
+    if switchdev_mode:
+        try:
+            processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
+                                 'hw-tc-offload', 'on')
+            logger.info(f"{pf_name}: Enabled \"hw-tc-offload\" for PF.")
+        except processutils.ProcessExecutionError as exc:
+            logger.error(f"{pf_name}: Failed to enable hw-tc-offload: {exc}")
+            raise
+    else:
+        try:
+            processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
+                                 'hw-tc-offload', 'off')
+            logger.info(f"{pf_name}: Disabled \"hw-tc-offload\" for PF.")
+        except processutils.ProcessExecutionError as exc:
+            logger.error(f"{pf_name}: Failed to disable hw-tc-offload: {exc}")
+            raise
 
 
 def get_vdpa_vhost_devices():
