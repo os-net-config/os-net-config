@@ -60,7 +60,9 @@ _BASE_IFACE_CFG_APPLIED = """
     name: em1
     type: ethernet
     state: up
-    ethernet: {}
+    ethernet:
+      sr-iov:
+        total-vfs: 0
     ipv4:
       enabled: false
       dhcp: False
@@ -72,7 +74,9 @@ _BASE_IFACE_CFG_APPLIED = """
     name: eno2
     type: ethernet
     state: up
-    ethernet: {}
+    ethernet:
+      sr-iov:
+        total-vfs: 0
     ipv4:
       address:
       - ip: 192.168.1.2
@@ -94,7 +98,10 @@ _BASE_NMSTATE_IFACE_CFG = """- name: em1
   state: up
 """
 
-_NO_IP = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
+_NO_IP = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: false
     dhcp: False
@@ -104,7 +111,10 @@ _NO_IP = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
     autoconf: False
 """
 
-_V4_NMCFG = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
+_V4_NMCFG = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv6:
     enabled: False
     autoconf: False
@@ -140,10 +150,15 @@ _V4_V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """  ipv6:
     address:
     - ip: 192.168.1.2
       prefix-length: 24
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
 """
 
-_V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
+_V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: False
     dhcp: False
@@ -255,7 +270,9 @@ class TestNmstateNetConfig(base.TestCase):
         em1_config = """- name: em1
   type: ethernet
   state: up
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: False
     dhcp: False
@@ -267,7 +284,9 @@ class TestNmstateNetConfig(base.TestCase):
         em2_config = """- name: em2
   type: ethernet
   state: up
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: False
     auto-gateway: False
@@ -291,7 +310,9 @@ class TestNmstateNetConfig(base.TestCase):
         em1_config = """- name: em1
   type: ethernet
   state: up
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     auto-dns: False
     enabled: False
@@ -391,17 +412,23 @@ class TestNmstateNetConfig(base.TestCase):
       speed: 1000
       duplex: full
       auto-negotiation: true
+      sr-iov:
+        total-vfs: 0
     ethtool: {}
 """
         em2_config = """
-  - ethernet: {}
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
     ethtool:
       ring:
         rx: 1024
         tx: 1024
 """
         em3_config = """
-  - ethernet: {}
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
     ethtool:
       ring:
         rx: 1024
@@ -412,7 +439,9 @@ class TestNmstateNetConfig(base.TestCase):
         hw-tc-offload: true
 """
         em4_config = """
-  - ethernet: {}
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
     ethtool:
       feature:
         hw-tc-offload: true
@@ -425,6 +454,8 @@ class TestNmstateNetConfig(base.TestCase):
       speed: 100
       duplex: half
       auto-negotiation: false
+      sr-iov:
+        total-vfs: 0
     ethtool: {}
 """
         self.assertEqual(yaml.safe_load(em1_config)[0],
@@ -606,7 +637,9 @@ class TestNmstateNetConfig(base.TestCase):
         expected_em1_cfg = """
         name: em1
         state: up
-        ethernet: {}
+        ethernet:
+            sr-iov:
+              total-vfs: 0
         ipv4:
             dhcp: False
             enabled: False
@@ -619,7 +652,9 @@ class TestNmstateNetConfig(base.TestCase):
         expected_em2_cfg = """
         name: em2
         state: up
-        ethernet: {}
+        ethernet:
+            sr-iov:
+              total-vfs: 0
         ipv4:
             dhcp: False
             enabled: False
