@@ -1011,9 +1011,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         logger.info(f'adding interface: {interface.name}')
         data = self._add_common(interface)
-        if isinstance(interface, objects.Interface):
-            data[Interface.TYPE] = InterfaceType.ETHERNET
-            data[Ethernet.CONFIG_SUBTREE] = {}
+
+        data[Interface.TYPE] = InterfaceType.ETHERNET
+        data[Ethernet.CONFIG_SUBTREE] = {}
+        data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
+            Ethernet.SRIOV.TOTAL_VFS: 0}
 
         if interface.ethtool_opts:
             self.add_ethtool_config(interface.name, data,
