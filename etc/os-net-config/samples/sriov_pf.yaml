@@ -9,6 +9,11 @@ network_config:
     name: p2p1
     # number of VFs required on the particular NIC
     numvfs: 10
+    # Bind the created VFs to their default network driver
+    # When configuring a large number of VFs intended for VMs direct access,
+    # setting drivers_autoprobe=false will reduce the amount of IRQ and Netlink
+    # churn on the host.
+    drivers_autoprobe: true
     # Dont set the IP address on the PF
     use_dhcp: false
     # Allow all the traffic received. It might be needed when one of its VF
@@ -21,6 +26,7 @@ network_config:
     type: sriov_pf
     name: p2p2
     numvfs: 10
+    drivers_autoprobe: true
     use_dhcp: false
     promisc: true
   # sriov_vf type shall be used to configure the VF's of NICs.

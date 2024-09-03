@@ -1623,7 +1623,7 @@ class SriovPF(_BaseOpts):
                  defroute=True, dhclient_args=None, dns_servers=None,
                  nm_controlled=False, onboot=True, domain=None, members=None,
                  promisc=None, link_mode='legacy', ethtool_opts=None,
-                 vdpa=False, steering_mode=None):
+                 vdpa=False, steering_mode=None, drivers_autoprobe=True):
         addresses = addresses or []
         routes = routes or []
         rules = rules or []
@@ -1634,6 +1634,7 @@ class SriovPF(_BaseOpts):
                                       dhclient_args, dns_servers,
                                       nm_controlled, onboot, domain)
         self.numvfs = int(numvfs)
+        self.drivers_autoprobe = drivers_autoprobe
         mapped_nic_names = mapped_nics(nic_mapping)
         if name in mapped_nic_names:
             self.name = mapped_nic_names[name]
@@ -1648,6 +1649,7 @@ class SriovPF(_BaseOpts):
                                   promisc=self.promisc,
                                   link_mode=self.link_mode,
                                   vdpa=self.vdpa,
+                                  drivers_autoprobe=self.drivers_autoprobe,
                                   steering_mode=self.steering_mode)
 
     @staticmethod
@@ -1666,6 +1668,7 @@ class SriovPF(_BaseOpts):
         # SR-IOV PF - promisc: on (default)
         promisc = json.get('promisc', True)
         promisc = SriovPF.get_on_off(promisc)
+        autoprobe = json.get('drivers_autoprobe', True)
         link_mode = json.get('link_mode', 'legacy')
         ethtool_opts = json.get('ethtool_opts', None)
         vdpa = json.get('vdpa', False)
@@ -1702,7 +1705,8 @@ class SriovPF(_BaseOpts):
                                   dscp2prio=dcb_config.dscp2prio)
 
         opts = _BaseOpts.base_opts_from_json(json)
-        return SriovPF(name, numvfs, *opts, promisc=promisc,
+        return SriovPF(name, numvfs, *opts,
+                       drivers_autoprobe=autoprobe, promisc=promisc,
                        link_mode=link_mode, ethtool_opts=ethtool_opts,
                        vdpa=vdpa, steering_mode=steering_mode)
 
