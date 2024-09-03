@@ -14,6 +14,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from libnmstate import error
+from libnmstate import gen_diff
 from libnmstate import netapplier
 from libnmstate import netinfo
 from libnmstate.schema import Bond
@@ -234,12 +236,24 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.sriov_pf_data = {}
         self.sriov_vf_data = {}
         self.migration_enabled = False
+        self.initial_state = netinfo.show_running_config()
+        self.__dump_key_config(self.initial_state,
+                               msg="Initial network settings")
         logger.info('nmstate net config provider created.')
 
     def reload_nm(self):
         cmd = ['nmcli', 'connection', 'reload']
         msg = "Reloading nmcli connections"
         self.execute(msg, *cmd)
+
+    def rollback_to_initial_settings(self):
+        logger.info("Rolling back to initial settings.")
+        cur_state = netinfo.show_running_config()
+        diff_state = gen_diff.generate_differences(self.initial_state,
+                                                   cur_state)
+        msg = "Applying the difference to go back to initial settings "
+        self.__dump_key_config(diff_state, msg=msg)
+        netapplier.apply(diff_state, verify_change=True)
 
     def __dump_config(self, config, msg="Applying config"):
         cfg_dump = yaml.dump(config, default_flow_style=False,
@@ -528,8 +542,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.__dump_key_config(new_state,
                                msg=f'Applying the config with nmstate')
         if not self.noop:
-            netapplier.apply(new_state, verify_change=verify)
-        return 0
+            try:
+                netapplier.apply(new_state, verify_change=verify)
+            except error.NmstateVerificationError as exc:
+                logger.error(f'**** Verification Error *****')
+                logger.error(f'Error seen while applying the nmstate '
+                             f'templates {exc}')
+                self.errors.append(exc)
+            except error.NmstateError as exc:
+                logger.error(f'Error seen while applying the nmstate '
+                             f'templates {exc}')
+                self.errors.append(exc)
 
     def generate_routes(self, interface_name):
         """Generate the route configurations required. Add/Remove routes
@@ -1831,6 +1854,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 logger.error(message)
                 for e in self.errors:
                     logger.error(str(e))
+                self.rollback_to_initial_settings()
                 raise os_net_config.ConfigurationError(message)
 
         self.interface_data = {}
