@@ -1356,6 +1356,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1370,6 +1371,7 @@ class TestNmstateNetConfig(base.TestCase):
         ethernet:
             sr-iov:
               total-vfs: 10
+              drivers-autoprobe: true
         ethtool:
            feature:
                hw-tc-offload: False
@@ -1390,6 +1392,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1443,6 +1446,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1465,6 +1469,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1521,6 +1526,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1566,6 +1572,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1615,6 +1622,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1681,6 +1689,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1703,6 +1712,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1760,6 +1770,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1830,6 +1841,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: true
@@ -1852,6 +1864,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: true
@@ -1909,6 +1922,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1957,6 +1971,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 3
                     spoof-check: false
@@ -1979,6 +1994,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 3
                     spoof-check: false

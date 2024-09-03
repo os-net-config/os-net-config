@@ -79,6 +79,10 @@ class SRIOVNumvfsException(ValueError):
     pass
 
 
+class SRIOVAutoprobeException(ValueError):
+    pass
+
+
 def udev_event_handler(action, device):
     event = {"action": action, "device": device.sys_path}
     logger.info(
@@ -162,6 +166,50 @@ def _wait_for_vf_creation(pf_name, numvfs):
     logger.info(f"{pf_name}: Required VFs are created")
 
 
+def get_drivers_autoprobe(ifname):
+    """Getting sriov_drivers_autoprobe for PF
+
+    Wrapper that will get the sriov_drivers_autoprobe value for a PF.
+
+    :param ifname: interface name (ie: p1p1)
+    :returns: int -- 1 or 0 depending if autoprobe is enabled or not.
+    :raises: SRIOVAutoprobeException
+    """
+    autoprobe_path = common.get_dev_path(ifname, "sriov_drivers_autoprobe")
+    logger.debug(f"{ifname}: Getting drivers_autoprobe for interface")
+    try:
+        with open(autoprobe_path, 'r') as f:
+            autoprobe = int(f.read())
+    except IOError as exc:
+        msg = f"{ifname}: Unable to read sriov_drivers_autoprobe: {exc}"
+        raise SRIOVAutoprobeException(msg)
+    logger.debug(
+        f"{ifname}: Interface has sriov_drivers_autoprobe={autoprobe}")
+    return autoprobe
+
+
+def set_drivers_autoprobe(ifname, drivers_autoprobe):
+    """Set sriov_drivers_autoprobe for a PF.
+
+    :param ifname: interface name (ie: p1p1)
+    :param drivers_autoprobe: True or False.
+    :raises: SRIOVAutoprobeException
+    """
+    autoprobe = int(drivers_autoprobe)
+    curr_autoprobe = get_drivers_autoprobe(ifname)
+    if autoprobe != curr_autoprobe:
+        autoprobe_path = common.get_dev_path(ifname, "sriov_drivers_autoprobe")
+        try:
+            logger.debug(f"Setting {autoprobe_path} to {autoprobe}")
+            with open(autoprobe_path, "w") as f:
+                f.write(str(autoprobe))
+        except IOError as exc:
+            msg = (f"{ifname} Unable to set "
+                   f"sriov_drivers_autoprobe={autoprobe}\n"
+                   f"{exc}")
+            raise SRIOVAutoprobeException(msg)
+
+
 def get_numvfs(ifname):
     """Getting sriov_numvfs for PF
 
@@ -186,7 +234,7 @@ def get_numvfs(ifname):
     return curr_numvfs
 
 
-def set_numvfs(ifname, numvfs):
+def set_numvfs(ifname, numvfs, autoprobe=True):
     """Setting sriov_numvfs for PF
 
     Wrapper that will set the sriov_numvfs file for a PF.
@@ -227,7 +275,8 @@ def set_numvfs(ifname, numvfs):
                    f"{exc}")
             raise SRIOVNumvfsException(msg)
 
-        _wait_for_vf_creation(ifname, numvfs)
+        if autoprobe:
+            _wait_for_vf_creation(ifname, numvfs)
         curr_numvfs = get_numvfs(ifname)
         if curr_numvfs != numvfs:
             msg = (f"{ifname}: Unable to configure pf with numvfs: {numvfs}\n"
@@ -339,7 +388,8 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
             # It has to happen before we set_numvfs
             if vdpa and is_mlnx:
                 configure_switchdev(item['name'])
-            set_numvfs(item['name'], item['numvfs'])
+            set_drivers_autoprobe(item['name'], item['drivers_autoprobe'])
+            set_numvfs(item['name'], item['numvfs'], item['drivers_autoprobe'])
             # Configure switchdev, unbind driver and configure vdpa
             if item.get('link_mode') == "switchdev" and is_mlnx:
                 logger.info(f"{item['name']}: Mellanox card")
@@ -818,7 +868,13 @@ def main(argv=sys.argv):
     if opts.numvfs:
         if re.match(r"^\w+:\d+$", opts.numvfs):
             device_name, numvfs = opts.numvfs.split(':')
-            set_numvfs(device_name, int(numvfs))
+            pfs = common.get_sriov_map(device_name)
+            if pfs:
+                autoprobe = pfs[0].get('drivers_autoprobe', True)
+            else:
+                autoprobe = True
+            set_drivers_autoprobe(device_name, autoprobe)
+            set_numvfs(device_name, int(numvfs), autoprobe)
         else:
             logger.error(f"Invalid arguments for --numvfs {opts.numvfs}")
             return 1

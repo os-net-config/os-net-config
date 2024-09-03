@@ -42,6 +42,7 @@ DPDK_MAPPING_FILE = '/var/lib/os-net-config/dpdk_mapping.yaml'
 # - device_type: pf
 #   name: <pf name>
 #   numvfs: <number of VFs>
+#   drivers_autprobe: true/false
 #   promisc: "on"/"off"
 # - device_type: vf
 #   device:
