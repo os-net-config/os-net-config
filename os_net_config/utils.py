@@ -391,6 +391,23 @@ def _update_dpdk_map(ifname, pci_address, mac_address, driver):
     common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
 
 
+def get_totalvfs(iface_name):
+    max_vf_path = os.path.join(common.SYS_CLASS_NET,
+                               iface_name, 'device/sriov_totalvfs')
+    if os.path.exists(max_vf_path):
+        try:
+            with open(max_vf_path, 'r') as f:
+                max_vfs = int(f.read())
+                logger.info(f'{iface_name}: sriov_totalvfs={max_vfs}')
+                return max_vfs
+        except IOError as exc:
+            logger.error(f'{iface_name}: Unable to read total_vfs: {exc}')
+            return -1
+    logger.info(f'{iface_name}: sriov_totalvfs can\'t be read.'
+                'SR-IOV is not enabled.')
+    return -1
+
+
 def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                         link_mode='legacy', vdpa=False, steering_mode=None,
                         lag_candidate=None, drivers_autoprobe=True):
