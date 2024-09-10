@@ -111,6 +111,17 @@ _NO_IP = _BASE_NMSTATE_IFACE_CFG + """
     autoconf: False
 """
 
+_NO_IP_WO_SRIOV = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet: {}
+  ipv4:
+    enabled: false
+    dhcp: False
+  ipv6:
+    enabled: false
+    dhcp: False
+    autoconf: False
+"""
+
 _V4_NMCFG = _BASE_NMSTATE_IFACE_CFG + """
   ethernet:
     sr-iov:
@@ -184,6 +195,11 @@ class TestNmstateNetConfig(base.TestCase):
         self.temp_route_table_file = tempfile.NamedTemporaryFile()
         self.provider = impl_nmstate.NmstateNetConfig()
 
+        def get_totalvfs_stub(iface_name):
+            return 10
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
+
         def stub_is_ovs_installed():
             return True
         self.stub_out('os_net_config.utils.is_ovs_installed',
@@ -232,6 +248,18 @@ class TestNmstateNetConfig(base.TestCase):
         interface = objects.Interface('em1')
         self.provider.add_interface(interface)
         self.assertEqual(yaml.safe_load(_NO_IP)[0],
+                         self.get_interface_config())
+        self.assertEqual('', self.get_route_config('em1'))
+
+    def test_add_base_interface_without_sriov_caps(self):
+        def get_totalvfs_stub(iface_name):
+            return -1
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
+
+        interface = objects.Interface('em1')
+        self.provider.add_interface(interface)
+        self.assertEqual(yaml.safe_load(_NO_IP_WO_SRIOV)[0],
                          self.get_interface_config())
         self.assertEqual('', self.get_route_config('em1'))
 
@@ -1386,6 +1414,28 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(exp_pf_config),
                          self.get_interface_config('eth2'))
 
+    def test_sriov_pf_without_capability(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        def get_totalvfs_stub(iface_name):
+            return -1
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
+
+        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
+                                     steering_mode=None, lag_candidate=None):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      update_sriov_pf_map_stub)
+
+        pf = objects.SriovPF(name='nic3', numvfs=10)
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_sriov_pf,
+                          pf)
+
     def test_sriov_pf_with_nicpart_ovs(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
@@ -2103,6 +2153,11 @@ class TestNmstateNetConfigApply(base.TestCase):
         self.stub_out(
             'libnmstate.netapplier.apply', test_iface_state)
         self.provider = impl_nmstate.NmstateNetConfig()
+
+        def get_totalvfs_stub(iface_name):
+            return 10
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
 
     def add_object(self, nic_config):
         iface_array = yaml.safe_load(nic_config)
