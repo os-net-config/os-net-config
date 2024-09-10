@@ -1014,8 +1014,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
-        data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
-            Ethernet.SRIOV.TOTAL_VFS: 0}
+        if utils.get_totalvfs(interface.name) > 0:
+            data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
+                Ethernet.SRIOV.TOTAL_VFS: 0}
 
         if interface.ethtool_opts:
             self.add_ethtool_config(interface.name, data,
@@ -1536,10 +1537,24 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data = self._add_common(sriov_pf)
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
-        data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
-            Ethernet.SRIOV.TOTAL_VFS: sriov_pf.numvfs,
-            Ethernet.SRIOV.DRIVERS_AUTOPROBE: sriov_pf.drivers_autoprobe,
-        }
+
+        # Validate the maximum VFs allowed by hardware against
+        # the desired numvfs
+        max_vfs = utils.get_totalvfs(sriov_pf.name)
+        if max_vfs <= 0:
+            msg = (f'{sriov_pf.name}: SR-IOV is not supported.'
+                   'Check BIOS settings')
+            raise os_net_config.ConfigurationError(msg)
+        elif max_vfs >= sriov_pf.numvfs:
+            data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
+                Ethernet.SRIOV.TOTAL_VFS: sriov_pf.numvfs,
+                Ethernet.SRIOV.DRIVERS_AUTOPROBE: sriov_pf.drivers_autoprobe,
+            }
+        else:
+            msg = (f'{sriov_pf.name}: Maximum numvfs supported '
+                   f'({max_vfs}) is lesser than user requested '
+                   f'numvfs ({sriov_pf.numvfs})')
+            raise os_net_config.ConfigurationError(msg)
 
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
