@@ -60,7 +60,9 @@ _BASE_IFACE_CFG_APPLIED = """
     name: em1
     type: ethernet
     state: up
-    ethernet: {}
+    ethernet:
+      sr-iov:
+        total-vfs: 0
     ipv4:
       enabled: false
       dhcp: False
@@ -72,7 +74,9 @@ _BASE_IFACE_CFG_APPLIED = """
     name: eno2
     type: ethernet
     state: up
-    ethernet: {}
+    ethernet:
+      sr-iov:
+        total-vfs: 0
     ipv4:
       address:
       - ip: 192.168.1.2
@@ -94,7 +98,10 @@ _BASE_NMSTATE_IFACE_CFG = """- name: em1
   state: up
 """
 
-_NO_IP = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
+_NO_IP = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: false
     dhcp: False
@@ -104,7 +111,21 @@ _NO_IP = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
     autoconf: False
 """
 
-_V4_NMCFG = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
+_NO_IP_WO_SRIOV = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet: {}
+  ipv4:
+    enabled: false
+    dhcp: False
+  ipv6:
+    enabled: false
+    dhcp: False
+    autoconf: False
+"""
+
+_V4_NMCFG = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv6:
     enabled: False
     autoconf: False
@@ -140,10 +161,15 @@ _V4_V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """  ipv6:
     address:
     - ip: 192.168.1.2
       prefix-length: 24
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
 """
 
-_V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """  ethernet: {}
+_V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: False
     dhcp: False
@@ -168,6 +194,11 @@ class TestNmstateNetConfig(base.TestCase):
         super(TestNmstateNetConfig, self).setUp()
         self.temp_route_table_file = tempfile.NamedTemporaryFile()
         self.provider = impl_nmstate.NmstateNetConfig()
+
+        def get_totalvfs_stub(iface_name):
+            return 10
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
 
         def stub_is_ovs_installed():
             return True
@@ -220,6 +251,18 @@ class TestNmstateNetConfig(base.TestCase):
                          self.get_interface_config())
         self.assertEqual('', self.get_route_config('em1'))
 
+    def test_add_base_interface_without_sriov_caps(self):
+        def get_totalvfs_stub(iface_name):
+            return -1
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
+
+        interface = objects.Interface('em1')
+        self.provider.add_interface(interface)
+        self.assertEqual(yaml.safe_load(_NO_IP_WO_SRIOV)[0],
+                         self.get_interface_config())
+        self.assertEqual('', self.get_route_config('em1'))
+
     def test_add_interface_with_v6(self):
         v6_addr = objects.Address('2001:abc:a::/64')
         interface = objects.Interface('em1', addresses=[v6_addr])
@@ -255,7 +298,9 @@ class TestNmstateNetConfig(base.TestCase):
         em1_config = """- name: em1
   type: ethernet
   state: up
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: False
     dhcp: False
@@ -267,7 +312,9 @@ class TestNmstateNetConfig(base.TestCase):
         em2_config = """- name: em2
   type: ethernet
   state: up
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     enabled: False
     auto-gateway: False
@@ -291,7 +338,9 @@ class TestNmstateNetConfig(base.TestCase):
         em1_config = """- name: em1
   type: ethernet
   state: up
-  ethernet: {}
+  ethernet:
+    sr-iov:
+      total-vfs: 0
   ipv4:
     auto-dns: False
     enabled: False
@@ -391,17 +440,23 @@ class TestNmstateNetConfig(base.TestCase):
       speed: 1000
       duplex: full
       auto-negotiation: true
+      sr-iov:
+        total-vfs: 0
     ethtool: {}
 """
         em2_config = """
-  - ethernet: {}
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
     ethtool:
       ring:
         rx: 1024
         tx: 1024
 """
         em3_config = """
-  - ethernet: {}
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
     ethtool:
       ring:
         rx: 1024
@@ -412,7 +467,9 @@ class TestNmstateNetConfig(base.TestCase):
         hw-tc-offload: true
 """
         em4_config = """
-  - ethernet: {}
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
     ethtool:
       feature:
         hw-tc-offload: true
@@ -425,6 +482,8 @@ class TestNmstateNetConfig(base.TestCase):
       speed: 100
       duplex: half
       auto-negotiation: false
+      sr-iov:
+        total-vfs: 0
     ethtool: {}
 """
         self.assertEqual(yaml.safe_load(em1_config)[0],
@@ -606,7 +665,9 @@ class TestNmstateNetConfig(base.TestCase):
         expected_em1_cfg = """
         name: em1
         state: up
-        ethernet: {}
+        ethernet:
+            sr-iov:
+              total-vfs: 0
         ipv4:
             dhcp: False
             enabled: False
@@ -619,7 +680,9 @@ class TestNmstateNetConfig(base.TestCase):
         expected_em2_cfg = """
         name: em2
         state: up
-        ethernet: {}
+        ethernet:
+            sr-iov:
+              total-vfs: 0
         ipv4:
             dhcp: False
             enabled: False
@@ -1321,6 +1384,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1333,8 +1397,9 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ethernet
         ethernet:
-           sr-iov:
-               total-vfs: 10
+            sr-iov:
+              total-vfs: 10
+              drivers-autoprobe: true
         ethtool:
            feature:
                hw-tc-offload: False
@@ -1349,12 +1414,35 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(exp_pf_config),
                          self.get_interface_config('eth2'))
 
+    def test_sriov_pf_without_capability(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        def get_totalvfs_stub(iface_name):
+            return -1
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
+
+        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
+                                     steering_mode=None, lag_candidate=None):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      update_sriov_pf_map_stub)
+
+        pf = objects.SriovPF(name='nic3', numvfs=10)
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_sriov_pf,
+                          pf)
+
     def test_sriov_pf_with_nicpart_ovs(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1408,6 +1496,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1430,6 +1519,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1486,6 +1576,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1531,6 +1622,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1580,6 +1672,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1646,6 +1739,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1668,6 +1762,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: false
@@ -1725,6 +1820,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1795,6 +1891,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: true
@@ -1817,6 +1914,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 2
                     spoof-check: true
@@ -1874,6 +1972,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
                                      steering_mode=None, lag_candidate=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
@@ -1922,6 +2021,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 3
                     spoof-check: false
@@ -1944,6 +2044,7 @@ class TestNmstateNetConfig(base.TestCase):
           ethernet:
               sr-iov:
                   total-vfs: 10
+                  drivers-autoprobe: true
                   vfs:
                   - id: 3
                     spoof-check: false
@@ -2052,6 +2153,11 @@ class TestNmstateNetConfigApply(base.TestCase):
         self.stub_out(
             'libnmstate.netapplier.apply', test_iface_state)
         self.provider = impl_nmstate.NmstateNetConfig()
+
+        def get_totalvfs_stub(iface_name):
+            return 10
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
 
     def add_object(self, nic_config):
         iface_array = yaml.safe_load(nic_config)

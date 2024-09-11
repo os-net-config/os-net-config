@@ -162,12 +162,13 @@ class DcbConfig():
         msg.set_attr(attr=[iface_attr] + attr)
         msg.encode()
         try:
-            logger.debug(f'Sending message {msg_type_to_name(msg_type)} '
-                         f'cmd {cmd_to_name(cmd)} attr {attr}')
+            logger.debug(f'{self.device}: Sending message '
+                         f'{msg_type_to_name(msg_type)} cmd '
+                         f'{cmd_to_name(cmd)} attr {attr}')
             self.nlsock.sendto(msg.data, (0, 0))
         except Exception:
-            e_msg = (f'Failed to send {msg_type_to_name(msg_type)}'
-                     f' to {self.device}')
+            e_msg = (f'{self.device}: Failed to send '
+                     f'{msg_type_to_name(msg_type)}')
             raise DCBErrorException(e_msg)
 
         try:
@@ -176,17 +177,18 @@ class DcbConfig():
                 rd_data = self.nlsock.recv(netlink.NLMSG_MAX_LEN)
                 r_msg = DcbMessage(rd_data)
                 r_msg.decode()
-                logger.debug(f'Received message {r_msg}')
+                logger.debug(f'{self.device}: Received message {r_msg}')
                 err = self.check_error(r_msg, seq)
                 if err == netlink.NLMSG_ERROR:
-                    e_msg = f'NLMSG_ERROR for command {cmd_to_name(cmd)}'
+                    e_msg = (f'{self.device}: NLMSG_ERROR for command '
+                             f'{cmd_to_name(cmd)}')
                     raise DCBErrorException(e_msg)
                 if err < 0:
                     retry += 1
                 else:
                     break
         except Exception:
-            e_msg = f'Failed to get the reply for {cmd}'
+            e_msg = f'{self.device}: Failed to get the reply for {cmd}'
             raise DCBErrorException(e_msg)
         return r_msg
 
@@ -195,7 +197,7 @@ class DcbConfig():
                                       msg_type=RTM_GETDCB,
                                       attr=[])
         dcbx = r_msg.get_encoded('DCB_ATTR_DCBX')
-        logger.debug(f"DCBX mode for {self.device} is {dcbx}")
+        logger.debug(f"{self.device}: DCBX mode {dcbx%2} FW-0 OS-1")
         return dcbx
 
     def set_dcbx(self, mode):
@@ -206,7 +208,7 @@ class DcbConfig():
                                       msg_type=RTM_SETDCB,
                                       attr=[dcbx_data])
         dcbx = r_msg.get_encoded('DCB_ATTR_DCBX')
-        logger.debug(f"Got DCBX mode for {self.device} mode:{dcbx}")
+        logger.debug(f"{self.device}: Got DCBX mode:{dcbx%2} FW-0 OS-1")
         return dcbx
 
     def get_ieee_ets(self):
@@ -224,7 +226,7 @@ class DcbConfig():
         else:
             return None, None, None
 
-        logger.debug(f'Received for interface {device}\n'
+        logger.debug(f'{device}: Received for interface\n'
                      f'tc_tx_bw: {tc_tx_bw} tc_tsa: {tc_tsa}'
                      f'prio_tc: {prio_tc}')
 
@@ -384,11 +386,12 @@ class DcbApplyConfig():
                 dcb_app = DcbApp(selector, priority, protocol)
                 for key in curr_apptable.apps.keys():
                     if dcb_app.is_equal(curr_apptable.apps[key]):
-                        logger.debug(f'Not adding {dcb_app.dump()}')
+                        logger.debug(f"{cfg['device']}: Not adding "
+                                     f"{dcb_app.dump()}")
                         curr_apptable.apps.pop(key)
                         break
                 else:
-                    logger.debug(f'Adding {dcb_app.dump()}')
+                    logger.debug(f"{cfg['device']}: Adding {dcb_app.dump()}")
                     add_app_table.apps.update({i: dcb_app})
                     i += 1
             curr_apptable.del_app_entry(dcb_config,
@@ -403,7 +406,7 @@ def mstconfig(device, pci_addr):
     :pci_addr pci address of the interface
     """
 
-    logger.info(f"Running mstconfig for {device}")
+    logger.info(f"{device}: Running mstconfig")
     try:
         processutils.execute('mstconfig', '-y', '-d', pci_addr, 'set',
                              'LLDP_NB_DCBX_P1=TRUE', 'LLDP_NB_TX_MODE_P1=2',
@@ -416,7 +419,7 @@ def mstconfig(device, pci_addr):
 
 def mstfwreset(device, pci_addr):
     """mstfwreset is an utility to reset the PCI device and load new FW"""
-    logger.info(f"Running mstfwreset for {device}")
+    logger.info(f"{device}: Running mstfwreset")
     try:
         processutils.execute('mstfwreset', '--device', pci_addr,
                              '--level', '3', '-y', 'r')
