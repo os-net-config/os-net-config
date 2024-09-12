@@ -9,3 +9,4 @@ PyYAML>=3.10.0 # MIT
 jsonschema>=3.2.0 # MIT
 pyudev>=0.16.1 # LGPLv2.1+
 pyroute2
+setuptools<71.0.0
