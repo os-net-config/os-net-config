@@ -1429,6 +1429,50 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(exp_pf_config),
                          self.get_interface_config('eth2'))
 
+    def test_sriov_pf_with_switchdev(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        def get_totalvfs_stub(iface_name):
+            return 10
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
+
+        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
+                                     steering_mode=None, lag_candidate=None):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      update_sriov_pf_map_stub)
+
+        pf = objects.SriovPF(name='nic3', numvfs=10, link_mode='switchdev')
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_sriov_pf,
+                          pf)
+
+    def test_sriov_pf_with_vdpa(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        def get_totalvfs_stub(iface_name):
+            return 10
+        self.stub_out('os_net_config.utils.get_totalvfs',
+                      get_totalvfs_stub)
+
+        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
+                                     steering_mode=None, lag_candidate=None):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      update_sriov_pf_map_stub)
+
+        pf = objects.SriovPF(name='nic3', numvfs=10, vdpa=True)
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_sriov_pf,
+                          pf)
+
     def test_sriov_pf_without_capability(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
