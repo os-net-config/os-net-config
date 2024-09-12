@@ -1614,6 +1614,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self._clean_iface(sriov_pf.name, InterfaceType.ETHERNET)
 
         logger.info(f'adding sriov pf: {sriov_pf.name}')
+        if sriov_pf.vdpa or sriov_pf.link_mode == 'switchdev':
+            msg = "Switchdev/vDPA is not supported by nmstate provider yet."
+            raise os_net_config.ConfigurationError(msg)
+
         data = self._add_common(sriov_pf)
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
@@ -1638,13 +1642,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
-        if sriov_pf.link_mode == 'switchdev':
-            logger.info(f'enabling switchdev for sriov pf: {sriov_pf.name}')
-            data[Ethtool.CONFIG_SUBTREE] = {}
-            data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
-                'hw-tc-offload': True}
-        # Disable offload, in case default is set true
-        else:
+        if sriov_pf.link_mode == 'legacy':
             data[Ethtool.CONFIG_SUBTREE] = {}
             data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
                 'hw-tc-offload': False}
