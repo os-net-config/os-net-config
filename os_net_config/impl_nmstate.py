@@ -1862,4 +1862,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.linuxbond_data = {}
         self.vlan_data = {}
 
+        logger.info('Succesfully applied the network configuration with '
+                    'nmstate provider')
         return updated_interfaces
