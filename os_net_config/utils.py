@@ -322,7 +322,7 @@ def get_driver(ifname, noop):
 def translate_ifname_to_pci_address(ifname, noop):
     pci_address = get_stored_pci_address(ifname, noop)
     if pci_address is None and not noop:
-        pci_address = get_pci_address(ifname, noop=False)
+        pci_address = get_pci_address(ifname, noop=noop)
         mac_address = common.interface_mac(ifname)
         _update_dpdk_map(ifname, pci_address, mac_address, driver=None)
     return pci_address
