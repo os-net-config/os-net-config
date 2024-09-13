@@ -47,6 +47,7 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 #1\tinr.ruhep\n"""
 
 PURGE_IFCFG_FILES = '/var/lib/os-net-config/ifcfg-purge/'
+NETWORK_SCRIPTS_PATH = '/etc/sysconfig/network-scripts/'
 
 
 def ifcfg_config_path(name):
@@ -2176,9 +2177,48 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             logger.info(f'Moving {rule_file} to {new_rule_file}')
             shutil.move(rule_file, new_rule_file)
 
+    def roll_back_migration(self):
+        logger.info('Rolling back to ifcfg provider')
+        self._restore_ifcfg_files()
+        self._bringup_all_devices()
+        logger.info('Reverted back to ifcfg provider succesfully')
+
     def clean_migration(self):
         logger.info("Clean migration files")
         sriov_config.wipe_sriov_udev_files()
+
+    def _restore_ifcfg_files(self):
+        logger.info('Restoring the ifcfg files')
+        for file in os.listdir(PURGE_IFCFG_FILES):
+            if file.startswith('ifcfg-') or \
+                file.startswith('rule-') or \
+                file.startswith('route-') or \
+                file.startswith('route6-'):
+                file_path = os.path.join(PURGE_IFCFG_FILES, file)
+                new_file_path = os.path.join(NETWORK_SCRIPTS_PATH, file)
+                try:
+                    shutil.copy(file_path, new_file_path)
+                except shutil.SameFileError:
+                    pass
+
+    def _bringup_all_devices(self):
+        logger.info('Bring up the devices with ifcfg provider')
+        utils.configure_sriov_pfs()
+        utils.configure_sriov_vfs()
+        for file in os.listdir(NETWORK_SCRIPTS_PATH):
+            device_name = ""
+            if file.startswith('ifcfg-'):
+                device_name = file[len('ifcfg-'):]
+            if file.startswith('rule-'):
+                device_name = file[len('rule-'):]
+            if file.startswith('route-'):
+                device_name = file[len('route-'):]
+            if file.startswith('route6-'):
+                device_name = file[len('route6-'):]
+
+            if device_name:
+                logger.info(f'Bringing up device {device_name}')
+                self.ifup(device_name)
 
     def purge(self, iface_name):
         ifcfg_file = ifcfg_config_path(iface_name)
