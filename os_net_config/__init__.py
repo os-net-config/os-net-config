@@ -99,6 +99,10 @@ class NetConfig(object):
         logger.info('Migration is not supported for this provider')
         return
 
+    def roll_back_migration(self):
+        logger.info('roll back migration is not supported for this provider')
+        return
+
     def clean_migration(self):
         logger.info('clean migration is not supported for this provider')
         return
