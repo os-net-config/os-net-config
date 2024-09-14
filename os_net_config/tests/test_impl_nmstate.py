@@ -212,15 +212,6 @@ class TestNmstateNetConfig(base.TestCase):
             test_route_table_path)
         utils.write_config(self.temp_route_table_file.name, _RT_CUSTOM)
 
-        def show_running_info_stub():
-            running_info_path = os.path.join(
-                os.path.dirname(__file__),
-                'environment/netinfo_running_info_1.yaml')
-            running_info = self.get_running_info(running_info_path)
-            return running_info
-        self.stub_out('libnmstate.netinfo.show_running_config',
-                      show_running_info_stub)
-
     def get_interface_config(self, name='em1'):
         return self.provider.interface_data[name]
 
