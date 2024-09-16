@@ -23,7 +23,6 @@ import sys
 import yaml
 
 from os_net_config import common
-from os_net_config import dcb_config
 from os_net_config import objects
 from os_net_config import utils
 from os_net_config import validator
@@ -404,6 +403,12 @@ def main(argv=sys.argv, main_logger=None):
 
     if utils.is_dcb_config_required():
         # Apply the DCB Config
+        try:
+            from os_net_config import dcb_config
+        except ImportError as e:
+            logger.error(f'cannot apply DCB configuration: {e!r}')
+            return 1
+
         utils.configure_dcb_config_service()
         dcb_apply = dcb_config.DcbApplyConfig()
         dcb_apply.apply()
