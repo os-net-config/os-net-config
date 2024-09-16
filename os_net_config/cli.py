@@ -16,6 +16,7 @@
 
 
 import argparse
+import importlib
 import json
 import os
 import sys
@@ -23,18 +24,21 @@ import yaml
 
 from os_net_config import common
 from os_net_config import dcb_config
-from os_net_config import impl_eni
-from os_net_config import impl_ifcfg
-from os_net_config import impl_iproute
-from os_net_config import impl_nmstate
 from os_net_config import objects
 from os_net_config import utils
 from os_net_config import validator
 from os_net_config import version
 
+
 logger = common.configure_logger()
 
 _SYSTEM_CTL_CONFIG_FILE = '/etc/sysctl.d/os-net-sysctl.conf'
+_PROVIDERS = {
+    'ifcfg': 'IfcfgNetConfig',
+    'eni': 'ENINetConfig',
+    'iproute': 'IprouteNetConfig',
+    'nmstate': 'NmstateNetConfig',
+}
 
 
 def parse_opts(argv):
@@ -56,6 +60,7 @@ def parse_opts(argv):
     parser.add_argument('-p', '--provider', metavar='PROVIDER',
                         help="""The provider to use. """
                         """One of: ifcfg, eni, nmstate, iproute.""",
+                        choices=_PROVIDERS.keys(),
                         default=None)
     parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
                         help="""The root directory of the filesystem.""",
@@ -67,6 +72,7 @@ def parse_opts(argv):
                         """network configuration to the desired provider."""
                         """There shall be no change in the input network """
                         """configuration during the migration.""",
+                        choices=_PROVIDERS.keys(),
                         default=None)
     parser.add_argument('--detailed-exit-codes',
                         action='store_true',
@@ -165,6 +171,12 @@ def get_sriovpf_member_of_bond_ovs_port(obj):
     return net_devs_list
 
 
+def load_provider(name, noop, root_dir):
+    mod = importlib.import_module(f'os_net_config.impl_{name}')
+    provider_class = getattr(mod, _PROVIDERS[name])
+    return provider_class(noop=noop, root_dir=root_dir)
+
+
 def main(argv=sys.argv, main_logger=None):
     opts = parse_opts(argv)
     if not main_logger:
@@ -175,20 +187,11 @@ def main(argv=sys.argv, main_logger=None):
     configure_sriov = False
     sriovpf_bond_ovs_ports = []
     provider = None
-    provider_map = {'ifcfg': impl_ifcfg.IfcfgNetConfig,
-                    'eni': impl_eni.ENINetConfig,
-                    'iproute': impl_iproute.IprouteNetConfig,
-                    'nmstate': impl_nmstate.NmstateNetConfig}
-    purge_enabled = False
+    purge_provider = None
     files_changed = {}
     migration_failed = False
 
-    if opts.provider:
-        if opts.provider not in provider_map.keys():
-            main_logger.error("Invalid provider specified.")
-            return 1
-
-    else:
+    if not opts.provider:
         nm_con_path = f'{opts.root_dir}/etc/NetworkManager/system-connections'
         ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
         if os.path.exists(ifcfg_path):
@@ -206,13 +209,14 @@ def main(argv=sys.argv, main_logger=None):
         if opts.purge_provider == opts.provider:
             main_logger.error('purge-provider and provider can\'t be the same')
             return 1
-        if opts.purge_provider in provider_map:
-            purge_provider = provider_map[opts.purge_provider](
-                noop=opts.noop, root_dir=opts.root_dir)
-        else:
-            main.logger.error('Invalid purge-provider specified')
+        try:
+            purge_provider = load_provider(opts.purge_provider, opts.noop,
+                                           opts.root_dir)
+        except ImportError as e:
+            main_logger.error('cannot load purge provider %s: %s',
+                              opts.purge_provider, e)
             return 1
-        purge_enabled = True
+
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
     # mappings by specifying a specific nicN->name or nicN->MAC mapping
@@ -301,15 +305,19 @@ def main(argv=sys.argv, main_logger=None):
     if utils.is_dcb_config_required():
         common.reset_dcb_map()
 
-    if purge_enabled:
+    if purge_provider:
         for iface_json in iface_array:
             obj = objects.object_from_json(iface_json)
             purge_provider.del_object(obj)
         purge_provider.destroy()
 
-    provider = provider_map[opts.provider](noop=opts.noop,
-                                           root_dir=opts.root_dir)
-    if purge_enabled:
+    try:
+        provider = load_provider(opts.provider, opts.noop, opts.root_dir)
+    except ImportError as e:
+        main_logger.error('cannot load provider %s: %s', opts.provider, e)
+        return 1
+
+    if purge_provider:
         provider.enable_migration()
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
@@ -387,7 +395,7 @@ def main(argv=sys.argv, main_logger=None):
         logger.info('Succesfully applied the network configuration with '
                     f'{opts.provider} provider')
     except Exception:
-        if purge_enabled:
+        if purge_provider:
             logger.error('***Failed to configure with '
                          f'{opts.provider} provider***')
             # Rolling back to the earlier provider.
@@ -400,7 +408,7 @@ def main(argv=sys.argv, main_logger=None):
         dcb_apply = dcb_config.DcbApplyConfig()
         dcb_apply.apply()
 
-    if purge_enabled and migration_failed is False:
+    if purge_provider and migration_failed is False:
         logger.info('Cleaning the residue files from '
                     f'{opts.purge_provider} provider')
         purge_provider.clean_migration()
