@@ -24,7 +24,6 @@ import netaddr
 from oslo_utils import strutils
 
 from os_net_config import common
-from os_net_config import dcb_netlink
 from os_net_config import utils
 
 
@@ -306,6 +305,8 @@ class Dcb(object):
 
     @staticmethod
     def from_json(json):
+        from os_net_config import dcb_netlink
+
         dscp2prio = []
         device = _get_required_field(json, 'device', 'Dcb')
         dscp2prio_lst = _get_required_field(json, 'dscp2prio', 'Dcb')
