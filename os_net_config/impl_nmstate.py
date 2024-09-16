@@ -14,32 +14,34 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from libnmstate import error
-from libnmstate import gen_diff
-from libnmstate import netapplier
-from libnmstate import netinfo
-from libnmstate.schema import Bond
-from libnmstate.schema import BondMode
-from libnmstate.schema import DNS
-from libnmstate.schema import Ethernet
-from libnmstate.schema import Ethtool
-from libnmstate.schema import InfiniBand
-from libnmstate.schema import Interface
-from libnmstate.schema import InterfaceIPv4
-from libnmstate.schema import InterfaceIPv6
-from libnmstate.schema import InterfaceState
-from libnmstate.schema import InterfaceType
-from libnmstate.schema import OVSBridge
-from libnmstate.schema import OvsDB
-from libnmstate.schema import OVSInterface
-from libnmstate.schema import Route as NMRoute
-from libnmstate.schema import RouteRule as NMRouteRule
-from libnmstate.schema import VLAN
-import logging
-import netaddr
-import re
-import yaml
-
+try;
+    from libnmstate import error
+    from libnmstate import gen_diff
+    from libnmstate import netapplier
+    from libnmstate import netinfo
+    from libnmstate.schema import Bond
+    from libnmstate.schema import BondMode
+    from libnmstate.schema import DNS
+    from libnmstate.schema import Ethernet
+    from libnmstate.schema import Ethtool
+    from libnmstate.schema import InfiniBand
+    from libnmstate.schema import Interface
+    from libnmstate.schema import InterfaceIPv4
+    from libnmstate.schema import InterfaceIPv6
+    from libnmstate.schema import InterfaceState
+    from libnmstate.schema import InterfaceType
+    from libnmstate.schema import OVSBridge
+    from libnmstate.schema import OvsDB
+    from libnmstate.schema import OVSInterface
+    from libnmstate.schema import Route as NMRoute
+    from libnmstate.schema import RouteRule as NMRouteRule
+    from libnmstate.schema import VLAN
+    import logging
+    import netaddr
+    import re
+    import yaml
+except:
+    pass
 import os_net_config
 from os_net_config import common
 from os_net_config import objects
