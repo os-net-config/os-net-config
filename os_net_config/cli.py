@@ -176,6 +176,23 @@ def load_provider(name, noop, root_dir):
     return provider_class(noop=noop, root_dir=root_dir)
 
 
+def is_nmstate_available():
+    try:
+        import libnmstate
+        from packaging.version import Version
+        if Version(libnmstate.__version__) > Version('2.2.32'):
+            logger.info(f'libnmstate - {libnmstate.__version__} '
+                        f'is available')
+            return True
+    except ImportError:
+        logger.info("Could not find libnmstate packages")
+        return False
+
+    logger.info('libnmstate version {libnmstate.__version__} is '
+                'incompatible for minimum support')
+    return False
+
+
 def main(argv=sys.argv, main_logger=None):
     opts = parse_opts(argv)
     if not main_logger:
@@ -191,12 +208,11 @@ def main(argv=sys.argv, main_logger=None):
     migration_failed = False
 
     if not opts.provider:
-        nm_con_path = f'{opts.root_dir}/etc/NetworkManager/system-connections'
         ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
-        if os.path.exists(ifcfg_path):
-            opts.provider = "ifcfg"
-        elif os.path.exists(nm_con_path):
+        if is_nmstate_available():
             opts.provider = "nmstate"
+        elif os.path.exists(ifcfg_path):
+            opts.provider = "ifcfg"
         elif os.path.exists('%s/etc/network/' % opts.root_dir):
             opts.provider = "eni"
         else:
