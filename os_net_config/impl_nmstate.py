@@ -130,6 +130,9 @@ def is_dict_subset(superset, subset):
 
 
 def _add_sub_tree(data, subtree):
+    if data is None:
+        msg = 'Subtree can\'t be created on None Types'
+        raise os_net_config.ConfigurationError(msg)
     config = data
     if subtree:
         for cfg in subtree:
@@ -186,7 +189,8 @@ def set_ovs_bonding_options(bond_options):
                         "other-config:bond-rebalance-interval",
                         "other-config:bond-primary"]
     other_config = {}
-    bond_data = {OVSBridge.Port.LinkAggregation.MODE: 'active-backup',
+    bond_data = {OVSBridge.Port.LinkAggregation.MODE:
+                 OVSBridge.Port.LinkAggregation.Mode.ACTIVE_BACKUP,
                  OVSBridge.PORT_SUBTREE:
                      [{OVSBridge.Port.LinkAggregation.PORT_SUBTREE: []}],
                  OvsDB.KEY: {OvsDB.OTHER_CONFIG: other_config}}
@@ -643,8 +647,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
             else:
                 port = {'name': member}
                 bps.append(port)
-
-        logger.debug(f"Adding ovs ports {bps}")
         return bps
 
     def add_ethtool_subtree(self, data, sub_config, command):
@@ -1119,7 +1121,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
     def _ovs_extra_cfg_eq_val(self, ovs_extra, cmd_map, data):
         index = 0
-        logger.info(f'Current ovs_extra {ovs_extra}')
         for a, b in zip(ovs_extra, cmd_map['command']):
             if not re.match(b, a, re.IGNORECASE):
                 return False
@@ -1154,8 +1155,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     else:
                         msg = 'NM config not found'
                         raise os_net_config.ConfigurationError(msg)
-                    logger.info(f"Adding ovs_extra {config} in "
-                                f"{cfg['sub_tree']}")
+                    logger.debug(f"Adding ovs_extra {config} in "
+                                 f"{cfg['sub_tree']}")
 
     def _ovs_extra_cfg_val(self, ovs_extra, cmd_map, data):
         index = 0
@@ -1193,8 +1194,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     else:
                         msg = 'NM config not found'
                         raise os_net_config.ConfigurationError(msg)
-                    logger.info(f"Adding ovs_extra {config} in "
-                                f"{cfg['sub_tree']}")
+                    logger.debug(f"Adding ovs_extra {config} in "
+                                 f"{cfg['sub_tree']}")
 
     def parse_ovs_extra(self, ovs_extras, name, data):
 
@@ -1238,7 +1239,23 @@ class NmstateNetConfig(os_net_config.NetConfig):
                       'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
                       'nm_config': None,
                       'nm_config_regex': r'^other-config:(.+?)=',
-                      'value_pattern': r'^other-config:.*=(.+?)$'}]
+                      'value_pattern': r'^other-config:.*=(.+?)$'},
+                     {'config': r'^options:n_rxq_desc=[\w+]',
+                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
+                      'nm_config': OVSInterface.Dpdk.N_RXQ_DESC,
+                      'value_pattern': r'^options:n_rxq_desc=(.+?)$'},
+                     {'config': r'^options:n_txq_desc=[\w+]',
+                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
+                      'nm_config': OVSInterface.Dpdk.N_TXQ_DESC,
+                      'value_pattern': r'^options:n_txq_desc=(.+?)$'}]
+
+        port_cfg = [
+            # Here the nm_config bond_mode matches the ovs_options
+            # and not the Nmstate schema
+            {'config': r'^bond_mode=[\w+]',
+             'sub_tree': None,
+             'nm_config': 'bond_mode',
+             'value_pattern': r'^bond_mode=(.+?)$'}]
 
         external_id_cfg = [{'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
                             'config': r'.*',
@@ -1249,20 +1266,26 @@ class NmstateNetConfig(os_net_config.NetConfig):
                             'action': bridge_cfg},
                            {'command': ['set', 'interface',
                                         '({name}|%s)' % name],
-                            'action': iface_cfg}]
+                            'action': iface_cfg},
+                           {'command': ['set', 'port',
+                                        '({name}|%s)' % name],
+                            'action': port_cfg}]
 
         cfg_val_pair = [{'command': ['br-set-external-id',
                                      '({name}|%s)' % name],
                          'action': external_id_cfg}]
         # ovs-vsctl set Bridge $name <config>=<value>
         # ovs-vsctl set Interface $name <config>=<value>
+        # ovs-vsctl set Port $name <config>=<value>
         # ovs-vsctl br-set-external-id $name key [value]
+        logger.debug(f'{name}: Parsing ovs_extra\n{ovs_extras}')
         for ovs_extra in ovs_extras:
             ovs_extra_cmd = ovs_extra.split(' ')
             for cmd_map in cfg_eq_val_pair:
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
             for cmd_map in cfg_val_pair:
                 self._ovs_extra_cfg_val(ovs_extra_cmd, cmd_map, data)
+        logger.info(f'{name}: Parsed ovs_extra\n{data}')
 
     def parse_ovs_extra_for_ports(self, ovs_extras, bridge_name, data):
         port_vlan_cfg = [{'config': r'^tag=[\w+]',
@@ -1276,10 +1299,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
         cfg_eq_val_pair = [{'command': ['set', 'port',
                                         '({name}|%s)' % bridge_name],
                             'action': port_vlan_cfg}]
+        logger.debug(f'{bridge_name}: Parsing ovs_extra for ports\n'
+                     f'{ovs_extras}')
         for ovs_extra in ovs_extras:
             ovs_extra_cmd = ovs_extra.split(' ')
             for cmd_map in cfg_eq_val_pair:
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+        logger.info(f'{bridge_name}: Parsed ovs_extra for ports\n{data}')
 
     def add_bridge(self, bridge, dpdk=False):
         """Add an OvsBridge object to the net config object.
@@ -1312,7 +1338,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         ovs_int_port = {'name': ovs_interface_port.name}
         if bridge.ovs_extra:
-            logger.info(f"Parsing ovs_extra for ports: {bridge.ovs_extra}")
             self.parse_ovs_extra_for_ports(bridge.ovs_extra,
                                            bridge.name, ovs_int_port)
 
@@ -1359,9 +1384,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             mac = self.interface_mac(bridge.primary_interface_name)
             bridge.ovs_extra.append("set bridge %s other_config:hwaddr=%s" %
                                     (bridge.name, mac))
-        if bridge.ovs_extra:
-            logger.info(f"Parsing ovs_extra : {bridge.ovs_extra}")
-            self.parse_ovs_extra(bridge.ovs_extra, bridge.name, data)
+        self.parse_ovs_extra(bridge.ovs_extra, bridge.name, data)
 
         if dpdk:
             ovs_bridge_options[OVSBridge.Options.DATAPATH] = 'netdev'
@@ -1372,6 +1395,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
             for member in bridge.members:
                 if (isinstance(member, objects.OvsBond) or
                         isinstance(member, objects.OvsDpdkBond)):
+                    bond_options = {}
+                    self.parse_ovs_extra(member.ovs_extra,
+                                         member.name, bond_options)
+                    logger.debug(f'{member.name}: Bond options from '
+                                 f'ovs_extra\n{bond_options}')
                     if ovs_port:
                         msg = "Ovs Bond and ovs port can't be members to "\
                               "the ovs bridge"
@@ -1385,8 +1413,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         else:
                             member.ovs_options = add_bond_setting
 
-                    logger.info(f"OVS Options are {member.ovs_options}")
-                    bond_options = parse_bonding_options(member.ovs_options)
+                    logger.debug(f'{member.name}: Bond options from '
+                                 f'ovs_options:\n{member.ovs_options}')
+                    bond_options |= parse_bonding_options(member.ovs_options)
+                    logger.info(f'{member.name}: Aggregated bond options - '
+                                f'{bond_options}')
                     bond_data = set_ovs_bonding_options(bond_options)
                     bond_port = [{
                         OVSBridge.Port.LINK_AGGREGATION_SUBTREE: bond_data,
@@ -1396,7 +1427,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
                          ][OVSBridge.PORT_SUBTREE] = bond_port
 
                     ovs_bond = True
-                    logger.debug("OVS Bond members %s added" % members)
                     if member.members:
                         members = [m.name for m in member.members]
                 elif ovs_bond:
@@ -1405,13 +1435,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     raise os_net_config.ConfigurationError(msg)
                 else:
                     ovs_port = True
-                    logger.debug("Adding member ovs port %s" % member.name)
                     members.append(member.name)
             if members:
-                logger.debug("Add ovs ports and vlans to ovs bridge")
                 bps = self.get_ovs_ports(members)
             else:
-                msg = "No members added for ovs bridge"
+                msg = f'{bridge.name}: No members added for ovs bridge'
                 raise os_net_config.ConfigurationError(msg)
 
             self.member_names[bridge.name] = members
@@ -1531,7 +1559,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {},
                            OvsDB.OTHER_CONFIG: {}}
         if ovs_dpdk_port.ovs_extra:
-            logger.info(f"Parsing ovs_extra : {ovs_dpdk_port.ovs_extra}")
             self.parse_ovs_extra(ovs_dpdk_port.ovs_extra,
                                  ovs_dpdk_port.name, data)
 
@@ -1571,6 +1598,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 member.mtu = bond.mtu
             if bond.rx_queue:
                 member.rx_queue = bond.rx_queue
+            if bond.rx_queue_size:
+                member.rx_queue_size = bond.rx_queue_size
+            if bond.tx_queue_size:
+                member.tx_queue_size = bond.tx_queue_size
+            if bond.ovs_extra:
+                member.ovs_extra = bond.ovs_extra
             self.add_ovs_dpdk_port(member)
         return
 

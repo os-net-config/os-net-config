@@ -222,6 +222,14 @@ class TestNmstateNetConfig(base.TestCase):
             test_route_table_path)
         utils.write_config(self.temp_route_table_file.name, _RT_CUSTOM)
 
+        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
+                                     steering_mode=None, lag_candidate=None):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      update_sriov_pf_map_stub)
+
     def get_running_info(self, yaml_file):
         with open(yaml_file) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
@@ -1397,14 +1405,6 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         pf = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf)
         exp_pf_config = """
@@ -1438,14 +1438,6 @@ class TestNmstateNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.get_totalvfs',
                       get_totalvfs_stub)
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         pf = objects.SriovPF(name='nic3', numvfs=10, link_mode='switchdev')
         self.assertRaises(os_net_config.ConfigurationError,
                           self.provider.add_sriov_pf,
@@ -1459,14 +1451,6 @@ class TestNmstateNetConfig(base.TestCase):
             return 10
         self.stub_out('os_net_config.utils.get_totalvfs',
                       get_totalvfs_stub)
-
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
 
         pf = objects.SriovPF(name='nic3', numvfs=10, vdpa=True)
         self.assertRaises(os_net_config.ConfigurationError,
@@ -1482,14 +1466,6 @@ class TestNmstateNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.get_totalvfs',
                       get_totalvfs_stub)
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         pf = objects.SriovPF(name='nic3', numvfs=10)
         self.assertRaises(os_net_config.ConfigurationError,
                           self.provider.add_sriov_pf,
@@ -1498,14 +1474,6 @@ class TestNmstateNetConfig(base.TestCase):
     def test_sriov_pf_with_nicpart_ovs(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
-
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
 
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
@@ -1633,14 +1601,6 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
         self.stub_out('os_net_config.utils.get_vf_devname',
@@ -1670,9 +1630,9 @@ class TestNmstateNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
-        self.provider.add_sriov_vf(ovs_obj.members[0].members[0])
-        self.provider.add_ovs_dpdk_port(ovs_obj.members[0])
         self.provider.add_ovs_user_bridge(ovs_obj)
+        self.provider.add_ovs_dpdk_port(ovs_obj.members[0])
+        self.provider.add_sriov_vf(ovs_obj.members[0].members[0])
 
         exp_pf_config = """
         - name: eth1
@@ -1725,17 +1685,388 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(exp_bridge_config),
                          self.get_bridge_config('br-dpdk2'))
 
-    def test_sriov_pf_with_nicpart_ovs_user_bridge(self):
+    def test_dpdkbond_regular(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
+        ovs_config = """
+        type: ovs_user_bridge
+        name: br-bond
+        members:
+          -
+            type: ovs_dpdk_bond
+            name: dpdkbond1
+            ovs_options: "bond_mode=active-backup"
+            members:
+              -
+                type: ovs_dpdk_port
+                name: dpdk2
+                members:
+                  -
+                    type: interface
+                    name: nic2
+              -
+                type: ovs_dpdk_port
+                name: dpdk3
+                members:
+                  -
+                    type: interface
+                    name: nic3
+        """
+
+        def test_bind_dpdk_interfaces(ifname, driver, noop):
             return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
+        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
+                      test_bind_dpdk_interfaces)
+
+        def stub_get_stored_pci_address(ifname, noop):
+            if 'eth1' in ifname:
+                return "0000:00:07.1"
+            if 'eth2' in ifname:
+                return "0000:00:07.2"
+        self.stub_out('os_net_config.utils.get_stored_pci_address',
+                      stub_get_stored_pci_address)
+
+        ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
+        dpdk_bond = ovs_obj.members[0]
+        self.provider.add_ovs_user_bridge(ovs_obj)
+        self.provider.add_ovs_dpdk_bond(dpdk_bond)
+
+        exp_bridge_config = """
+        name: br-bond
+        state: up
+        type: ovs-bridge
+        bridge:
+            options:
+                datapath: netdev
+                fail-mode: standalone
+                mcast-snooping-enable: False
+                rstp: False
+                stp: False
+            port:
+                - name: dpdkbond1
+                  link-aggregation:
+                      mode: active-backup
+                      ovs-db:
+                          other_config:
+                              bond-primary: dpdk2
+                      port:
+                          - name: dpdk2
+                          - name: dpdk3
+                - name: br-bond-p
+        ovs-db:
+            external_ids: {}
+            other_config: {'mac-table-size': 50000}
+        """
+
+        exp_dpdk2_config = """
+        dpdk:
+          devargs: "0000:00:07.1"
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        name: dpdk2
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        exp_dpdk3_config = """
+        dpdk:
+          devargs: "0000:00:07.2"
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        name: dpdk3
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        self.assertEqual(yaml.safe_load(exp_dpdk2_config),
+                         self.get_interface_config('dpdk2'))
+        self.assertEqual(yaml.safe_load(exp_dpdk3_config),
+                         self.get_interface_config('dpdk3'))
+        self.assertEqual(yaml.safe_load(exp_bridge_config),
+                         self.get_bridge_config('br-bond'))
+
+    def test_dpdkbond_custom(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        ovs_config = """
+        type: ovs_user_bridge
+        name: br-bond
+        members:
+          -
+            type: ovs_dpdk_bond
+            name: dpdkbond1
+            ovs_options: "bond_mode=balance-slb"
+            rx_queue: 2
+            rx_queue_size: 2048
+            tx_queue_size: 2048
+            mtu: 9000
+            members:
+              -
+                type: ovs_dpdk_port
+                name: dpdk2
+                members:
+                  -
+                    type: interface
+                    name: nic2
+              -
+                type: ovs_dpdk_port
+                name: dpdk3
+                members:
+                  -
+                    type: interface
+                    name: nic3
+        """
+
+        def test_bind_dpdk_interfaces(ifname, driver, noop):
+            return
+        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
+                      test_bind_dpdk_interfaces)
+
+        def stub_get_stored_pci_address(ifname, noop):
+            if 'eth1' in ifname:
+                return "0000:00:07.1"
+            if 'eth2' in ifname:
+                return "0000:00:07.2"
+        self.stub_out('os_net_config.utils.get_stored_pci_address',
+                      stub_get_stored_pci_address)
+
+        ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
+        dpdk_bond = ovs_obj.members[0]
+        self.provider.add_ovs_user_bridge(ovs_obj)
+        self.provider.add_ovs_dpdk_bond(dpdk_bond)
+
+        exp_bridge_config = """
+        name: br-bond
+        state: up
+        type: ovs-bridge
+        bridge:
+            options:
+                datapath: netdev
+                fail-mode: standalone
+                mcast-snooping-enable: False
+                rstp: False
+                stp: False
+            port:
+                - name: dpdkbond1
+                  link-aggregation:
+                      mode: balance-slb
+                      ovs-db:
+                          other_config:
+                              bond-primary: dpdk2
+                      port:
+                          - name: dpdk2
+                          - name: dpdk3
+                - name: br-bond-p
+        ovs-db:
+            external_ids: {}
+            other_config: {'mac-table-size': 50000}
+        """
+
+        exp_dpdk2_config = """
+        dpdk:
+          devargs: "0000:00:07.1"
+          n_rxq_desc: 2048
+          n_txq_desc: 2048
+          rx-queue: 2
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        mtu: 9000
+        name: dpdk2
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        exp_dpdk3_config = """
+        dpdk:
+          devargs: "0000:00:07.2"
+          n_rxq_desc: 2048
+          n_txq_desc: 2048
+          rx-queue: 2
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        mtu: 9000
+        name: dpdk3
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        self.assertEqual(yaml.safe_load(exp_dpdk2_config),
+                         self.get_interface_config('dpdk2'))
+        self.assertEqual(yaml.safe_load(exp_dpdk3_config),
+                         self.get_interface_config('dpdk3'))
+        self.assertEqual(yaml.safe_load(exp_bridge_config),
+                         self.get_bridge_config('br-bond'))
+
+    def test_dpdkbond_ovs_extra(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        ovs_config = """
+        type: ovs_user_bridge
+        name: br-bond
+        members:
+          -
+            type: ovs_dpdk_bond
+            name: dpdkbond1
+            mtu: 9000
+            rx_queue: 1
+            ovs_extra:
+              - set port dpdkbond1 bond_mode=balance-slb
+              - set Interface dpdk2 options:n_rxq_desc=2048
+              - set Interface dpdk2 options:n_txq_desc=2048
+              - set Interface dpdk3 options:n_rxq_desc=2048
+              - set Interface dpdk3 options:n_txq_desc=2048
+            mtu: 9000
+            members:
+              -
+                type: ovs_dpdk_port
+                name: dpdk2
+                members:
+                  -
+                    type: interface
+                    name: nic2
+              -
+                type: ovs_dpdk_port
+                name: dpdk3
+                members:
+                  -
+                    type: interface
+                    name: nic3
+        """
+
+        def test_bind_dpdk_interfaces(ifname, driver, noop):
+            return
+        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
+                      test_bind_dpdk_interfaces)
+
+        def stub_get_stored_pci_address(ifname, noop):
+            if 'eth1' in ifname:
+                return "0000:00:07.1"
+            if 'eth2' in ifname:
+                return "0000:00:07.2"
+        self.stub_out('os_net_config.utils.get_stored_pci_address',
+                      stub_get_stored_pci_address)
+
+        ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
+        self.provider.add_ovs_user_bridge(ovs_obj)
+        dpdk_bond = ovs_obj.members[0]
+        self.provider.add_ovs_dpdk_bond(dpdk_bond)
+
+        exp_bridge_config = """
+        name: br-bond
+        state: up
+        type: ovs-bridge
+        bridge:
+            options:
+                datapath: netdev
+                fail-mode: standalone
+                mcast-snooping-enable: False
+                rstp: False
+                stp: False
+            port:
+                - name: dpdkbond1
+                  link-aggregation:
+                      mode: balance-slb
+                      ovs-db:
+                          other_config:
+                              bond-primary: dpdk2
+                      port:
+                          - name: dpdk2
+                          - name: dpdk3
+                - name: br-bond-p
+        ovs-db:
+            external_ids: {}
+            other_config: {'mac-table-size': 50000}
+        """
+
+        exp_dpdk2_config = """
+        dpdk:
+          devargs: "0000:00:07.1"
+          n_rxq_desc: 2048
+          n_txq_desc: 2048
+          rx-queue: 1
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        mtu: 9000
+        name: dpdk2
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        exp_dpdk3_config = """
+        dpdk:
+          devargs: "0000:00:07.2"
+          n_rxq_desc: 2048
+          n_txq_desc: 2048
+          rx-queue: 1
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        mtu: 9000
+        name: dpdk3
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        self.assertEqual(yaml.safe_load(exp_dpdk2_config),
+                         self.get_interface_config('dpdk2'))
+        self.assertEqual(yaml.safe_load(exp_dpdk3_config),
+                         self.get_interface_config('dpdk3'))
+        self.assertEqual(yaml.safe_load(exp_bridge_config),
+                         self.get_bridge_config('br-bond'))
+
+    def test_sriov_pf_with_nicpart_ovs_user_bridge(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
 
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
@@ -1785,11 +2116,11 @@ class TestNmstateNetConfig(base.TestCase):
                       test_bind_dpdk_interfaces)
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
+        self.provider.add_ovs_user_bridge(ovs_obj)
+        self.provider.add_ovs_dpdk_bond(dpdk_bond)
         for dpdk_port in dpdk_bond.members:
             vf = dpdk_port.members[0]
             self.provider.add_sriov_vf(vf)
-            self.provider.add_ovs_dpdk_port(dpdk_port)
-        self.provider.add_ovs_user_bridge(ovs_obj)
 
         exp_pf_config = """
         - name: eth2
@@ -1877,14 +2208,6 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
         self.stub_out('os_net_config.utils.get_vf_devname',
@@ -1937,11 +2260,11 @@ class TestNmstateNetConfig(base.TestCase):
                       test_bind_dpdk_interfaces)
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
+        self.provider.add_ovs_user_bridge(ovs_obj)
+        self.provider.add_ovs_dpdk_bond(dpdk_bond)
         for dpdk_port in dpdk_bond.members:
             vf = dpdk_port.members[0]
             self.provider.add_sriov_vf(vf)
-            self.provider.add_ovs_dpdk_port(dpdk_port)
-        self.provider.add_ovs_user_bridge(ovs_obj)
 
         exp_pf_config = """
         - name: eth2
@@ -2028,14 +2351,6 @@ class TestNmstateNetConfig(base.TestCase):
     def test_sriov_pf_with_nicpart_linux_bond(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
-
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
 
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
