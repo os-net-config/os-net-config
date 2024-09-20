@@ -130,6 +130,9 @@ def is_dict_subset(superset, subset):
 
 
 def _add_sub_tree(data, subtree):
+    if data is None:
+        msg = 'Subtree can\'t be created on None Types'
+        raise os_net_config.ConfigurationError(msg)
     config = data
     if subtree:
         for cfg in subtree:
@@ -186,7 +189,8 @@ def set_ovs_bonding_options(bond_options):
                         "other-config:bond-rebalance-interval",
                         "other-config:bond-primary"]
     other_config = {}
-    bond_data = {OVSBridge.Port.LinkAggregation.MODE: 'active-backup',
+    bond_data = {OVSBridge.Port.LinkAggregation.MODE:
+                 OVSBridge.Port.LinkAggregation.Mode.ACTIVE_BACKUP,
                  OVSBridge.PORT_SUBTREE:
                      [{OVSBridge.Port.LinkAggregation.PORT_SUBTREE: []}],
                  OvsDB.KEY: {OvsDB.OTHER_CONFIG: other_config}}
@@ -1196,6 +1200,39 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     logger.info(f"Adding ovs_extra {config} in "
                                 f"{cfg['sub_tree']}")
 
+    def parse_ovs_extra_for_bond(self, ovs_extras, name, data):
+
+        # Here the nm_config bond_mode matches the ovs_options
+        # and not the Nmstate schema
+        port_cfg = [
+            {'config': r'^bond_mode=[\w+]',
+             'sub_tree': None,
+             'nm_config': 'bond_mode',
+             'value_pattern': r'^bond_mode=(.+?)$'},
+            {'config': r'^lacp=[\w+]',
+             'sub_tree': None,
+             'nm_config': 'lacp',
+             'value_pattern': r'^lacp=(.+?)$'},
+            {'config': r'^bond_updelay=[\w+]',
+             'sub_tree': None,
+             'nm_config': 'bond_updelay',
+             'value_pattern': r'^bond_updelay=(.+?)$'},
+            {'config': r'^other_config:[\w+]',
+             'sub_tree': None,
+             'nm_config': None,
+             'nm_config_regex': r'^(.+?)=.*$',
+             'value_pattern': r'^other_config:.*=(.+?)$'}]
+
+        # ovs-vsctl set Port $name <config>=<value>
+        cfg_eq_val_pair = [{'command': ['set', 'port',
+                                        '({name}|%s)' % name],
+                            'action': port_cfg}]
+
+        for ovs_extra in ovs_extras:
+            ovs_extra_cmd = ovs_extra.split(' ')
+            for cmd_map in cfg_eq_val_pair:
+                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+
     def parse_ovs_extra(self, ovs_extras, name, data):
 
         bridge_cfg = [{'config': r'^fail_mode=[\w+]',
@@ -1238,7 +1275,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
                       'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
                       'nm_config': None,
                       'nm_config_regex': r'^other-config:(.+?)=',
-                      'value_pattern': r'^other-config:.*=(.+?)$'}]
+                      'value_pattern': r'^other-config:.*=(.+?)$'},
+                     {'config': r'^options:n_rxq_desc=[\w+]',
+                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
+                      'nm_config': OVSInterface.Dpdk.N_RXQ_DESC,
+                      'value_pattern': r'^options:n_rxq_desc=(.+?)$'},
+                     {'config': r'^options:n_txq_desc=[\w+]',
+                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
+                      'nm_config': OVSInterface.Dpdk.N_TXQ_DESC,
+                      'value_pattern': r'^options:n_txq_desc=(.+?)$'}]
 
         external_id_cfg = [{'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
                             'config': r'.*',
@@ -1359,9 +1404,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             mac = self.interface_mac(bridge.primary_interface_name)
             bridge.ovs_extra.append("set bridge %s other_config:hwaddr=%s" %
                                     (bridge.name, mac))
-        if bridge.ovs_extra:
-            logger.info(f"Parsing ovs_extra : {bridge.ovs_extra}")
-            self.parse_ovs_extra(bridge.ovs_extra, bridge.name, data)
+        self.parse_ovs_extra(bridge.ovs_extra, bridge.name, data)
 
         if dpdk:
             ovs_bridge_options[OVSBridge.Options.DATAPATH] = 'netdev'
@@ -1372,6 +1415,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
             for member in bridge.members:
                 if (isinstance(member, objects.OvsBond) or
                         isinstance(member, objects.OvsDpdkBond)):
+                    bond_options = {}
+                    self.parse_ovs_extra_for_bond(
+                        member.ovs_extra, member.name, bond_options)
+                    logger.debug(f'{member.name}: Bond options from '
+                                 f'ovs_extra\n{bond_options}')
                     if ovs_port:
                         msg = "Ovs Bond and ovs port can't be members to "\
                               "the ovs bridge"
@@ -1385,8 +1433,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         else:
                             member.ovs_options = add_bond_setting
 
-                    logger.info(f"OVS Options are {member.ovs_options}")
-                    bond_options = parse_bonding_options(member.ovs_options)
+                    logger.debug(f'{member.name}: Bond options from '
+                                 f'ovs_options:\n{member.ovs_options}')
+                    bond_options |= parse_bonding_options(member.ovs_options)
+                    logger.info(f'{member.name}: Aggregated bond options - '
+                                f'{bond_options}')
                     bond_data = set_ovs_bonding_options(bond_options)
                     bond_port = [{
                         OVSBridge.Port.LINK_AGGREGATION_SUBTREE: bond_data,
@@ -1571,6 +1622,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 member.mtu = bond.mtu
             if bond.rx_queue:
                 member.rx_queue = bond.rx_queue
+            if bond.rx_queue_size:
+                member.rx_queue_size = bond.rx_queue_size
+            if bond.tx_queue_size:
+                member.tx_queue_size = bond.tx_queue_size
+            if bond.ovs_extra:
+                member.ovs_extra = bond.ovs_extra
             self.add_ovs_dpdk_port(member)
         return
 
