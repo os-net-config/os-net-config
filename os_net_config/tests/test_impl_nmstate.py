@@ -222,6 +222,33 @@ class TestNmstateNetConfig(base.TestCase):
             test_route_table_path)
         utils.write_config(self.temp_route_table_file.name, _RT_CUSTOM)
 
+        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
+                                     link_mode='legacy', vdpa=False,
+                                     drivers_autoprobe=True,
+                                     steering_mode=None, lag_candidate=None):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_pf_map',
+                      update_sriov_pf_map_stub)
+
+        def update_sriov_vf_map_stub(pf_name, vfid, vf_name, vlan_id=0,
+                                     qos=0, spoofcheck=None, trust=None,
+                                     state=None, macaddr=None, promisc=None,
+                                     pci_address=None, min_tx_rate=0,
+                                     max_tx_rate=0, driver=None):
+            return
+        self.stub_out('os_net_config.utils.update_sriov_vf_map',
+                      update_sriov_vf_map_stub)
+
+        def test_get_vf_devname(device, vfid):
+            return device + '_' + str(vfid)
+        self.stub_out('os_net_config.utils.get_vf_devname',
+                      test_get_vf_devname)
+
+        def test_bind_dpdk_interfaces(ifname, driver, noop):
+            return
+        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
+                      test_bind_dpdk_interfaces)
+
     def get_running_info(self, yaml_file):
         with open(yaml_file) as f:
             data = yaml.load(f, Loader=yaml.SafeLoader)
@@ -1397,14 +1424,6 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         pf = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf)
         exp_pf_config = """
@@ -1438,14 +1457,6 @@ class TestNmstateNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.get_totalvfs',
                       get_totalvfs_stub)
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         pf = objects.SriovPF(name='nic3', numvfs=10, link_mode='switchdev')
         self.assertRaises(os_net_config.ConfigurationError,
                           self.provider.add_sriov_pf,
@@ -1459,14 +1470,6 @@ class TestNmstateNetConfig(base.TestCase):
             return 10
         self.stub_out('os_net_config.utils.get_totalvfs',
                       get_totalvfs_stub)
-
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
 
         pf = objects.SriovPF(name='nic3', numvfs=10, vdpa=True)
         self.assertRaises(os_net_config.ConfigurationError,
@@ -1482,14 +1485,6 @@ class TestNmstateNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.get_totalvfs',
                       get_totalvfs_stub)
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
         pf = objects.SriovPF(name='nic3', numvfs=10)
         self.assertRaises(os_net_config.ConfigurationError,
                           self.provider.add_sriov_pf,
@@ -1498,19 +1493,6 @@ class TestNmstateNetConfig(base.TestCase):
     def test_sriov_pf_with_nicpart_ovs(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
-
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
-        def test_get_vf_devname(device, vfid):
-            return device + '_' + str(vfid)
-        self.stub_out('os_net_config.utils.get_vf_devname',
-                      test_get_vf_devname)
 
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
@@ -1633,19 +1615,6 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
-        def test_get_vf_devname(device, vfid):
-            return device + '_' + str(vfid)
-        self.stub_out('os_net_config.utils.get_vf_devname',
-                      test_get_vf_devname)
-
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
         self.provider.add_sriov_pf(pf2)
 
@@ -1665,10 +1634,6 @@ class TestNmstateNetConfig(base.TestCase):
                 qos: 4
         """
 
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         self.provider.add_sriov_vf(ovs_obj.members[0].members[0])
         self.provider.add_ovs_dpdk_port(ovs_obj.members[0])
@@ -2252,19 +2217,6 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
-        def test_get_vf_devname(device, vfid):
-            return device + '_' + str(vfid)
-        self.stub_out('os_net_config.utils.get_vf_devname',
-                      test_get_vf_devname)
-
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
@@ -2302,10 +2254,6 @@ class TestNmstateNetConfig(base.TestCase):
                     qos: 4
         """
 
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
         for dpdk_port in dpdk_bond.members:
@@ -2400,19 +2348,6 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
-        def test_get_vf_devname(device, vfid):
-            return device + '_' + str(vfid)
-        self.stub_out('os_net_config.utils.get_vf_devname',
-                      test_get_vf_devname)
-
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
@@ -2454,10 +2389,6 @@ class TestNmstateNetConfig(base.TestCase):
                     spoofcheck: on
         """
 
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
         for dpdk_port in dpdk_bond.members:
@@ -2551,19 +2482,6 @@ class TestNmstateNetConfig(base.TestCase):
     def test_sriov_pf_with_nicpart_linux_bond(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
-
-        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
-                                     link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
-            return
-        self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      update_sriov_pf_map_stub)
-
-        def test_get_vf_devname(device, vfid):
-            return device + '_' + str(vfid)
-        self.stub_out('os_net_config.utils.get_vf_devname',
-                      test_get_vf_devname)
 
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
