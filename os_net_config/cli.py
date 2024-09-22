@@ -409,13 +409,17 @@ def main(argv=sys.argv, main_logger=None):
                                        activate=not opts.no_activate)
         logger.info('Succesfully applied the network configuration with '
                     f'{opts.provider} provider')
-    except Exception:
+    except Exception as e:
+        logger.error(f'***Failed to configure with {opts.provider} '
+                     f'provider***\n{e!r}')
+
         if purge_provider:
-            logger.error('***Failed to configure with '
-                         f'{opts.provider} provider***')
+            logger.info('Rolling back to {opts.purge_provider}')
             # Rolling back to the earlier provider.
             purge_provider.roll_back_migration()
             migration_failed = True
+        else:
+            raise
 
     if utils.is_dcb_config_required():
         # Apply the DCB Config
