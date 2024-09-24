@@ -898,6 +898,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dcb:
+                $ref: "#/definitions/dcb"
         required:
           - type
           - name
