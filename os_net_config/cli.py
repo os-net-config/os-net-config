@@ -414,7 +414,7 @@ def main(argv=sys.argv, main_logger=None):
                      f'provider***\n{e!r}')
 
         if purge_provider:
-            logger.info('Rolling back to {opts.purge_provider}')
+            logger.info(f'Rolling back to {opts.purge_provider}')
             # Rolling back to the earlier provider.
             purge_provider.roll_back_migration()
             migration_failed = True
