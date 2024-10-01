@@ -1940,8 +1940,7 @@ OVS_EXTRA="set Interface $DEVICE options:dpdk-devargs=0000:00:09.0 \
 -- set Interface $DEVICE mtu_request=$MTU \
 -- set Interface $DEVICE options:n_rxq=$RX_QUEUE"
 """
-        self.assertEqual(br_link_config,
-                         self.provider.bridge_data['br-link'])
+        self.assertEqual(br_link_config, self.provider.bridge_data['br-link'])
         self.assertEqual(dpdk0_config, self.get_interface_config('dpdk0'))
 
     def test_ovs_user_bridge_no_ovs_internal(self):
