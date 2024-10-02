@@ -10,8 +10,38 @@ interfaces:
     duplex: full
     speed: 1000
     sr-iov:
-      total-vfs: 0
-      vfs: []
+      total-vfs: 3
+      vfs:
+      - id: 0
+        iface-name: ens1f1v0
+        mac-address: 3A:82:65:08:E3:4A
+        max-tx-rate: 0
+        min-tx-rate: 0
+        qos: 0
+        spoof-check: true
+        trust: false
+        vlan-id: 0
+        vlan-proto: 802.1q
+      - id: 1
+        iface-name: ens1f1v1
+        mac-address: BA:A2:60:4C:F9:DC
+        max-tx-rate: 0
+        min-tx-rate: 0
+        qos: 0
+        spoof-check: true
+        trust: false
+        vlan-id: 0
+        vlan-proto: 802.1q
+      - id: 2
+        iface-name: ens1f1v2
+        mac-address: 26:26:1B:11:07:DD
+        max-tx-rate: 0
+        min-tx-rate: 0
+        qos: 0
+        spoof-check: true
+        trust: false
+        vlan-id: 0
+        vlan-proto: 802.1q
   ethtool:
     coalesce:
       adaptive-rx: true
@@ -83,7 +113,7 @@ interfaces:
     enabled: false
   mac-address: E4:43:4B:5C:96:80
   mtu: 1500
-  name: eno1
+  name: eth1
   state: up
   type: ethernet
   wait-ip: any
@@ -148,7 +178,7 @@ interfaces:
     enabled: false
   mac-address: E4:43:4B:5C:96:81
   mtu: 1500
-  name: eno2
+  name: eth2
   state: down
   type: ethernet
 - accept-all-mac-addresses: false
