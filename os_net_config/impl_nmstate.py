@@ -1560,13 +1560,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # checks are added at the object creation stage.
         ifname = ovs_dpdk_port.members[0].name
 
-        # Bind the dpdk interface
-        utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver, self.noop)
         data = self._add_common(ovs_dpdk_port)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
-        pci_address = utils.get_dpdk_devargs(ifname, noop=False)
+        pci_address = utils.get_pci_address(ifname, noop=False)
 
         data[OVSInterface.DPDK_CONFIG_SUBTREE
              ] = {OVSInterface.Dpdk.DEVARGS: pci_address}
@@ -1585,6 +1583,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info(f"Parsing ovs_extra : {ovs_dpdk_port.ovs_extra}")
             self.parse_ovs_extra(ovs_dpdk_port.ovs_extra,
                                  ovs_dpdk_port.name, data)
+        bind_cmd = (f'driverctl --nosave set-override {pci_address} '
+                    f'{ovs_dpdk_port.driver}')
+        unbind_cmd = f'driverctl unset-override {pci_address}'
+        data['dispatch'] = {'post-activation': bind_cmd,
+                            'post-deactivation': unbind_cmd}
 
         logger.debug(f'ovs dpdk port data: {data}')
         self.interface_data[ovs_dpdk_port.name] = data
