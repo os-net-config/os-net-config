@@ -270,10 +270,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             "NETMASK",
             "MTU",
             "ONBOOT",
-            "ETHTOOL_OPTS",
-            "DOMAIN",
-            "DNS1",
-            "DNS2"
+            "ETHTOOL_OPTS"
         ]
         # Check whether any of the changes require restart
         for change in self.enumerate_ifcfg_changes(file_values, new_values):
@@ -341,25 +338,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                 (device_name, data_values["MTU"]))
             elif changes["MTU"] == "removed":
                 commands.append("link set dev %s mtu 1500" % device_name)
-        if "DOMAIN" in changes:
-            # Remove searchdomains from /etc/resolv.conf
-            changes.append("sed -i '/search/d' /etc/resolf.conf")
-            # Add searchdomains to /etc/resolv.conf
-            if changes["DOMAIN"] == "added" or changes["DOMAIN"] == "modified":
-                changes.append("echo 'search %s' >> /etc/resolv.conf" %
-                               data_values["DOMAIN"])
-        if "DNS1" in changes:
-            # Remove nameservers from /etc/resolv.conf
-            changes.append("sed -i '/nameserver/d' /etc/resolv.conf")
-            # Add first new nameserver in /etc/resolv.conf
-            if changes["DNS1"] == "added" or changes["DNS1"] == "modified":
-                changes.append("echo 'nameserver %s' >> /etc/resolv.conf" %
-                               data_values["DNS1"])
-            # If there is a second DNS server, add to /etc/resolv.conf
-            if changes["DNS2"] == "added" or changes["DNS2"] == "modified":
-                changes.append("echo 'nameserver %s' >> /etc/resolv.conf" %
-                               data_values["DNS2"])
-            return commands
+        return commands
 
     def ethtool_apply_command(self, device_name, filename, data):
         """Return list of commands needed to implement changes.
