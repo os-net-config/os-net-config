@@ -289,9 +289,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         """Return list of commands needed to implement changes.
 
            Given ifcfg data for an interface, return commands required to
-           apply the configuration using 'ip' commands. Changes to DNS
-           servers or DNS search domains are made directly in resolv.conf
-           using 'sed' and/or 'echo' directly on /etc/resolv.conf.
+           apply the configuration using 'ip' commands.
 
         :param dev_name: The name of the int, bridge, or bond
         :type dev_name: string
@@ -342,13 +340,13 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             if changes['DOMAIN'] == 'added':
                 commands.append(f"echo 'search {new}' >> /etc/resolv.conf")
             elif changes['DOMAIN'] == 'modified':
-                commands.append(f"sed -i -e 's/search[ ]*{old}/search {new}/g'"
-                                " /etc/resolv.conf")
+                commands.append(f"sed -i -e 's/{old}/{new}/g' "
+                                "/etc/resolv.conf")
             elif changes['DOMAIN'] == 'removed':
-                commands.insert("sed -i '/^search/d' /etc/resolv.conf")
-        if 'DNS1' in changes or 'DNS2' in changes:
-            # Remove all nameservers from /etc/resolv.conf
-            commands.append("sed -i '/^nameserver/d' /etc/resolv.conf")
+                commands.insert("sed -i '/search/d' /etc/resolv.conf")
+        if 'DNS1' in changes:
+            # Remove nameservers from /etc/resolv.conf
+            commands.append("sed -i '/nameserver/d' /etc/resolv.conf")
             # Add first new nameserver in /etc/resolv.conf
             if changes['DNS1'] == 'added' or changes['DNS1'] == 'modified':
                 ns1 = data_values['DNS1']
