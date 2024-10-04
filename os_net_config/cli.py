@@ -86,7 +86,7 @@ def parse_opts(argv):
         action='store_true',
         help="Exit with an error if configuration file validation fails. "
              "Without this option, just log a warning and continue.",
-        default=False)
+        default=True)
 
     parser.add_argument(
         '-d', '--debug',
