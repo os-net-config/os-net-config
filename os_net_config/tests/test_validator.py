@@ -310,6 +310,17 @@ class TestDeviceTypes(base.TestCase):
         }
         self.assertTrue(v.is_valid(data))
 
+    def test_ovs_bridge_with_empty_members(self):
+        schema = validator.get_schema_for_defined_type("ovs_bridge")
+        v = jsonschema.Draft4Validator(schema)
+        data = {
+            "type": "ovs_bridge",
+            "name": "br-ex",
+            "members": [
+            ]
+        }
+        self.assertTrue(v.is_valid(data))
+
     def test_ovs_bond(self):
         schema = validator.get_schema_for_defined_type("ovs_bond")
         v = jsonschema.Draft4Validator(schema)
