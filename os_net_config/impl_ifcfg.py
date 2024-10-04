@@ -355,7 +355,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             if changes['DNS2'] == 'added' or changes['DNS2'] == 'modified':
                 ns2 = data_values['DNS2']
                 commands.append(f"echo 'nameserver {ns2}' >> /etc/resolv.conf")
-        return commands
+            return commands
 
     def ethtool_apply_command(self, device_name, filename, data):
         """Return list of commands needed to implement changes.
