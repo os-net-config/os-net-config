@@ -167,25 +167,25 @@ class IfcfgNetConfig(os_net_config.NetConfig):
            Return the keys and values without quotes.
            """
         ifcfg_values = {}
-        for line in ifcfg_data.split("\n"):
-            if not line.startswith("#") and line.find("=") > 0:
-                k, v = line.split("=", 1)
-                ifcfg_values[k] = v.strip("\"'")
+        for line in ifcfg_data.split('\n'):
+            if not line.startswith('#') and line.find('=') > 0:
+                k, v = line.split('=', 1)
+                ifcfg_values[k] = v.strip('"\'')
         return ifcfg_values
 
     def parse_ifcfg_routes(self, ifcfg_data):
         """Break out the individual routes from an ifcfg route file."""
         routes = []
-        for line in ifcfg_data.split("\n"):
-            if not line.startswith("#"):
+        for line in ifcfg_data.split('\n'):
+            if not line.startswith('#'):
                 routes.append(line)
         return routes
 
     def parse_ifcfg_rules(self, ifcfg_data):
         """Break out the individual rules from an ifcfg rule file."""
         rules = []
-        for line in ifcfg_data.split("\n"):
-            if not line.startswith("#"):
+        for line in ifcfg_data.split('\n'):
+            if not line.startswith('#'):
                 rules.append(line)
         return rules
 
@@ -201,12 +201,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         for key in ifcfg_data_old:
             if key in ifcfg_data_new:
                 if ifcfg_data_old[key].upper() != ifcfg_data_new[key].upper():
-                    changed_values[key] = "modified"
+                    changed_values[key] = 'modified'
             else:
-                changed_values[key] = "removed"
+                changed_values[key] = 'removed'
         for key in ifcfg_data_new:
             if key not in ifcfg_data_old:
-                changed_values[key] = "added"
+                changed_values[key] = 'added'
         return changed_values
 
     def enumerate_ifcfg_route_changes(self, old_routes, new_routes):
@@ -259,43 +259,75 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         """
 
         file_data = common.get_file_data(filename)
-        logger.debug("Original ifcfg file:\n%s" % file_data)
-        logger.debug("New ifcfg file:\n%s" % new_data)
+        logger.debug(f'Original ifcfg file:\n{file_data}')
+        logger.debug(f'New ifcfg file:\n{new_data}')
         file_values = self.parse_ifcfg(file_data)
         new_values = self.parse_ifcfg(new_data)
         restart_required = False
         # Certain changes can be applied without restarting the interface
         permitted_changes = [
-            "IPADDR",
-            "NETMASK",
-            "MTU",
-            "ONBOOT",
-            "ETHTOOL_OPTS"
+            'IPADDR', 'NETMASK',
+            'MTU', 'ONBOOT', 'ETHTOOL_OPTS',
+            'DOMAIN', 'DNS1', 'DNS2'
         ]
         # Check whether any of the changes require restart
         for change in self.enumerate_ifcfg_changes(file_values, new_values):
             if change not in permitted_changes:
                 # Moving to DHCP requires restarting interface
-                if change in ["BOOTPROTO", "OVSBOOTPROTO"]:
+                if change in ['BOOTPROTO', 'OVSBOOTPROTO']:
                     if change in new_values:
-                        if (new_values[change].upper() == "DHCP"):
+                        if (new_values[change].upper() == 'DHCP'):
                             restart_required = True
-                            logger.debug(
-                                "DHCP on %s requires restart" % change)
+                            logger.debug(f'DHCP on {change} requires restart')
                 else:
                     restart_required = True
         if not restart_required:
-            logger.debug("Changes do not require restart")
+            logger.debug('Changes do not require restart')
         return restart_required
 
-    def iproute2_apply_commands(self, device_name, filename, data):
+    def resolv_conf_update(self, dev_name, filename, data):
+        """Return file contents needed to update /etc/resolv.conf.
+
+            Given ifcfg data for an interface, return new file contents to
+            write to /etc/resolv.conf. The purpose of this is to modify the
+            /etc/resolv.conf file to match what would be written by the ifup
+            script when the interface in brought up. This allows changes to
+            DNS servers to be written to the ifcfg file to make them
+            persistent and made in place without restarting interfaces.
+
+        :param dev_name: The name of the int, bridge, or bond
+        :type dev_name: string
+        :param filename: The ifcfg-<int> filename.
+        :type filename: string
+        :param data: The data for the new ifcfg-<int> file.
+        :type data: string
+        :returns: resolv_conf (contents to write to /etc/resolv.conf)
+        """
+
+        previous_cfg = common.get_file_data(filename)
+        file_values = self.parse_ifcfg(previous_cfg)
+        data_values = self.parse_ifcfg(data)
+        logger.debug(f'File values:\n{file_values}')
+        logger.debug(f'Data values:\n{data_values}')
+        changes = self.enumerate_ifcfg_changes(file_values, data_values)
+        resolv_conf = ''
+        if 'DOMAIN' in changes or 'DNS1' in changes or 'DNS2' in changes:
+            if 'DOMAIN' in data_values:
+                resolv_conf += f'search {data_values["DOMAIN"]}\n'
+            if 'DNS1' in data_values:
+                resolv_conf += f'search {data_values["DNS1"]}\n'
+            if 'DNS2' in data_values:
+                resolv_conf += f'search {data_values["DNS2"]}\n'
+        return resolv_conf
+
+    def iproute2_apply_commands(self, dev_name, filename, data):
         """Return list of commands needed to implement changes.
 
            Given ifcfg data for an interface, return commands required to
            apply the configuration using 'ip' commands.
 
-        :param device_name: The name of the int, bridge, or bond
-        :type device_name: string
+        :param dev_name: The name of the int, bridge, or bond
+        :type dev_name: string
         :param filename: The ifcfg-<int> filename.
         :type filename: string
         :param data: The data for the new ifcfg-<int> file.
@@ -306,38 +338,37 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         previous_cfg = common.get_file_data(filename)
         file_values = self.parse_ifcfg(previous_cfg)
         data_values = self.parse_ifcfg(data)
-        logger.debug("File values:\n%s" % file_values)
-        logger.debug("Data values:\n%s" % data_values)
+        logger.debug(f'File values:\n{file_values}')
+        logger.debug(f'Data values:\n{data_values}')
         changes = self.enumerate_ifcfg_changes(file_values, data_values)
         commands = []
         new_cidr = 0
         old_cidr = 0
         # Convert dot notation netmask to CIDR length notation
-        if "NETMASK" in file_values:
-            netmask = file_values["NETMASK"]
+        if 'NETMASK' in file_values:
+            netmask = file_values['NETMASK']
             old_cidr = netaddr.IPAddress(netmask).netmask_bits()
-        if "NETMASK" in data_values:
-            netmask = data_values["NETMASK"]
+        if 'NETMASK' in data_values:
+            netmask = data_values['NETMASK']
             new_cidr = netaddr.IPAddress(netmask).netmask_bits()
-        if "IPADDR" in changes:
-            if changes["IPADDR"] == "removed" or changes[
-                "IPADDR"] == "modified":
+        if 'IPADDR' in changes:
+            if changes['IPADDR'] == 'removed' or \
+               changes['IPADDR'] == 'modified':
                 if old_cidr:
-                    commands.append("addr del %s/%s dev %s" %
-                                    (file_values["IPADDR"], old_cidr,
-                                     device_name))
+                    ip = file_values['IPADDR']
+                    commands.append(f'addr del {ip}/{old_cidr} dev {dev_name}')
                 else:
                     # Cannot remove old IP specifically if netmask not known
-                    commands.append("addr flush dev %s" % device_name)
-            if changes["IPADDR"] == "added" or changes["IPADDR"] == "modified":
-                commands.insert(0, "addr add %s/%s dev %s" %
-                                (data_values["IPADDR"], new_cidr, device_name))
-        if "MTU" in changes:
-            if changes["MTU"] == "added" or changes["MTU"] == "modified":
-                commands.append("link set dev %s mtu %s" %
-                                (device_name, data_values["MTU"]))
-            elif changes["MTU"] == "removed":
-                commands.append("link set dev %s mtu 1500" % device_name)
+                    commands.append(f'addr flush dev {dev_name}')
+            if changes['IPADDR'] == 'added' or changes['IPADDR'] == 'modified':
+                ip = data_values['IPADDR']
+                commands.insert(0, f'addr add {ip}/{new_cidr} dev {dev_name}')
+        if 'MTU' in changes:
+            if changes['MTU'] == 'added' or changes['MTU'] == 'modified':
+                mtu = data_values['MTU']
+                commands.append(f'link set dev {dev_name} mtu {mtu}')
+            elif changes['MTU'] == 'removed':
+                commands.append(f'link set dev {dev_name} mtu 1500')
         return commands
 
     def ethtool_apply_command(self, device_name, filename, data):
@@ -358,22 +389,22 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         previous_cfg = common.get_file_data(filename)
         file_values = self.parse_ifcfg(previous_cfg)
         data_values = self.parse_ifcfg(data)
-        logger.debug("File values:\n%s" % file_values)
-        logger.debug("Data values:\n%s" % data_values)
+        logger.debug(f'File values:\n{file_values}')
+        logger.debug(f'Data values:\n{data_values}')
         changes = self.enumerate_ifcfg_changes(file_values, data_values)
         commands = []
 
-        if "ETHTOOL_OPTS" in changes:
-            if changes["ETHTOOL_OPTS"] == "added" or \
-               changes["ETHTOOL_OPTS"] == "modified":
-                for command_opts in data_values["ETHTOOL_OPTS"].split(';'):
+        if 'ETHTOOL_OPTS' in changes:
+            if changes['ETHTOOL_OPTS'] == 'added' or \
+                changes['ETHTOOL_OPTS'] == 'modified':
+                for command_opts in data_values['ETHTOOL_OPTS'].split(';'):
                     if re.match(r'\s*-+\w+-*\w* ', command_opts):
-                        if device_name or "${DEVICE}" or "$DEVICE" \
-                                in command_opts:
-                            commands.append("%s" % command_opts)
+                        if device_name or '${DEVICE}' or '$DEVICE' \
+                            in command_opts:
+                            commands.append(f'{command_opts}')
                         else:
-                            msg = ("Assigned interface name to \
-                                    ETHTOOL_OPTS is invalid %s" % device_name)
+                            msg = ('Assigned interface name to '
+                                   f'ETHTOOL_OPTS is invalid {device_name}')
                             raise utils.InvalidInterfaceException(msg)
                     else:
                         commands.append("-s %s %s" %
@@ -1817,12 +1848,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             all_file_names.append(vlan_route_path)
             all_file_names.append(vlan_route6_path)
             all_file_names.append(vlan_rule_path)
-            restarts_concatenated = itertools.chain(restart_interfaces,
-                                                    restart_bridges,
-                                                    restart_linux_bonds,
-                                                    restart_linux_teams)
-            if (self.parse_ifcfg(vlan_data).get('PHYSDEV') in
-                    restarts_concatenated):
+            restarts = itertools.chain(restart_interfaces,
+                                       restart_bridges,
+                                       restart_linux_bonds,
+                                       restart_linux_teams)
+            if self.parse_ifcfg(vlan_data).get('PHYSDEV') in restarts:
                 if vlan_name not in restart_vlans:
                     restart_vlans.append(vlan_name)
                 update_files[vlan_path] = vlan_data
@@ -1864,12 +1894,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             all_file_names.append(ib_child_route_path)
             all_file_names.append(ib_child_route6_path)
             all_file_names.append(ib_child_rule_path)
-            restarts_concatenated = itertools.chain(restart_interfaces,
-                                                    restart_bridges,
-                                                    restart_linux_bonds,
-                                                    restart_linux_teams)
-            if (self.parse_ifcfg(ib_child_data).get('PHYSDEV') in
-                    restarts_concatenated):
+            restarts = itertools.chain(restart_interfaces,
+                                       restart_bridges,
+                                       restart_linux_bonds,
+                                       restart_linux_teams)
+            if self.parse_ifcfg(ib_child_data).get('PHYSDEV') in restarts:
                 if ib_child_name not in restart_ib_childs:
                     restart_ib_childs.append(ib_child_name)
                 update_files[ib_child_path] = ib_child_data
@@ -1918,18 +1947,40 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         if activate:
             for interface in apply_interfaces:
-                logger.debug('Running ip commands on interface: %s' %
-                             interface[0])
                 commands = self.iproute2_apply_commands(interface[0],
                                                         interface[1],
                                                         interface[2])
+                if commands:
+                    logger.debug('Running ip commands on interface: %s' %
+                                 interface[0])
                 for command in commands:
                     try:
                         args = command.split()
-                        self.execute('Running ip %s' % command, ipcmd, *args)
+                        self.execute(f'Running ip {command}', ipcmd, *args)
                     except Exception as e:
-                        logger.warning("Error in 'ip %s', restarting %s:\n%s" %
-                                       (command, interface[0], str(e)))
+                        logger.warning(f"Error in 'ip {command}', "
+                                       f"restarting {interface[0]}:\n"
+                                       f"{str(e)}")
+                        restart_interfaces.append(interface[0])
+                        restart_interfaces.extend(
+                            self.child_members(interface[0]))
+                        break
+
+                resolv_conf = self.resolv_conf_update(interface[0],
+                                                      interface[1],
+                                                      interface[2])
+                if resolv_conf:
+                    logger.debug('Updating /etc/resolv.conf with config from '
+                                 f'interface {interface[0]}')
+                    header = '# Generated by os-net-config\n'
+                    resolv_conf = header + resolv_conf
+                    try:
+                        with open('/etc/resolv.conf', 'w') as f:
+                            f.write(resolv_conf)
+                    except Exception as e:
+                        logger.warning("Error writing to /etc/resolv.conf "
+                                       f"restarting {interface[0]}:\n"
+                                       f"{str(e)}")
                         restart_interfaces.append(interface[0])
                         restart_interfaces.extend(
                             self.child_members(interface[0]))
@@ -1938,30 +1989,32 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 commands = self.ethtool_apply_command(interface[0],
                                                       interface[1],
                                                       interface[2])
-                if commands is not None:
-                    for command in commands:
-                        try:
-                            args = command.split()
-                            args = [interface[0]
-                                    if item in ["${DEVICE}", "$DEVICE"]
-                                    else item for item in args]
-                            self.execute('Running ethtool %s' % command,
-                                         ethtoolcmd, *args)
-                        except Exception as e:
-                            logger.warning("Error in 'ethtool %s', restarting %s:\
-                                           \n%s)" %
-                                           (command, interface[0], str(e)))
-                            restart_interfaces.append(interface[0])
-                            restart_interfaces.extend(
-                                self.child_members(interface[0]))
-                            break
+                if commands:
+                    logger.debug('Running ethtool commands on interface: %s' %
+                                 interface[0])
+                for command in commands:
+                    try:
+                        args = command.split()
+                        args = [interface[0]
+                                if item in ["${DEVICE}", "$DEVICE"]
+                                else item for item in args]
+                        self.execute('Running ethtool %s' % command,
+                                     ethtoolcmd, *args)
+                    except Exception as e:
+                        logger.warning("Error in 'ethtool %s', restarting %s:\
+                                       \n%s)" %
+                                       (command, interface[0], str(e)))
+                        restart_interfaces.append(interface[0])
+                        restart_interfaces.extend(
+                            self.child_members(interface[0]))
+                        break
 
             for bridge in apply_bridges:
-                logger.debug('Running ip commands on bridge: %s' %
-                             bridge[0])
                 commands = self.iproute2_apply_commands(bridge[0],
                                                         bridge[1],
                                                         bridge[2])
+                if commands:
+                    logger.debug(f'Running ip commands on bridge: {bridge[0]}')
                 for command in commands:
                     try:
                         args = command.split()
@@ -1970,6 +2023,26 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         logger.warning("Error in 'ip %s', restarting %s:\n%s" %
                                        (command, bridge[0], str(e)))
                         restart_bridges.append(bridge[0])
+                        restart_interfaces.extend(
+                            self.child_members(bridge[0]))
+                        break
+
+                commands = self.resolv_conf_commands(bridge[0],
+                                                     bridge[1],
+                                                     bridge[2])
+                if commands:
+                    logger.debug('Updating /etc/resolv.conf with config from '
+                                 f'interface {bridge[0]}')
+                for command in commands:
+                    try:
+                        args = command.split()
+                        cmd = args.pop(0)
+                        self.execute(f'Running {command}', cmd, *args)
+                    except Exception as e:
+                        logger.warning(f"Error in '{command}', "
+                                       f"restarting {bridge[0]}:\n"
+                                       f"{str(e)}")
+                        restart_interfaces.append(bridge[0])
                         restart_interfaces.extend(
                             self.child_members(bridge[0]))
                         break
