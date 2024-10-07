@@ -15,11 +15,10 @@ Overview
 backend configuration providers.
 
 * Documentation: https://docs.openstack.org/os-net-config/latest
-* Source: https://opendev.org/openstack/os-net-config
+* Source: https://github.com/os-net-config/os-net-config
 * Bugs: https://bugs.launchpad.net/os-net-config
 * Release Notes: https://docs.openstack.org/releasenotes/os-net-config
 * Free software: Apache License (2.0)
-
 
 Features
 --------
@@ -34,3 +33,10 @@ project consists of:
   --config-file CLI option.
 
 * A python library which provides configuration via an object model.
+
+Contributing
+------------
+
+See `CONTRIBUTING.rst`__.
+
+__ https://github.com/os-net-config/os-net-config/blob/master/CONTRIBUTING.rst
