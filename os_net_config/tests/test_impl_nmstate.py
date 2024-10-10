@@ -244,10 +244,13 @@ class TestNmstateNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
 
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
+        def stub_get_pci_address(ifname, noop):
+            if 'eth1' in ifname:
+                return "0000:00:07.1"
+            if 'eth2' in ifname:
+                return "0000:00:07.2"
+        self.stub_out('os_net_config.utils.get_pci_address',
+                      stub_get_pci_address)
 
     def get_running_info(self, yaml_file):
         with open(yaml_file) as f:
@@ -1719,19 +1722,6 @@ class TestNmstateNetConfig(base.TestCase):
                     name: nic3
         """
 
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
-
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
-
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
         self.provider.add_ovs_user_bridge(ovs_obj)
@@ -1780,6 +1770,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.1 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.1
         """
 
         exp_dpdk3_config = """
@@ -1798,6 +1793,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.2 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.2
         """
 
         self.assertEqual(yaml.safe_load(exp_dpdk2_config),
@@ -1839,19 +1839,6 @@ class TestNmstateNetConfig(base.TestCase):
                     type: interface
                     name: nic3
         """
-
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
-
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
 
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
@@ -1905,6 +1892,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.1 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.1
         """
 
         exp_dpdk3_config = """
@@ -1927,6 +1919,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.2 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.2
         """
 
         self.assertEqual(yaml.safe_load(exp_dpdk2_config),
@@ -1976,19 +1973,6 @@ class TestNmstateNetConfig(base.TestCase):
                     name: nic3
         """
 
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
-
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
-
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         self.provider.add_ovs_user_bridge(ovs_obj)
         dpdk_bond = ovs_obj.members[0]
@@ -2044,6 +2028,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.1 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.1
         """
 
         exp_dpdk3_config = """
@@ -2066,6 +2055,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.2 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.2
         """
 
         self.assertEqual(yaml.safe_load(exp_dpdk2_config),
@@ -2114,19 +2108,6 @@ class TestNmstateNetConfig(base.TestCase):
                     name: nic3
         """
 
-        def test_bind_dpdk_interfaces(ifname, driver, noop):
-            return
-        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
-                      test_bind_dpdk_interfaces)
-
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
-
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         self.provider.add_ovs_user_bridge(ovs_obj)
         dpdk_bond = ovs_obj.members[0]
@@ -2182,6 +2163,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.1 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.1
         """
 
         exp_dpdk3_config = """
@@ -2204,6 +2190,11 @@ class TestNmstateNetConfig(base.TestCase):
           other_config: {}
         state: up
         type: ovs-interface
+        dispatch:
+          post-activation:
+            driverctl --nosave set-override 0000:00:07.2 vfio-pci
+          post-deactivation:
+            driverctl unset-override 0000:00:07.2
         """
 
         self.assertEqual(yaml.safe_load(exp_dpdk2_config),
