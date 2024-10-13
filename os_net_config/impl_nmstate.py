@@ -152,7 +152,7 @@ def parse_bonding_options(bond_options_str):
 
 
 def set_linux_bonding_options(bond_options, primary_iface=None):
-    linux_bond_options = ["updelay", "miimon", "lacp_rate"]
+    linux_bond_options = ["updelay", "miimon", "lacp_rate", "fail_over_mac"]
     bond_data = {Bond.MODE: BondMode.ACTIVE_BACKUP,
                  Bond.OPTIONS_SUBTREE: {},
                  Bond.PORT: []}
