@@ -517,6 +517,7 @@ def main(argv=sys.argv):
     opts = parse_opts(argv)
     logger = common.configure_logger(log_file=True)
     common.logger_level(logger, opts.verbose, opts.debug)
+    common.set_noop(False)
 
     if opts.config_file:
         # Validate and parse the user configurations.
