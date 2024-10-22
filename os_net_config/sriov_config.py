@@ -905,7 +905,7 @@ def main(argv=sys.argv):
     opts = parse_opts(argv)
     logger = common.configure_logger(log_file=True)
     common.logger_level(logger, opts.verbose, opts.debug)
-
+    common.set_noop(False)
     if opts.numvfs:
         if re.match(r"^\w+:\d+$", opts.numvfs):
             device_name, numvfs = opts.numvfs.split(':')
