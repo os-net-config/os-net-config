@@ -21,6 +21,7 @@ import tempfile
 import yaml
 
 import os_net_config
+from os_net_config import common
 from os_net_config import impl_nmstate
 from os_net_config import objects
 from os_net_config.tests import base
@@ -192,6 +193,7 @@ _V6_NMCFG_MULTIPLE = _V6_NMCFG + """    - ip: 2001:abc:b::1
 class TestNmstateNetConfig(base.TestCase):
     def setUp(self):
         super(TestNmstateNetConfig, self).setUp()
+        common.set_noop(True)
 
         def show_running_info_stub():
             running_info_path = os.path.join(
@@ -2646,6 +2648,7 @@ class TestNmstateNetConfigApply(base.TestCase):
 
     def setUp(self):
         super(TestNmstateNetConfigApply, self).setUp()
+        common.set_noop(True)
 
         def test_iface_state(iface_data='', verify_change=True):
             # This function returns None
