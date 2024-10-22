@@ -685,6 +685,7 @@ NETMASK=255.255.255.0
 class TestIfcfgNetConfig(base.TestCase):
     def setUp(self):
         super(TestIfcfgNetConfig, self).setUp()
+        common.set_noop(True)
         rand = str(int(random.random() * 100000))
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
 
@@ -2252,6 +2253,7 @@ class TestIfcfgNetConfigApply(base.TestCase):
 
     def setUp(self):
         super(TestIfcfgNetConfigApply, self).setUp()
+        common.set_noop(True)
         self.temp_ifcfg_file = tempfile.NamedTemporaryFile()
         self.temp_bond_file = tempfile.NamedTemporaryFile()
         self.temp_route_file = tempfile.NamedTemporaryFile()
