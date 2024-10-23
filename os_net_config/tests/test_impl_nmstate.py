@@ -195,6 +195,10 @@ class TestNmstateNetConfig(base.TestCase):
         super(TestNmstateNetConfig, self).setUp()
         common.set_noop(True)
 
+        impl_nmstate._VF_BIND_DRV_SCRIPT = (
+            'dpdk_vfs="{dpdk_vfs}"\n'
+            'linux_vfs="{linux_vfs}"')
+
         def show_running_info_stub():
             running_info_path = os.path.join(
                 os.path.dirname(__file__),
@@ -1557,6 +1561,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs=""
+                  linux_vfs="2"
         - name: eth1
           state: up
           type: ethernet
@@ -1580,6 +1588,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs=""
+                  linux_vfs="2"
         """
 
         exp_bridge_config = """
@@ -1617,6 +1629,12 @@ class TestNmstateNetConfig(base.TestCase):
     def test_sriov_pf_with_nicpart_ovs_user_bridge_no_bond(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
+
+        def stub_get_pci_address(ifname, noop):
+            if 'eth1_2' in ifname:
+                return "0000:00:07.1"
+        self.stub_out('os_net_config.utils.get_pci_address',
+                      stub_get_pci_address)
 
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
         self.provider.add_sriov_pf(pf2)
@@ -1666,6 +1684,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs="2"
+                  linux_vfs=""
         """
 
         exp_bridge_config = """
@@ -2220,6 +2242,14 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
+        def stub_get_pci_address(ifname, noop):
+            if 'eth1_2' in ifname:
+                return "0000:00:07.1"
+            if 'eth2_2' in ifname:
+                return "0000:00:07.2"
+        self.stub_out('os_net_config.utils.get_pci_address',
+                      stub_get_pci_address)
+
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
@@ -2289,6 +2319,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs="2"
+                  linux_vfs=""
         - name: eth1
           state: up
           type: ethernet
@@ -2312,6 +2346,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs="2"
+                  linux_vfs=""
         """
 
         exp_bridge_config = """
@@ -2351,6 +2389,14 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
+        def stub_get_pci_address(ifname, noop):
+            if 'eth1_2' in ifname:
+                return "0000:00:07.1"
+            if 'eth2_2' in ifname:
+                return "0000:00:07.2"
+        self.stub_out('os_net_config.utils.get_pci_address',
+                      stub_get_pci_address)
+
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
@@ -2424,6 +2470,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs="2"
+                  linux_vfs=""
         - name: eth1
           state: up
           type: ethernet
@@ -2447,6 +2497,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs="2"
+                  linux_vfs=""
         """
 
         exp_bridge_config = """
@@ -2541,6 +2595,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs=""
+                  linux_vfs="3"
         - name: eth1
           state: up
           type: ethernet
@@ -2564,6 +2622,10 @@ class TestNmstateNetConfig(base.TestCase):
               autoconf: False
               dhcp: False
               enabled: False
+          dispatch:
+              post-activation: |
+                  dpdk_vfs=""
+                  linux_vfs="3"
         """
 
         exp_bond_config = """

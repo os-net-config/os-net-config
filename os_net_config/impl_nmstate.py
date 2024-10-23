@@ -50,6 +50,31 @@ logger = logging.getLogger(__name__)
 # Import the raw NetConfig object so we can call its methods
 netconfig = os_net_config.NetConfig()
 
+_VF_BIND_DRV_SCRIPT = r'''
+dpdk_vfs="{dpdk_vfs}"
+linux_vfs="{linux_vfs}"
+set +e
+set -x
+
+for vfid in $dpdk_vfs $linux_vfs; do
+    vf_pci_id=$(readlink "/sys/class/net/$1/device/virtfn$vfid") &&
+    vf_pci_id=$(basename "$vf_pci_id") &&
+    modalias=$(cat "/sys/class/net/$1/device/virtfn$vfid/modalias") &&
+    def_driver=$(modprobe -R "$modalias") &&
+    if echo "$dpdk_vfs" | grep -qw "$vfid" && \
+            ! echo "$def_driver" | grep -q ^mlx; then
+        driver=vfio-pci
+    else
+        driver="$def_driver"
+    fi &&
+    cur_drv=$(readlink "/sys/bus/pci/devices/$vf_pci_id/driver") &&
+    cur_drv=$(basename "$cur_drv") &&
+    if ! [ "$cur_drv" = "$driver" ]; then
+        driverctl --nosave set-override "$vf_pci_id" "$driver"
+    fi
+done
+'''
+
 _OS_NET_CONFIG_MANAGED = "# os-net-config managed table"
 
 _ROUTE_TABLE_DEFAULT = """# reserved values
@@ -66,6 +91,9 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 
 IPV4_DEFAULT_GATEWAY_DESTINATION = "0.0.0.0/0"
 IPV6_DEFAULT_GATEWAY_DESTINATION = "::/0"
+
+POST_ACTIVATION = 'post-activation'
+DISPATCH = 'dispatch'
 
 
 def route_table_config_path():
@@ -257,8 +285,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.renamed_interfaces = {}
         self.bond_primary_ifaces = {}
         self.route_table_data = {}
+        # SR-IOV PF configurations inline with nmstate schema
+        # {pf1: pf1_config, pf2: pf2_config}
         self.sriov_pf_data = {}
+        # SR-IOV VF configurations inline with nmstate schema
+        # {pf1: [list of vf configs of pf1], pf2: [list of vf configs of pf2]}
         self.sriov_vf_data = {}
+        # SR-IOV VF drivers that needs override.
+        #  {pf1: {vfid1: driver, vfid2: driver},
+        #   pf2: {vfid1: driver, vfid2: driver}}
+        self.vf_drv_override = {}
         self.migration_enabled = False
         # Boolean flag to indicate that the PF ports are added
         # and needs configuration. The PF ports will be configured
@@ -345,6 +381,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         f'Max Rate: {sriov_vf.max_tx_rate}')
             vf_config = self.get_vf_config(sriov_vf)
             self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
+            self.add_vf_driver_override(sriov_vf)
         else:
             msg = (f'SR-IOV PF is not configured on {sriov_vf.device}, '
                    f'while the VF {sriov_vf.vfid} is used')
@@ -411,11 +448,29 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 msg = f"{pf} not found"
                 raise os_net_config.ConfigurationError(msg)
 
+            linux_vfs = []
+            dpdk_vfs = []
+            # The VFs used in NIC Partitioning are configured
             for vf in self.sriov_vf_data[pf]:
                 if vf:
                     required_vfs.append(vf)
+                    vfid = vf[Ethernet.SRIOV.VFS.ID]
+                    vf_driver = self.vf_drv_override[pf].get(vfid, None)
+                    # The VF's that needs a driver override shall be added to
+                    # dpdk_vfs. Other VFs shall be added to linux_vfs.
+                    # When SR-IOV driver auto probe is disabled, these VFs
+                    # will be bound with the corresponding linux drivers.
+                    if vf_driver and vf_driver == 'vfio-pci':
+                        dpdk_vfs.append(str(vfid))
+                    else:
+                        linux_vfs.append(str(vfid))
 
             if required_vfs:
+                bind_script = _VF_BIND_DRV_SCRIPT.format(
+                    dpdk_vfs=' '.join(dpdk_vfs),
+                    linux_vfs=' '.join(linux_vfs))
+                self.add_dispatch_script(pf_state, POST_ACTIVATION,
+                                         bind_script)
                 # Add the generated VF configuration
                 pf_state[
                     Ethernet.CONFIG_SUBTREE][
@@ -1140,6 +1195,33 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 logger.debug(f"Adding DNS domain {domain}")
                 self.dns_data['domain'].append(domain)
 
+    def add_dispatch_script(self, device_data, stage, cmd):
+        """Add the dispatch script for device
+
+        :param device_data: The device data in nmstate schema format
+        :param stage: nmstate supports 2 stages for running the
+            dispatcher scripts. They are post-activation and post-deactivation.
+        :param cmd: The dispatcher script that needs to be run on the
+            desired stage for the device.
+        """
+        if DISPATCH not in device_data:
+            device_data[DISPATCH] = {}
+        if stage not in device_data[DISPATCH]:
+            device_data[DISPATCH][stage] = ""
+        device_data[DISPATCH][stage] += f'{cmd}\n'
+
+    def add_vf_driver_override(self, vf):
+        """Add driver override for VFs
+
+        The VF needs an explicit driver binding when sriov_drivers_autoprobe
+        is disabled or the VF is attached to DPDK. The driver override
+        shall be added here.
+
+        :param vf: The VF device for which the driver override is required
+        """
+        if vf.driver:
+            self.vf_drv_override[vf.device][vf.vfid] = vf.driver
+
     def add_interface(self, interface):
         """Add an Interface object to the net config object.
 
@@ -1657,13 +1739,22 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # checks are added at the object creation stage.
         ifname = ovs_dpdk_port.members[0].name
 
-        # Bind the dpdk interface
-        utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver, self.noop)
         data = self._add_common(ovs_dpdk_port)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
-        pci_address = utils.get_dpdk_devargs(ifname, noop=self.noop)
+        if isinstance(ovs_dpdk_port.members[0], objects.SriovVF):
+            # in case of VFs the DPDK driver will be bound using
+            # dispatcher script
+            pci_address = utils.get_dpdk_pci_address(ifname)
+            utils.update_dpdk_map(ifname,
+                                  ovs_dpdk_port.driver)
+        else:
+            # Bind the DPDK driver for interface objects
+            utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver,
+                                       self.noop)
+            pci_address = utils.get_dpdk_devargs(ifname,
+                                                 noop=self.noop)
 
         data[OVSInterface.DPDK_CONFIG_SUBTREE
              ] = {OVSInterface.Dpdk.DEVARGS: pci_address}
@@ -1810,6 +1901,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.debug('sriov pf data: %s' % data)
         self.sriov_vf_data[sriov_pf.name] = [None] * sriov_pf.numvfs
         self.sriov_pf_data[sriov_pf.name] = data
+        self.vf_drv_override[sriov_pf.name] = {}
         self.need_pf_config = True
 
     def add_sriov_vf(self, sriov_vf):
