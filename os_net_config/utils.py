@@ -218,6 +218,29 @@ def diff(filename, data):
     return not file_data == data
 
 
+def update_dpdk_map(ifname, driver):
+    noop = common.get_noop()
+    pci_address = get_pci_address(ifname, noop)
+    # pci address could be fetched before setting the override.
+    # Update the dpdk map with the PCI address, so that the succesive
+    # runs of os-net-config could fetch the pci address from the dpdk map
+    if pci_address and not noop:
+        mac_address = common.interface_mac(ifname)
+        _update_dpdk_map(ifname, pci_address, mac_address, driver)
+
+
+def get_dpdk_pci_address(ifname):
+    noop = common.get_noop()
+    # In case of DPDK devices, the pci address could be fetched using
+    # ethtool before setting the driverctl override.
+    # After setting the override, the pci address could be read back
+    # from the dpdk map.
+    pci_address = get_pci_address(ifname, noop)
+    if not pci_address:
+        pci_address = get_stored_pci_address(ifname, noop)
+    return pci_address
+
+
 def bind_dpdk_interfaces(ifname, driver, noop):
     if common.is_mellanox_interface(ifname) and 'vfio-pci' in driver:
         msg = ("For Mellanox NIC %s, the default driver vfio-pci "
