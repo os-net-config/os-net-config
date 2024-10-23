@@ -1439,7 +1439,9 @@ class OvsDpdkPort(_BaseOpts):
         if iface.promisc is not None:
             logger.warning("Promisc can't be changed for ovs_dpdk_port")
             iface.promisc = None
-        logger.info("Overriding the default driver for DPDK")
+        logger.info(f'{iface.device}-{iface.vfid}: Overriding the default '
+                    f'driver for DPDK with {driver}')
+        iface.driver = driver
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
                                   spoofcheck=iface.spoofcheck,
