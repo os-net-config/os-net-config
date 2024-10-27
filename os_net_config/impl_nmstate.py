@@ -1566,7 +1566,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
-        pci_address = utils.get_dpdk_devargs(ifname, noop=False)
+        pci_address = utils.get_dpdk_devargs(ifname, noop=self.noop)
 
         data[OVSInterface.DPDK_CONFIG_SUBTREE
              ] = {OVSInterface.Dpdk.DEVARGS: pci_address}
@@ -1823,9 +1823,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         vf_config = self.prepare_sriov_vf_config()
         apply_data = {}
         if vf_config and activate:
-            if not self.noop:
-                logger.debug("Applying the VF parameters")
-                self.nmstate_apply(self.set_ifaces(vf_config), verify=True)
+            logger.debug("Applying the VF parameters")
+            self.nmstate_apply(self.set_ifaces(vf_config), verify=True)
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)
@@ -1875,15 +1874,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         if updated_interfaces:
             apply_data = self.set_ifaces(list(updated_interfaces.values()))
-            if activate and not self.noop:
+            if activate:
                 self.nmstate_apply(apply_data, verify=True)
         if del_routes:
             apply_data = self.set_routes(del_routes)
-            if activate and not self.noop:
+            if activate:
                 self.nmstate_apply(apply_data, verify=True)
         if add_routes:
             apply_data = self.set_routes(add_routes)
-            if activate and not self.noop:
+            if activate:
                 self.nmstate_apply(apply_data, verify=True)
 
         if config_rules_dns:
@@ -1891,16 +1890,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
             if del_rules:
                 apply_data = self.set_rules(del_rules)
-                if activate and not self.noop:
+                if activate:
                     self.nmstate_apply(apply_data, verify=True)
 
             if add_rules:
                 apply_data = self.set_rules(add_rules)
-                if activate and not self.noop:
+                if activate:
                     self.nmstate_apply(apply_data, verify=True)
 
             apply_data = self.set_dns()
-            if activate and not self.noop:
+            if activate:
                 self.nmstate_apply(apply_data, verify=True)
 
         if activate:

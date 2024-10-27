@@ -25,6 +25,9 @@ from os_net_config.tests import base
 
 
 class TestRoute(base.TestCase):
+    def setUp(self):
+        super(TestRoute, self).setUp()
+        common.set_noop(True)
 
     def test_from_json(self):
         data = '{"next_hop": "172.19.0.1", "ip_netmask": "172.19.0.0/24", ' \
@@ -73,6 +76,9 @@ class TestRoute(base.TestCase):
 
 
 class TestRouteTable(base.TestCase):
+    def setUp(self):
+        super(TestRouteTable, self).setUp()
+        common.set_noop(True)
 
     def test_from_json(self):
         data = '{"type": "route_table", "name": "custom", "table_id": 200}'
@@ -99,6 +105,9 @@ class TestRouteTable(base.TestCase):
 
 
 class TestRouteRule(base.TestCase):
+    def setUp(self):
+        super(TestRouteRule, self).setUp()
+        common.set_noop(True)
 
     def test_rule(self):
         rule1 = objects.RouteRule('from 192.0.2.0/24 table 200 prio 1000')
@@ -112,6 +121,9 @@ class TestRouteRule(base.TestCase):
 
 
 class TestAddress(base.TestCase):
+    def setUp(self):
+        super(TestAddress, self).setUp()
+        common.set_noop(True)
 
     def test_ipv4_address(self):
         address = objects.Address('192.168.1.1/24')
@@ -144,6 +156,9 @@ class TestAddress(base.TestCase):
 
 
 class TestInterface(base.TestCase):
+    def setUp(self):
+        super(TestInterface, self).setUp()
+        common.set_noop(True)
 
     def test_interface_addresses(self):
         v4_addr = objects.Address('192.168.1.1/24')
@@ -377,6 +392,9 @@ class TestInterface(base.TestCase):
 
 
 class TestVlan(base.TestCase):
+    def setUp(self):
+        super(TestVlan, self).setUp()
+        common.set_noop(True)
 
     def test_from_json_dhcp(self):
         data = '{"type": "vlan", "device": "em1", "vlan_id": 16,' \
@@ -411,6 +429,7 @@ class TestBridge(base.TestCase):
 
     def setUp(self):
         super(TestBridge, self).setUp()
+        common.set_noop(True)
         rand = str(int(random.random() * 100000))
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
 
@@ -881,6 +900,9 @@ class TestBridge(base.TestCase):
 
 
 class TestLinuxBridge(base.TestCase):
+    def setUp(self):
+        super(TestLinuxBridge, self).setUp()
+        common.set_noop(True)
 
     def test_from_json_dhcp(self):
         data = """{
@@ -958,6 +980,10 @@ class TestLinuxBridge(base.TestCase):
 
 class TestIvsBridge(base.TestCase):
 
+    def setUp(self):
+        super(TestIvsBridge, self).setUp()
+        common.set_noop(True)
+
     def test_from_json(self):
         data = """{
 "type": "ivs_bridge",
@@ -979,6 +1005,9 @@ class TestIvsBridge(base.TestCase):
 
 
 class TestIvsInterface(base.TestCase):
+    def setUp(self):
+        super(TestIvsInterface, self).setUp()
+        common.set_noop(True)
 
     def test_ivs_interface_from_json(self):
         data = """{
@@ -1084,6 +1113,7 @@ class TestBond(base.TestCase):
 
     def setUp(self):
         super(TestBond, self).setUp()
+        common.set_noop(True)
 
         def stub_is_ovs_installed():
             return True
@@ -1184,6 +1214,7 @@ class TestLinuxBond(base.TestCase):
 
     def setUp(self):
         super(TestLinuxBond, self).setUp()
+        common.set_noop(True)
         rand = str(int(random.random() * 100000))
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
 
@@ -1418,6 +1449,7 @@ class TestOvsTunnel(base.TestCase):
 
     def setUp(self):
         super(TestOvsTunnel, self).setUp()
+        common.set_noop(True)
 
         def stub_is_ovs_installed():
             return True
@@ -1499,6 +1531,7 @@ class TestOvsPatchPort(base.TestCase):
 
     def setUp(self):
         super(TestOvsPatchPort, self).setUp()
+        common.set_noop(True)
 
         def stub_is_ovs_installed():
             return True
@@ -1948,6 +1981,7 @@ class TestSriovPF(base.TestCase):
 
     def setUp(self):
         super(TestSriovPF, self).setUp()
+        common.set_noop(True)
 
         def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
@@ -2093,6 +2127,7 @@ class TestSriovVF(base.TestCase):
 
     def setUp(self):
         super(TestSriovVF, self).setUp()
+        common.set_noop(True)
 
     def tearDown(self):
         super(TestSriovVF, self).tearDown()
