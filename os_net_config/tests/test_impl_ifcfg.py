@@ -1903,8 +1903,10 @@ OVS_EXTRA="set Interface $DEVICE options:dpdk-devargs=0000:00:09.0 \
         self.stubbed_mapped_nics = nic_mapping
 
         interface = objects.Interface(name='nic3')
+        ovs_extra = ['set interface dpdk0 options:dpdk-lsc-interrupt=true']
         dpdk_port = objects.OvsDpdkPort(name='dpdk0', members=[interface],
-                                        mtu=9000, rx_queue=4)
+                                        mtu=9000, rx_queue=4,
+                                        ovs_extra=ovs_extra)
         bridge = objects.OvsUserBridge('br-link', members=[dpdk_port])
 
         def test_bind_dpdk_interfaces(ifname, driver, noop):
@@ -1939,7 +1941,8 @@ RX_QUEUE=4
 MTU=9000
 OVS_EXTRA="set Interface $DEVICE options:dpdk-devargs=0000:00:09.0 \
 -- set Interface $DEVICE mtu_request=$MTU \
--- set Interface $DEVICE options:n_rxq=$RX_QUEUE"
+-- set Interface $DEVICE options:n_rxq=$RX_QUEUE \
+-- set interface dpdk0 options:dpdk-lsc-interrupt=true"
 """
         self.assertEqual(br_link_config,
                          self.provider.bridge_data['br-link'])
@@ -2014,7 +2017,10 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
         iface1 = objects.Interface(name='nic2')
         dpdk1 = objects.OvsDpdkPort(name='dpdk1',
                                     members=[iface1], driver='mlx5_core')
-        bond = objects.OvsDpdkBond('dpdkbond0', members=[dpdk0, dpdk1])
+        ovs_extra = ['set interface dpdk0 options:dpdk-lsc-interrupt=true',
+                     'set interface dpdk1 options:dpdk-lsc-interrupt=true']
+        bond = objects.OvsDpdkBond('dpdkbond0', members=[dpdk0, dpdk1],
+                                   ovs_extra=ovs_extra)
         bridge = objects.OvsUserBridge('br-link', members=[bond])
 
         def test_bind_dpdk_interfaces(ifname, driver, noop):
@@ -2039,7 +2045,9 @@ TYPE=OVSDPDKBond
 OVS_BRIDGE=br-link
 BOND_IFACES="dpdk0 dpdk1"
 OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:01.0 \
--- set Interface dpdk1 options:dpdk-devargs=0000:00:02.0"
+-- set Interface dpdk1 options:dpdk-devargs=0000:00:02.0 \
+-- set interface dpdk0 options:dpdk-lsc-interrupt=true \
+-- set interface dpdk1 options:dpdk-lsc-interrupt=true"
 """
         self.assertEqual(dpdk_bond_config,
                          self.get_interface_config('dpdkbond0'))
