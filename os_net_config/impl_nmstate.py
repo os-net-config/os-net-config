@@ -67,7 +67,6 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 IPV4_DEFAULT_GATEWAY_DESTINATION = "0.0.0.0/0"
 IPV6_DEFAULT_GATEWAY_DESTINATION = "::/0"
 
-
 def route_table_config_path():
     return "/etc/iproute2/rt_tables"
 
@@ -152,7 +151,13 @@ def parse_bonding_options(bond_options_str):
 
 
 def set_linux_bonding_options(bond_options, primary_iface=None):
-    linux_bond_options = ["updelay", "miimon", "lacp_rate", "fail_over_mac"]
+    linux_bond_options = [
+        "ad_actor_system", "ad_actor_sys_prio", "ad_select", "ad_user_port_key",
+        "all_slaves_active", "arp_all_targets", "arp_interval", "arp_ip_target", "arp_validate",
+        "downdelay", "updelay", "miimon", "lacp_rate", "fail_over_mac", "lp_interval",
+        "packets_per_slave", "min_links", "primary", "primary_reselect", "resend_igmp", "tlb_dynamic_lb",
+        "use_carrier", "num_grat_arp", "num_unsol_na", "xmit_hash_policy"
+    ]
     bond_data = {Bond.MODE: BondMode.ACTIVE_BACKUP,
                  Bond.OPTIONS_SUBTREE: {},
                  Bond.PORT: []}
