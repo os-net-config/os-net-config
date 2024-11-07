@@ -212,10 +212,10 @@ def main(argv=sys.argv, main_logger=None):
 
     if not opts.provider:
         ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
-        if is_nmstate_available():
-            opts.provider = "nmstate"
-        elif os.path.exists(ifcfg_path):
+        if os.path.exists(ifcfg_path):
             opts.provider = "ifcfg"
+        elif is_nmstate_available():
+            opts.provider = "nmstate"
         elif os.path.exists('%s/etc/network/' % opts.root_dir):
             opts.provider = "eni"
         else:
