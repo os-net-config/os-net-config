@@ -1702,8 +1702,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 update_files[br_route_path] = route_data
                 if bridge_name not in restart_bridges:
                     apply_routes.append((bridge_name, route_data))
-            if utils.diff(route6_path, route6_data):
-                update_files[route6_path] = route6_data
+            if utils.diff(br_route6_path, route6_data):
+                update_files[br_route6_path] = route6_data
                 if bridge_name not in restart_bridges:
                     apply_routes.append((bridge_name, route6_data))
             if utils.diff(br_rule_path, rule_data):
