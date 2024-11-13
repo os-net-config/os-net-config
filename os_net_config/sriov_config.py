@@ -219,10 +219,16 @@ def get_numvfs(ifname):
     :returns: int -- the number of current VFs on ifname
     :raises: SRIOVNumvfsException
     """
+    sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
     cmd = ["/usr/bin/udevadm", "wait", "-t", "60", common.get_dev_path(ifname)]
     logger.debug(f"{ifname}: Running command: {cmd}")
-    processutils.execute(*cmd)
-    sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
+    try:
+        processutils.execute(*cmd)
+    except processutils.ProcessExecutionError:
+        cmd = ["/usr/bin/udevadm", "settle", "-E", sriov_numvfs_path,
+               "-t", "60"]
+        logger.debug(f"{ifname}: Running command: {' '.join(cmd)}")
+        processutils.execute(*cmd)
     logger.debug(f"{ifname}: Getting numvfs for interface")
     try:
         with open(sriov_numvfs_path, 'r') as f:
