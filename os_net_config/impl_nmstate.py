@@ -101,7 +101,12 @@ def is_dict_subset(superset, subset):
     if superset and subset:
         for key, value in subset.items():
             if key not in superset:
-                return False
+                # Items which are empty or false
+                # shall be considered as absent
+                if value:
+                    return False
+                else:
+                    continue
             if isinstance(value, dict):
                 if not is_dict_subset(superset[key], value):
                     return False
@@ -118,7 +123,14 @@ def is_dict_subset(superset, subset):
                 except TypeError:
                     for item in value:
                         if item not in superset[key]:
-                            return False
+                            if isinstance(item, dict):
+                                for s_items in superset[key]:
+                                    if is_dict_subset(s_items, item):
+                                        break
+                                else:
+                                    return False
+                            else:
+                                return False
             elif isinstance(value, set):
                 if not value <= superset[key]:
                     return False
@@ -343,21 +355,34 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
             The required nmstate schema based configurations are available in
             `sriov_pf_data`. The generated nmstate schema is applied
-            sequentially for one device after the other.
+            sequentially for one device after the other. These PF
+            configurations are compared against the current state of those
+            interfaces. If there is a mismatch in the current state and
+            desired state, only then the generated nmstate templates is applied
 
         :param activate: A boolean which indicates if the config should
             be activated by applying the desired state.
+        :returns: The list of devices configured
         '''
+        updated_pfs = []
         # The desired state of the PF's are applied one after the
         # other, so as to avoid driver errors.
         for pf_name in self.sriov_pf_data.keys():
             pf_state = self.sriov_pf_data[pf_name]
-            if not self.noop and activate:
-                logger.debug(f'{pf_name}: Applying the PF config')
-                self.nmstate_apply(self.set_ifaces([pf_state]),
-                                   verify=True)
-        # Clear the flag once all the PFs are configured
+            # FIXME: The comparison of the current state vs desired state needs
+            # to be performed in nmstate.
+            # JIRA: https://issues.redhat.com/browse/RHEL-67120
+            cur_state = self.iface_state(pf_name)
+            if not is_dict_subset(cur_state, pf_state):
+                if not self.noop and activate:
+                    logger.debug(f'{pf_name}: Applying the PF config')
+                    self.nmstate_apply(self.set_ifaces([pf_state]),
+                                       verify=True)
+                    updated_pfs.append(pf_name)
+            else:
+                logger.info(f'{pf_name}: No changes required for PF')
         self.need_pf_config = False
+        return updated_pfs
 
     def apply_vf_config(self, activate):
         '''Apply the VF Configuration for all the required interfaces
@@ -365,12 +390,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
             The required nmstate schema based VF configurations are available
             in `sriov_vf_data` and the PF configuration in `sriov_pf_data`.
             The generated nmstate schema is applied sequentially for one
-            device after the other.
+            device after the other. These configurations are compared
+            against the current state of those interfaces. If there is
+            a mismatch in the current state and desired state, the nmstate
+            templates are applied
 
         :param activate: A boolean which indicates if the config should
             be activated by applying the desired state.
+        :returns: The list of devices configured
         '''
 
+        updated_pfs = []
         for pf in self.sriov_vf_data.keys():
             required_vfs = []
             pf_state = {}
@@ -391,13 +421,25 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     Ethernet.CONFIG_SUBTREE][
                     Ethernet.SRIOV_SUBTREE][
                     Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
-                if not self.noop and activate:
-                    logger.debug(f'{pf_state["name"]}: Applying the VF '
-                                 'parameters')
-                    self.nmstate_apply(self.set_ifaces([pf_state]),
-                                       verify=True)
+                cur_state = self.iface_state(pf_state['name'])
+                # compare the desired state with the current state
+                # FIXME: The comparison of the desired state and current
+                # state shall be managed by nmstate itself.
+                # JIRA: https://issues.redhat.com/browse/RHEL-67120
+
+                if not is_dict_subset(cur_state, pf_state):
+                    if not self.noop and activate:
+                        logger.debug(f'{pf_state["name"]}: Applying the VF '
+                                     'parameters')
+                        self.nmstate_apply(self.set_ifaces([pf_state]),
+                                           verify=True)
+                        updated_pfs.append(pf_state["name"])
+                else:
+                    logger.info(f'{pf_state["name"]}: '
+                                'No changes required for VFs')
         # Clear the flag once all the VFs are configured
         self.need_vf_config = False
+        return updated_pfs
 
     def get_route_tables(self):
         """Generate configuration content for routing tables.
@@ -1875,13 +1917,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
         del_routes = []
 
         updated_interfaces = {}
+        updated_pfs = []
 
         logger.debug("----------------------------")
         if self.need_pf_config:
-            self.apply_pf_config(activate)
+            pf_devs = self.apply_pf_config(activate)
+            updated_pfs.extend(pf_devs)
 
         if self.need_vf_config:
-            self.apply_vf_config(activate)
+            pf_devs = self.apply_vf_config(activate)
+            updated_pfs.extend(pf_devs)
 
         apply_data = {}
         for pf_name in self.sriov_pf_data.keys():
@@ -1980,8 +2025,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.vlan_data = {}
 
         # the PF config and VF config are applied separately above
-        if self.sriov_pf_data:
-            updated_interfaces.update(self.sriov_pf_data)
+        for pf in updated_pfs:
+            updated_interfaces[pf] = self.sriov_pf_data[pf]
 
         logger.debug(f'Updated the intrefaces: '
                      f'{" ".join(updated_interfaces.keys())}')
