@@ -53,7 +53,7 @@ netconfig = os_net_config.NetConfig()
 # Script used to bind the VFs with appropriate drivers.
 # VFs specified in `dpdk_vfs` will be bound with vfio-pci.
 # VFs specified in `linux_vfs` will be bound with their default drivers
-_VF_BIND_DRV_SCRIPT = r'''
+_VF_BIND_DRV_SCRIPT = r"""
 dpdk_vfs="{dpdk_vfs}"
 linux_vfs="{linux_vfs}"
 set +e
@@ -76,7 +76,7 @@ for vfid in $dpdk_vfs $linux_vfs; do
         driverctl --nosave set-override "$vf_pci_id" "$driver"
     fi
 done
-'''
+"""
 
 _OS_NET_CONFIG_MANAGED = "# os-net-config managed table"
 
@@ -95,8 +95,8 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 IPV4_DEFAULT_GATEWAY_DESTINATION = "0.0.0.0/0"
 IPV6_DEFAULT_GATEWAY_DESTINATION = "::/0"
 
-POST_ACTIVATION = 'post-activation'
-DISPATCH = 'dispatch'
+POST_ACTIVATION = "post-activation"
+DISPATCH = "dispatch"
 
 
 def route_table_config_path():
@@ -107,9 +107,9 @@ def _get_type_value(str_val):
     if isinstance(str_val, str):
         if str_val.isdigit():
             return int(str_val)
-        if str_val.lower() in ['true', 'yes', 'on']:
+        if str_val.lower() in ["true", "yes", "on"]:
             return True
-        if str_val.lower() in ['false', 'no', 'off']:
+        if str_val.lower() in ["false", "no", "off"]:
             return False
     return str_val
 
@@ -123,7 +123,7 @@ def get_route_options(route_options, key):
     :returns: the route_option value corresponding to the key
     """
 
-    items = route_options.split(' ')
+    items = route_options.split(" ")
     iter_list = iter(items)
     for item in iter_list:
         if key in item:
@@ -195,14 +195,13 @@ def _add_sub_tree(data, subtree):
     :returns: The tip of the nested dict created
     """
     if data is None:
-        msg = 'Subtree can\'t be created on None Types'
+        msg = "Subtree can't be created on None Types"
         raise os_net_config.ConfigurationError(msg)
     config = data
-    if subtree:
-        for cfg in subtree:
-            if cfg not in config:
-                config[cfg] = {}
-            config = config[cfg]
+    for cfg in subtree:
+        if cfg not in config:
+            config[cfg] = {}
+        config = config[cfg]
     return config
 
 
@@ -215,7 +214,7 @@ def parse_bonding_options(bond_options_str):
     """
     bond_options_dict = {}
     if bond_options_str:
-        options = re.findall(r'(.+?)=(.+?)($|\s)', bond_options_str)
+        options = re.findall(r"(.+?)=(.+?)($|\s)", bond_options_str)
         for option in options:
             bond_options_dict[option[0]] = _get_type_value(option[1])
     return bond_options_dict
@@ -231,20 +230,40 @@ def set_linux_bonding_options(bond_options, primary_iface=None):
     :returns: The bond configuration in nmstate schema format
     """
     linux_bond_options = [
-        "ad_actor_system", "ad_actor_sys_prio", "ad_select",
-        "ad_user_port_key", "arp_ip_target", "arp_validate",
-        "all_slaves_active", "arp_all_targets", "arp_interval",
-        "downdelay", "updelay", "miimon", "lacp_rate",
-        "fail_over_mac", "lp_interval", "packets_per_slave", "min_links",
-        "primary", "primary_reselect", "resend_igmp", "tlb_dynamic_lb",
-        "use_carrier", "num_grat_arp", "num_unsol_na", "xmit_hash_policy"
+        "ad_actor_system",
+        "ad_actor_sys_prio",
+        "ad_select",
+        "ad_user_port_key",
+        "arp_ip_target",
+        "arp_validate",
+        "all_slaves_active",
+        "arp_all_targets",
+        "arp_interval",
+        "downdelay",
+        "updelay",
+        "miimon",
+        "lacp_rate",
+        "fail_over_mac",
+        "lp_interval",
+        "packets_per_slave",
+        "min_links",
+        "primary",
+        "primary_reselect",
+        "resend_igmp",
+        "tlb_dynamic_lb",
+        "use_carrier",
+        "num_grat_arp",
+        "num_unsol_na",
+        "xmit_hash_policy",
     ]
-    bond_data = {Bond.MODE: BondMode.ACTIVE_BACKUP,
-                 Bond.OPTIONS_SUBTREE: {},
-                 Bond.PORT: []}
+    bond_data = {
+        Bond.MODE: BondMode.ACTIVE_BACKUP,
+        Bond.OPTIONS_SUBTREE: {},
+        Bond.PORT: [],
+    }
     bond_options_data = {}
-    if 'mode' in bond_options:
-        bond_data[Bond.MODE] = bond_options['mode']
+    if "mode" in bond_options:
+        bond_data[Bond.MODE] = bond_options["mode"]
 
     for options in linux_bond_options:
         if options in bond_options:
@@ -252,7 +271,7 @@ def set_linux_bonding_options(bond_options, primary_iface=None):
     bond_data[Bond.OPTIONS_SUBTREE] = bond_options_data
 
     if primary_iface and bond_data[Bond.MODE] == BondMode.ACTIVE_BACKUP:
-        bond_options_data['primary'] = primary_iface
+        bond_options_data["primary"] = primary_iface
 
     if len(bond_data[Bond.OPTIONS_SUBTREE]) == 0:
         del bond_data[Bond.OPTIONS_SUBTREE]
@@ -269,45 +288,53 @@ def set_ovs_bonding_options(bond_options):
     """
     # Duplicate entries for other-config are added so as to avoid
     # the confusion around other-config vs other_config in ovs
-    ovs_other_config = ["other_config:lacp-fallback-ab",
-                        "other_config:lacp-time",
-                        "other_config:bond-detect-mode",
-                        "other_config:bond-miimon-interval",
-                        "other_config:bond-rebalance-interval",
-                        "other_config:bond-primary",
-                        "other-config:lacp-fallback-ab",
-                        "other-config:lacp-time",
-                        "other-config:bond-detect-mode",
-                        "other-config:bond-miimon-interval",
-                        "other-config:bond-rebalance-interval",
-                        "other-config:bond-primary"]
+    ovs_other_config = [
+        "other_config:lacp-fallback-ab",
+        "other_config:lacp-time",
+        "other_config:bond-detect-mode",
+        "other_config:bond-miimon-interval",
+        "other_config:bond-rebalance-interval",
+        "other_config:bond-primary",
+        "other-config:lacp-fallback-ab",
+        "other-config:lacp-time",
+        "other-config:bond-detect-mode",
+        "other-config:bond-miimon-interval",
+        "other-config:bond-rebalance-interval",
+        "other-config:bond-primary",
+    ]
     other_config = {}
-    bond_data = {OVSBridge.Port.LinkAggregation.MODE:
-                 OVSBridge.Port.LinkAggregation.Mode.ACTIVE_BACKUP,
-                 OVSBridge.PORT_SUBTREE:
-                     [{OVSBridge.Port.LinkAggregation.PORT_SUBTREE: []}],
-                 OvsDB.KEY: {OvsDB.OTHER_CONFIG: other_config}}
+    bond_data = {
+        OVSBridge.Port.LinkAggregation.MODE: OVSBridge.Port.LinkAggregation.Mode.ACTIVE_BACKUP,
+        OVSBridge.PORT_SUBTREE: [
+            {OVSBridge.Port.LinkAggregation.PORT_SUBTREE: []}
+        ],
+        OvsDB.KEY: {OvsDB.OTHER_CONFIG: other_config},
+    }
 
-    if 'bond_mode' in bond_options:
-        bond_data[OVSBridge.Port.LinkAggregation.MODE
-                  ] = bond_options['bond_mode']
-    elif 'lacp' in bond_options and bond_options['lacp'] == 'active':
-        bond_data[OVSBridge.Port.LinkAggregation.MODE
-                  ] = OVSBridge.Port.LinkAggregation.Mode.LACP
+    if "bond_mode" in bond_options:
+        bond_data[OVSBridge.Port.LinkAggregation.MODE] = bond_options[
+            "bond_mode"
+        ]
+    elif "lacp" in bond_options and bond_options["lacp"] == "active":
+        bond_data[OVSBridge.Port.LinkAggregation.MODE] = (
+            OVSBridge.Port.LinkAggregation.Mode.LACP
+        )
 
-    if 'bond_updelay' in bond_options:
-        bond_data[OVSBridge.Port.LinkAggregation.Options.UP_DELAY
-                  ] = bond_options['bond_updelay']
+    if "bond_updelay" in bond_options:
+        bond_data[OVSBridge.Port.LinkAggregation.Options.UP_DELAY] = (
+            bond_options["bond_updelay"]
+        )
 
     for options in ovs_other_config:
         if options in bond_options:
-            other_config[options[len("other_config:"):]
-                         ] = bond_options[options]
+            other_config[options[len("other_config:") :]] = bond_options[
+                options
+            ]
     return bond_data
 
 
 def _is_any_ip_addr(address):
-    if address.lower() == 'any' or address.lower() == 'all':
+    if address.lower() == "any" or address.lower() == "all":
         return True
     return False
 
@@ -315,7 +342,7 @@ def _is_any_ip_addr(address):
 class NmstateNetConfig(os_net_config.NetConfig):
     """Configure network interfaces using NetworkManager via nmstate API."""
 
-    def __init__(self, noop=False, root_dir=''):
+    def __init__(self, noop=False, root_dir=""):
         super(NmstateNetConfig, self).__init__(noop, root_dir)
         # Dict of the interface data, with key being the interface name
         self.interface_data = {}
@@ -325,7 +352,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.route_data = {}
         # List of the rules data
         self.rules_data = []
-        self.dns_data = {'server': [], 'domain': []}
+        self.dns_data = {"server": [], "domain": []}
         # Dict of the ovs bridges, with keys being the device name
         self.bridge_data = {}
         # Dict of the linux bond data, with keys being the device name
@@ -356,9 +383,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # only for NIC Partitioning use cases.
         self.need_vf_config = False
         self.initial_state = netinfo.show_running_config()
-        self.__dump_key_config(self.initial_state,
-                               msg="Initial network settings")
-        logger.info('nmstate net config provider created.')
+        self.__dump_key_config(
+            self.initial_state, msg="Initial network settings"
+        )
+        logger.info("nmstate net config provider created.")
 
     def reload_nm(self):
         """Reload NetworkManager connections
@@ -367,7 +395,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         updates (if any) to the ifcfg-* files related to
         NM_CONTROLLED shall be re-applied.
         """
-        cmd = ['nmcli', 'connection', 'reload']
+        cmd = ["nmcli", "connection", "reload"]
         msg = "Reloading nmcli connections"
         self.execute(msg, *cmd)
 
@@ -384,23 +412,26 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
         logger.info("Rolling back to initial settings.")
         cur_state = netinfo.show_running_config()
-        diff_state = gen_diff.generate_differences(self.initial_state,
-                                                   cur_state)
-        msg = "Applying the difference to go back to initial settings "
+        diff_state = gen_diff.generate_differences(
+            self.initial_state, cur_state
+        )
+        msg = "Applying the difference to go back to initial settings"
         self.__dump_key_config(diff_state, msg=msg)
         netapplier.apply(diff_state, verify_change=True)
 
     def __dump_config(self, config, msg="Applying config"):
-        cfg_dump = yaml.dump(config, default_flow_style=False,
-                             allow_unicode=True, encoding=None)
+        cfg_dump = yaml.dump(
+            config, default_flow_style=False, allow_unicode=True, encoding=None
+        )
         logger.debug("----------------------------")
-        logger.debug(f"{msg}\n{cfg_dump}")
+        logger.debug("%s\n%s", msg, cfg_dump)
 
     def __dump_key_config(self, config, msg="Applying config"):
-        cfg_dump = yaml.dump(config, default_flow_style=False,
-                             allow_unicode=True, encoding=None)
+        cfg_dump = yaml.dump(
+            config, default_flow_style=False, allow_unicode=True, encoding=None
+        )
         logger.info("----------------------------")
-        logger.info(f"{msg}\n{cfg_dump}")
+        logger.info("%s\n%s", msg, cfg_dump)
 
     def get_vf_config(self, sriov_vf):
         """Create the nmstate schema for the given VF
@@ -410,23 +441,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param sriov_vf: The SriovVF object that has the VF config
         :returns: The VF config in nmstate schema format
         """
-        logger.info(f'VF Config for vfid {sriov_vf.vfid} '
-                    f'device {sriov_vf.device} Trust={sriov_vf.trust} '
-                    f'vlan={sriov_vf.vlan_id} Qos={sriov_vf.qos}'
-                    f'Max Rate= {sriov_vf.max_tx_rate} '
-                    f'Min Rate={sriov_vf.min_tx_rate}'
-                    f'Spoofcheck={sriov_vf.spoofcheck}')
         vf_config = {}
         vf_config[Ethernet.SRIOV.VFS.ID] = sriov_vf.vfid
         if sriov_vf.macaddr:
             vf_config[Ethernet.SRIOV.VFS.MAC_ADDRESS] = sriov_vf.macaddr
         if sriov_vf.spoofcheck:
-            if sriov_vf.spoofcheck == 'on':
+            if sriov_vf.spoofcheck == "on":
                 vf_config[Ethernet.SRIOV.VFS.SPOOF_CHECK] = True
             else:
                 vf_config[Ethernet.SRIOV.VFS.SPOOF_CHECK] = False
         if sriov_vf.trust:
-            if sriov_vf.trust == 'on':
+            if sriov_vf.trust == "on":
                 vf_config[Ethernet.SRIOV.VFS.TRUST] = True
             else:
                 vf_config[Ethernet.SRIOV.VFS.TRUST] = False
@@ -452,18 +477,19 @@ class NmstateNetConfig(os_net_config.NetConfig):
             configured, while attempting a VF configuration
         """
         if sriov_vf.device in self.sriov_vf_data:
-            logger.info(f'Updating the VF data for VF: {sriov_vf.vfid} '
-                        f'Device: {sriov_vf.device} Trust: {sriov_vf.trust} '
-                        f'Spoofcheck: {sriov_vf.spoofcheck} '
-                        f'Vlan: {sriov_vf.vlan_id} Qos: {sriov_vf.qos} '
-                        f'Min Rate: {sriov_vf.min_tx_rate} '
-                        f'Max Rate: {sriov_vf.max_tx_rate}')
+            logger.info(
+                f"{sriov_vf.device}-{sriov_vf.vfid}: Updating VF "
+                f"Trust: {sriov_vf.trust} "
+                f"Spoofcheck: {sriov_vf.spoofcheck} "
+                f"Vlan: {sriov_vf.vlan_id} Qos: {sriov_vf.qos} "
+                f"Min Rate: {sriov_vf.min_tx_rate} "
+                f"Max Rate: {sriov_vf.max_tx_rate}"
+            )
             vf_config = self.get_vf_config(sriov_vf)
             self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
             self.add_vf_driver_override(sriov_vf)
         else:
-            msg = (f'SR-IOV PF is not configured on {sriov_vf.device}, '
-                   f'while the VF {sriov_vf.vfid} is used')
+            msg = f"{sriov_vf.device}-{sriov_vf.vfid}: PF is not configured"
             raise objects.InvalidConfigException(msg)
 
     def apply_pf_config(self, activate):
@@ -491,12 +517,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
             cur_state = self.iface_state(pf_name)
             if not is_dict_subset(cur_state, pf_state):
                 if not self.noop and activate:
-                    logger.debug(f'{pf_name}: Applying the PF config')
-                    self.nmstate_apply(self.set_ifaces([pf_state]),
-                                       verify=True)
+                    logger.debug(f"{pf_name}: Applying the PF config")
+                    self.nmstate_apply(self.set_ifaces([pf_state]), verify=True)
                     updated_pfs.append(pf_name)
             else:
-                logger.info(f'{pf_name}: No changes required for PF')
+                logger.info(f"{pf_name}: No changes required for PF")
         self.need_pf_config = False
         return updated_pfs
 
@@ -541,23 +566,21 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     # dpdk_vfs. Other VFs shall be added to linux_vfs.
                     # When SR-IOV driver auto probe is disabled, these VFs
                     # will be bound with the corresponding linux drivers.
-                    if vf_driver and vf_driver == 'vfio-pci':
+                    if vf_driver and vf_driver == "vfio-pci":
                         dpdk_vfs.append(str(vfid))
                     else:
                         linux_vfs.append(str(vfid))
 
             if required_vfs:
                 bind_script = _VF_BIND_DRV_SCRIPT.format(
-                    dpdk_vfs=' '.join(dpdk_vfs),
-                    linux_vfs=' '.join(linux_vfs))
-                self.add_dispatch_script(pf_state, POST_ACTIVATION,
-                                         bind_script)
+                    dpdk_vfs=" ".join(dpdk_vfs), linux_vfs=" ".join(linux_vfs)
+                )
+                self.add_dispatch_script(pf_state, POST_ACTIVATION, bind_script)
                 # Add the generated VF configuration
-                pf_state[
-                    Ethernet.CONFIG_SUBTREE][
-                    Ethernet.SRIOV_SUBTREE][
-                    Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
-                cur_state = self.iface_state(pf_state['name'])
+                pf_state[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE][
+                    Ethernet.SRIOV.VFS_SUBTREE
+                ] = required_vfs
+                cur_state = self.iface_state(pf_state["name"])
                 # compare the desired state with the current state
                 # FIXME: The comparison of the desired state and current
                 # state shall be managed by nmstate itself.
@@ -565,14 +588,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
                 if not is_dict_subset(cur_state, pf_state):
                     if not self.noop and activate:
-                        logger.debug(f'{pf_state["name"]}: Applying the VF '
-                                     'parameters')
-                        self.nmstate_apply(self.set_ifaces([pf_state]),
-                                           verify=True)
+                        logger.debug(
+                            f'{pf_state["name"]}: Applying the VF ' 'parameters'
+                        )
+                        self.nmstate_apply(
+                            self.set_ifaces([pf_state]), verify=True
+                        )
                         updated_pfs.append(pf_state["name"])
                 else:
-                    logger.info(f'{pf_state["name"]}: '
-                                'No changes required for VFs')
+                    logger.info(
+                        f'{pf_state["name"]}: ' 'No changes required for VFs'
+                    )
         # Clear the flag once all the VFs are configured
         self.need_vf_config = False
         return updated_pfs
@@ -588,18 +614,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
 
         rt_tables = {}
-        rt_config = common.get_file_data(route_table_config_path()).split('\n')
+        rt_config = common.get_file_data(route_table_config_path()).split("\n")
         for line in rt_config:
             # ignore comments and black lines
             line = line.strip()
-            if not line or line.startswith('#'):
+            if not line or line.startswith("#"):
                 pass
             else:
                 id_name = line.split()
                 if len(id_name) > 1 and id_name[0].isdigit():
                     rt_tables[id_name[1]] = int(id_name[0])
-        self.__dump_config(rt_tables,
-                           msg='Contents of /etc/iproute2/rt_tables')
+        self.__dump_config(rt_tables, msg="Contents of /etc/iproute2/rt_tables")
         return rt_tables
 
     def generate_route_table_config(self, route_tables):
@@ -616,9 +641,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
 
         custom_tables = {}
-        res_ids = ['0', '253', '254', '255']
-        res_names = ['unspec', 'default', 'main', 'local']
-        rt_config = common.get_file_data(route_table_config_path()).split('\n')
+        res_ids = ["0", "253", "254", "255"]
+        res_names = ["unspec", "default", "main", "local"]
+        rt_config = common.get_file_data(route_table_config_path()).split("\n")
         rt_defaults = _ROUTE_TABLE_DEFAULT.split("\n")
         data = _ROUTE_TABLE_DEFAULT
         for line in rt_config:
@@ -626,39 +651,45 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if line in rt_defaults:
                 continue
             # Leave non-standard comments intact in file
-            if line.startswith('#'):
+            if line.startswith("#"):
                 data += f"{line}\n"
             # Ignore old managed entries, will be added back if in new config.
             elif line.find(_OS_NET_CONFIG_MANAGED) == -1:
                 id_name = line.split()
                 # Keep custom tables if there is no conflict with new tables.
                 if len(id_name) > 1 and id_name[0].isdigit():
-                    if not id_name[0] in res_ids:
-                        if not id_name[1] in res_names:
-                            if not int(id_name[0]) in route_tables:
-                                if not id_name[1] in route_tables.values():
+                    if id_name[0] not in res_ids:
+                        if id_name[1] not in res_names:
+                            if int(id_name[0]) not in route_tables:
+                                if id_name[1] not in route_tables.values():
                                     # Replicate line with any comments appended
                                     custom_tables[id_name[0]] = id_name[1]
                                     data += f"{line}\n"
         if custom_tables:
-            logger.debug(f"Existing route tables: {custom_tables}")
+            logger.debug(f"Present state of route tables: {custom_tables}")
         for id in sorted(route_tables):
             if str(id) in res_ids:
-                message = f"Table {route_tables[id]}({id}) conflicts with " \
-                          f"reserved table "\
-                          f"{res_names[res_ids.index(str(id))]}({id})"
+                message = (
+                    f"Table {route_tables[id]}({id}) conflicts with "
+                    f"reserved table "
+                    f"{res_names[res_ids.index(str(id))]}({id})"
+                )
                 raise os_net_config.ConfigurationError(message)
             elif route_tables[id] in res_names:
-                message = f"Table {route_tables[id]}({id}) conflicts with "\
-                          f"reserved table {route_tables[id]}" \
-                          f"({res_ids[res_names.index(route_tables[id])]})"
+                message = (
+                    f"Table {route_tables[id]}({id}) conflicts with "
+                    f"reserved table {route_tables[id]}"
+                    f"({res_ids[res_names.index(route_tables[id])]})"
+                )
                 raise os_net_config.ConfigurationError(message)
             else:
-                data += f"{id}\t{route_tables[id]}     "\
-                        f"{_OS_NET_CONFIG_MANAGED}\n"
+                data += (
+                    f"{id}\t{route_tables[id]}     "
+                    f"{_OS_NET_CONFIG_MANAGED}\n"
+                )
         return data
 
-    def iface_state(self, name=''):
+    def iface_state(self, name=""):
         """Return the current interface state according to nmstate.
 
         Return the current state of all interfaces, or the named interface.
@@ -667,15 +698,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
                   the state of the specific interface when name is specified
         """
         ifaces = netinfo.show_running_config()[Interface.KEY]
-        if name != '':
+        if name != "":
             for iface in ifaces:
                 if iface[Interface.NAME] != name:
                     continue
-                self.__dump_config(iface, msg=f"Running config for {name}")
+                self.__dump_config(iface, msg=f"{name}: Present state")
                 return iface
         else:
-            self.__dump_config(ifaces,
-                               msg=f"Running config for all interfaces")
+            self.__dump_config(ifaces, msg="Present state for all interfaces")
             return ifaces
 
     def cleanup_all_ifaces(self, exclude_nics=[]):
@@ -687,23 +717,26 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param exclude_nics: The list of nics that shall not be removed
         """
 
-        exclude_nics.extend(['lo'])
+        exclude_nics.extend(["lo"])
         ifaces = netinfo.show_running_config()[Interface.KEY]
 
         for iface in ifaces:
-            if Interface.NAME in iface and \
-               iface[Interface.NAME] not in exclude_nics:
+            if (
+                Interface.NAME in iface
+                and iface[Interface.NAME] not in exclude_nics
+            ):
                 if iface[Interface.STATE] == InterfaceState.IGNORE:
-                    logger.info(f"Skip cleaning {iface[Interface.NAME]}")
+                    logger.info(f"{iface[Interface.NAME]}: Skip cleaning")
                     continue
                 iface[Interface.STATE] = InterfaceState.ABSENT
                 state = {Interface.KEY: [iface]}
                 self.__dump_key_config(
-                    iface, msg=f"Cleaning up {iface[Interface.NAME]}")
+                    iface, msg=f"{iface[Interface.NAME]}: Cleaning up"
+                )
                 if not self.noop:
                     netapplier.apply(state, verify_change=True)
 
-    def route_state(self, name=''):
+    def route_state(self, name=""):
         """Return the current routes set according to nmstate.
 
         Return the current routes for all interfaces, or the named interface.
@@ -711,16 +744,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :returns: list of all interfaces, or those matching name if specified
         """
 
-        routes = netinfo.show_running_config()[
-            NMRoute.KEY][NMRoute.CONFIG]
+        routes = netinfo.show_running_config()[NMRoute.KEY][NMRoute.CONFIG]
         if name != "":
-            route = list(x for x in routes if x[
-                NMRoute.NEXT_HOP_INTERFACE] == name)
-            self.__dump_config(route,
-                               msg=f'Running route config for {name}')
+            route = list(
+                x for x in routes if x[NMRoute.NEXT_HOP_INTERFACE] == name
+            )
+            if self.noop:
+                self.__dump_config(route, msg=f"{name}: Present route config")
             return route
         else:
-            self.__dump_config(routes, msg=f'Running routes config')
+            if self.noop:
+                self.__dump_config(routes, msg="Present route config")
             return routes
 
     def rule_state(self):
@@ -731,9 +765,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :returns: list of all interfaces, or those matching name if specified
         """
 
-        rules = netinfo.show_running_config()[
-            NMRouteRule.KEY][NMRouteRule.CONFIG]
-        self.__dump_config(rules, msg=f'List of IP rules running config')
+        rules = netinfo.show_running_config()[NMRouteRule.KEY][
+            NMRouteRule.CONFIG
+        ]
+        if self.noop:
+            self.__dump_config(rules, msg="Present IP Rules")
         return rules
 
     def set_ifaces(self, iface_data):
@@ -743,7 +779,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :return Interface state
         """
         state = {Interface.KEY: iface_data}
-        self.__dump_config(state, msg=f"Prepared interface config")
+        if self.noop:
+            self.__dump_config(state, msg="Prepared interface config")
         return state
 
     def set_dns(self):
@@ -753,9 +790,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :return dns config
         """
 
-        state = {DNS.KEY: {DNS.CONFIG: {DNS.SERVER: self.dns_data['server'],
-                                        DNS.SEARCH: self.dns_data['domain']}}}
-        self.__dump_config(state, msg=f"Prepared DNS")
+        state = {
+            DNS.KEY: {
+                DNS.CONFIG: {
+                    DNS.SERVER: self.dns_data["server"],
+                    DNS.SEARCH: self.dns_data["domain"],
+                }
+            }
+        }
+        if self.noop:
+            self.__dump_config(state, msg="Prepared DNS")
         return state
 
     def set_routes(self, route_data):
@@ -766,7 +810,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
 
         state = {NMRoute.KEY: {NMRoute.CONFIG: route_data}}
-        self.__dump_config(state, msg=f'Prepared routes')
+        if self.noop:
+            self.__dump_config(state, msg="Prepared routes")
         return state
 
     def set_rules(self, rule_data):
@@ -776,7 +821,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :return route rule states
         """
         state = {NMRouteRule.KEY: {NMRouteRule.CONFIG: rule_data}}
-        self.__dump_config(state, msg=f'Prepared rules are')
+        if self.noop:
+            self.__dump_config(state, msg="Prepared rules are")
         return state
 
     def nmstate_apply(self, new_state, verify=True):
@@ -785,19 +831,22 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param new_state: desired network config json
         :param verify: boolean that determines if config will be verified
         """
-        self.__dump_key_config(new_state,
-                               msg=f'Applying the config with nmstate')
+        self.__dump_key_config(
+            new_state, msg="Applying the config with nmstate"
+        )
         if not self.noop:
             try:
                 netapplier.apply(new_state, verify_change=verify)
             except error.NmstateVerificationError as exc:
-                logger.error(f'**** Verification Error *****')
-                logger.error(f'Error seen while applying the nmstate '
-                             f'templates {exc}')
+                logger.error("**** Verification Error *****")
+                logger.error(
+                    "Error seen while applying the nmstate " f"templates {exc}"
+                )
                 self.errors.append(exc)
             except error.NmstateError as exc:
-                logger.error(f'Error seen while applying the nmstate '
-                             f'templates {exc}')
+                logger.error(
+                    "Error seen while applying the nmstate " f"templates {exc}"
+                )
                 self.errors.append(exc)
 
     def generate_routes(self, interface_name):
@@ -811,10 +860,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         del_routes = []
         clean_routes = False
-        self.__dump_config(curr_routes,
-                           msg=f'Present route config for {interface_name}')
-        self.__dump_config(add_routes,
-                           msg=f'Desired route config for {interface_name}')
+        self.__dump_config(
+            curr_routes, msg=f"{interface_name}: Present route config"
+        )
+        self.__dump_config(
+            add_routes, msg=f"{interface_name}: Desired route config"
+        )
 
         for c_route in curr_routes:
             if c_route not in add_routes:
@@ -824,7 +875,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             for c_route in curr_routes:
                 c_route[NMRoute.STATE] = NMRoute.STATE_ABSENT
                 del_routes.append(c_route)
-                logger.info(f'Prepare to remove route - {c_route}')
+                logger.info(f"Prepare to remove route - {c_route}")
         return add_routes, del_routes
 
     def generate_rules(self):
@@ -837,11 +888,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         del_rules = []
         clear_rules = False
 
-        self.__dump_config(curr_rules,
-                           msg=f'Present set of ip rules')
+        self.__dump_config(curr_rules, msg="Present set of ip rules")
 
-        self.__dump_config(add_rules,
-                           msg=f'Desired ip rules')
+        self.__dump_config(add_rules, msg="Desired ip rules")
 
         for c_rule in curr_rules:
             if c_rule not in add_rules:
@@ -851,7 +900,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             for c_rule in curr_rules:
                 c_rule[NMRouteRule.STATE] = NMRouteRule.STATE_ABSENT
                 del_rules.append(c_rule)
-                logger.info(f'Prepare to remove rule - {c_rule}')
+                logger.info(f"Prepare to remove rule - {c_rule}")
         return add_rules, del_rules
 
     def interface_mac(self, iface):
@@ -871,33 +920,31 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
         bps = []
         for member in members:
-            if member.startswith('vlan'):
-                vlan_id = int(member.strip('vlan'))
+            if member.startswith("vlan"):
+                vlan_id = int(member.strip("vlan"))
                 port = {
                     OVSBridge.Port.NAME: member,
                     OVSBridge.Port.VLAN_SUBTREE: {
-                        OVSBridge.Port.Vlan.MODE: 'access',
-                        OVSBridge.Port.Vlan.TAG: vlan_id
-                    }
+                        OVSBridge.Port.Vlan.MODE: "access",
+                        OVSBridge.Port.Vlan.TAG: vlan_id,
+                    },
                 }
                 bps.append(port)
             # if the member is of type interface but a vlan
             # like eth0.605
-            elif re.match(r'\w+\.\d+$', member):
-                vlan_id = int(member.split('.')[1])
+            elif re.match(r"\w+\.\d+$", member):
+                vlan_id = int(member.split(".")[1])
                 port = {
                     OVSBridge.Port.NAME: member,
                     OVSBridge.Port.VLAN_SUBTREE: {
-                        OVSBridge.Port.Vlan.MODE: 'access',
-                        OVSBridge.Port.Vlan.TAG: vlan_id
-                    }
+                        OVSBridge.Port.Vlan.MODE: "access",
+                        OVSBridge.Port.Vlan.TAG: vlan_id,
+                    },
                 }
                 bps.append(port)
             else:
-                port = {'name': member}
+                port = {"name": member}
                 bps.append(port)
-
-        logger.debug(f"Adding ovs ports {bps}")
         return bps
 
     def add_ethtool_subtree(self, data, sub_config, command):
@@ -906,19 +953,21 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :raises ConfigurationError: Non supported ethtool options
         """
 
-        config = _add_sub_tree(data, sub_config['sub-tree'])
-        ethtool_map = sub_config['map']
+        config = _add_sub_tree(data, sub_config["sub-tree"])
+        ethtool_map = sub_config["map"]
 
         # skip first 2 entries as they are already validated
         for index in range(2, len(command) - 1, 2):
             value = _get_type_value(command[index + 1])
             if command[index] in ethtool_map.keys():
                 config[ethtool_map[command[index]]] = value
-            elif (sub_config['sub-options'] == 'copy'):
+            elif sub_config["sub-options"] == "copy":
                 config[command[index]] = value
             else:
-                msg = f'Unhandled ethtool option {command[index]} for '\
-                      f'command {command}.'
+                msg = (
+                    f"Unhandled ethtool option {command[index]} for "
+                    f"command {command}."
+                )
                 raise os_net_config.ConfigurationError(msg)
 
     def add_ethtool_config(self, iface_name, data, ethtool_options):
@@ -926,122 +975,145 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :raises ConfigurationError: Non supported / Unhandled ethtool options
         """
-        ethtool_generic_options = {'sub-tree': [Ethernet.CONFIG_SUBTREE],
-                                   'sub-options': None,
-                                   'map': {
-                                   'speed': Ethernet.SPEED,
-                                   'autoneg': Ethernet.AUTO_NEGOTIATION,
-                                   'duplex': Ethernet.DUPLEX}
-                                   }
-        ethtool_set_ring = {'sub-tree': [Ethtool.CONFIG_SUBTREE,
-                                         Ethtool.Ring.CONFIG_SUBTREE],
-                            'sub-options': None,
-                            'map': {
-                            'rx': Ethtool.Ring.RX,
-                            'tx': Ethtool.Ring.TX,
-                            'rx-jumbo': Ethtool.Ring.RX_JUMBO,
-                            'rx-mini': Ethtool.Ring.RX_MINI}
-                            }
-        ethtool_set_pause = {'sub-tree': [Ethtool.CONFIG_SUBTREE,
-                                          Ethtool.Pause.CONFIG_SUBTREE],
-                             'sub-options': None,
-                             'map': {
-                             'autoneg': Ethtool.Pause.AUTO_NEGOTIATION,
-                             'tx': Ethtool.Pause.TX,
-                             'rx': Ethtool.Pause.RX}
-                             }
-        coalesce_map = {'adaptive-rx': Ethtool.Coalesce.ADAPTIVE_RX,
-                        'adaptive-tx': Ethtool.Coalesce.ADAPTIVE_TX,
-                        'rx-usecs': Ethtool.Coalesce.RX_USECS,
-                        'rx-frames': Ethtool.Coalesce.RX_FRAMES,
-                        'rx-usecs-irq': Ethtool.Coalesce.RX_USECS_IRQ,
-                        'rx-frames-irq': Ethtool.Coalesce.RX_FRAMES_IRQ,
-                        'tx-usecs': Ethtool.Coalesce.TX_USECS,
-                        'tx-frames': Ethtool.Coalesce.TX_FRAMES,
-                        'tx-usecs-irq': Ethtool.Coalesce.TX_USECS_IRQ,
-                        'tx-frames-irq': Ethtool.Coalesce.TX_FRAMES_IRQ,
-                        'stats-block-usecs':
-                            Ethtool.Coalesce.STATS_BLOCK_USECS,
-                        'pkt-rate-low': Ethtool.Coalesce.PKT_RATE_LOW,
-                        'rx-usecs-low': Ethtool.Coalesce.RX_USECS_LOW,
-                        'rx-frames-low': Ethtool.Coalesce.RX_FRAMES_LOW,
-                        'tx-usecs-low': Ethtool.Coalesce.TX_USECS_LOW,
-                        'tx-frames-low': Ethtool.Coalesce.TX_FRAMES_LOW,
-                        'pkt-rate-high': Ethtool.Coalesce.PKT_RATE_HIGH,
-                        'rx-usecs-high': Ethtool.Coalesce.RX_USECS_HIGH,
-                        'rx-frames-high': Ethtool.Coalesce.RX_FRAMES_HIGH,
-                        'tx-usecs-high': Ethtool.Coalesce.TX_USECS_HIGH,
-                        'tx-frames-high': Ethtool.Coalesce.TX_FRAMES_HIGH,
-                        'sample-interval': Ethtool.Coalesce.SAMPLE_INTERVAL}
-        ethtool_set_coalesce = {'sub-tree': [Ethtool.CONFIG_SUBTREE,
-                                             Ethtool.Coalesce.CONFIG_SUBTREE],
-                                'sub-options': None,
-                                'map': coalesce_map
-                                }
-        ethtool_set_features = {'sub-tree': [Ethtool.CONFIG_SUBTREE,
-                                             Ethtool.Feature.CONFIG_SUBTREE],
-                                'sub-options': 'copy',
-                                'map': {}}
-        ethtool_map = {'-G': ethtool_set_ring,
-                       '--set-ring': ethtool_set_ring,
-                       '-A': ethtool_set_pause,
-                       '--pause': ethtool_set_pause,
-                       '-C': ethtool_set_coalesce,
-                       '--coalesce': ethtool_set_coalesce,
-                       '-K': ethtool_set_features,
-                       '--features': ethtool_set_features,
-                       '--offload': ethtool_set_features,
-                       '-s': ethtool_generic_options,
-                       '--change': ethtool_generic_options}
+        ethtool_generic_options = {
+            "sub-tree": [Ethernet.CONFIG_SUBTREE],
+            "sub-options": None,
+            "map": {
+                "speed": Ethernet.SPEED,
+                "autoneg": Ethernet.AUTO_NEGOTIATION,
+                "duplex": Ethernet.DUPLEX,
+            },
+        }
+        ethtool_set_ring = {
+            "sub-tree": [Ethtool.CONFIG_SUBTREE, Ethtool.Ring.CONFIG_SUBTREE],
+            "sub-options": None,
+            "map": {
+                "rx": Ethtool.Ring.RX,
+                "tx": Ethtool.Ring.TX,
+                "rx-jumbo": Ethtool.Ring.RX_JUMBO,
+                "rx-mini": Ethtool.Ring.RX_MINI,
+            },
+        }
+        ethtool_set_pause = {
+            "sub-tree": [Ethtool.CONFIG_SUBTREE, Ethtool.Pause.CONFIG_SUBTREE],
+            "sub-options": None,
+            "map": {
+                "autoneg": Ethtool.Pause.AUTO_NEGOTIATION,
+                "tx": Ethtool.Pause.TX,
+                "rx": Ethtool.Pause.RX,
+            },
+        }
+        coalesce_map = {
+            "adaptive-rx": Ethtool.Coalesce.ADAPTIVE_RX,
+            "adaptive-tx": Ethtool.Coalesce.ADAPTIVE_TX,
+            "rx-usecs": Ethtool.Coalesce.RX_USECS,
+            "rx-frames": Ethtool.Coalesce.RX_FRAMES,
+            "rx-usecs-irq": Ethtool.Coalesce.RX_USECS_IRQ,
+            "rx-frames-irq": Ethtool.Coalesce.RX_FRAMES_IRQ,
+            "tx-usecs": Ethtool.Coalesce.TX_USECS,
+            "tx-frames": Ethtool.Coalesce.TX_FRAMES,
+            "tx-usecs-irq": Ethtool.Coalesce.TX_USECS_IRQ,
+            "tx-frames-irq": Ethtool.Coalesce.TX_FRAMES_IRQ,
+            "stats-block-usecs": Ethtool.Coalesce.STATS_BLOCK_USECS,
+            "pkt-rate-low": Ethtool.Coalesce.PKT_RATE_LOW,
+            "rx-usecs-low": Ethtool.Coalesce.RX_USECS_LOW,
+            "rx-frames-low": Ethtool.Coalesce.RX_FRAMES_LOW,
+            "tx-usecs-low": Ethtool.Coalesce.TX_USECS_LOW,
+            "tx-frames-low": Ethtool.Coalesce.TX_FRAMES_LOW,
+            "pkt-rate-high": Ethtool.Coalesce.PKT_RATE_HIGH,
+            "rx-usecs-high": Ethtool.Coalesce.RX_USECS_HIGH,
+            "rx-frames-high": Ethtool.Coalesce.RX_FRAMES_HIGH,
+            "tx-usecs-high": Ethtool.Coalesce.TX_USECS_HIGH,
+            "tx-frames-high": Ethtool.Coalesce.TX_FRAMES_HIGH,
+            "sample-interval": Ethtool.Coalesce.SAMPLE_INTERVAL,
+        }
+        ethtool_set_coalesce = {
+            "sub-tree": [
+                Ethtool.CONFIG_SUBTREE,
+                Ethtool.Coalesce.CONFIG_SUBTREE,
+            ],
+            "sub-options": None,
+            "map": coalesce_map,
+        }
+        ethtool_set_features = {
+            "sub-tree": [
+                Ethtool.CONFIG_SUBTREE,
+                Ethtool.Feature.CONFIG_SUBTREE,
+            ],
+            "sub-options": "copy",
+            "map": {},
+        }
+        ethtool_map = {
+            "-G": ethtool_set_ring,
+            "--set-ring": ethtool_set_ring,
+            "-A": ethtool_set_pause,
+            "--pause": ethtool_set_pause,
+            "-C": ethtool_set_coalesce,
+            "--coalesce": ethtool_set_coalesce,
+            "-K": ethtool_set_features,
+            "--features": ethtool_set_features,
+            "--offload": ethtool_set_features,
+            "-s": ethtool_generic_options,
+            "--change": ethtool_generic_options,
+        }
         if Ethernet.CONFIG_SUBTREE not in data:
             data[Ethernet.CONFIG_SUBTREE] = {}
         if Ethtool.CONFIG_SUBTREE not in data:
             data[Ethtool.CONFIG_SUBTREE] = {}
 
-        for ethtool_opts in ethtool_options.split(';'):
+        for ethtool_opts in ethtool_options.split(";"):
             ethtool_opts = ethtool_opts.strip()
-            if re.match(r'^(-[\S-]+[ ]+[\S]+)([ ]+[\S-]+[ ]+[\S]+)+',
-                        ethtool_opts):
+            if re.match(
+                r"^(-[\S-]+[ ]+[\S]+)([ ]+[\S-]+[ ]+[\S]+)+", ethtool_opts
+            ):
                 # The regex pattern is strict and hence a minimum of 4 items
                 # are present in ethtool_opts.
                 command = ethtool_opts.split()
                 if len(command) < 4:
-                    msg = f"Ethtool options {command} is incomplete"
+                    msg = (
+                        f"{iface_name}: Ethtool options {command} "
+                        "is incomplete"
+                    )
                     raise os_net_config.ConfigurationError(msg)
 
                 option = command[0]
-                accepted_dev_names = ['${DEVICE}', '$DEVICE', iface_name]
+                accepted_dev_names = ["${DEVICE}", "$DEVICE", iface_name]
                 if command[1] not in accepted_dev_names:
-                    msg = f'Skipping {ethtool_opts} due to incorrect device '\
-                          f'name present for interface {iface_name}'
+                    msg = (
+                        f"{iface_name}: Incorrect dev name found in "
+                        "{ethtool_opts}"
+                    )
                     raise os_net_config.ConfigurationError(msg)
                 if option in ethtool_map.keys():
-                    self.add_ethtool_subtree(data, ethtool_map[option],
-                                             command)
+                    self.add_ethtool_subtree(data, ethtool_map[option], command)
                 else:
-                    msg = f'Unhandled ethtool_opts {ethtool_opts} for device'\
-                          f' {iface_name}. Option {option} is not supported.'
+                    msg = (
+                        f"{iface_name}: Unhandled ethtool_opts "
+                        f"{ethtool_opts} Option {option} is not supported."
+                    )
                     raise os_net_config.ConfigurationError(msg)
             else:
-                command_str = '-s ${DEVICE} ' + ethtool_opts
+                command_str = "-s ${DEVICE} " + ethtool_opts
                 command = command_str.split()
                 option = command[0]
                 self.add_ethtool_subtree(data, ethtool_map[option], command)
 
     def _clean_iface(self, name, obj_type):
         """Removes the NetrworkManager device coniguration"""
-        iface_data = {Interface.NAME: name,
-                      Interface.TYPE: obj_type,
-                      Interface.STATE: InterfaceState.ABSENT}
+        iface_data = {
+            Interface.NAME: name,
+            Interface.TYPE: obj_type,
+            Interface.STATE: InterfaceState.ABSENT,
+        }
         absent_state_config = {Interface.KEY: [iface_data]}
-        self.__dump_key_config(absent_state_config, msg=f"Cleaning {name}")
+        self.__dump_key_config(absent_state_config, msg=f"{name}: Cleaning")
         netapplier.apply(absent_state_config, verify_change=True)
 
     def enable_migration(self):
         """Enable migration from other providers to nmstate"""
         self.reload_nm()
         self.migration_enabled = True
-        logger.info('Migration is enabled for nmstate provider.')
+        logger.info("nmstate: Migration is enabled.")
 
     def _add_common(self, base_opt):
         """Add common atrributes of the interface
@@ -1052,9 +1124,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param base_opt: The network object that has the device configs
             defined in the form objects._BaseOpts
         """
-        data = {Interface.IPV4: {InterfaceIPv4.ENABLED: False},
-                Interface.IPV6: {InterfaceIPv6.ENABLED: False},
-                Interface.NAME: base_opt.name}
+        data = {
+            Interface.IPV4: {InterfaceIPv4.ENABLED: False},
+            Interface.IPV6: {InterfaceIPv6.ENABLED: False},
+            Interface.NAME: base_opt.name,
+        }
         if base_opt.use_dhcp:
             data[Interface.IPV4][InterfaceIPv4.ENABLED] = True
             data[Interface.IPV4][InterfaceIPv4.DHCP] = True
@@ -1091,12 +1165,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[Interface.STATE] = InterfaceState.DOWN
 
         if not base_opt.nm_controlled:
-            logger.info('Using NetworkManager, nm_controlled is always true.'
-                        'Deprecating it from next release')
+            logger.info(
+                "Using NetworkManager, nm_controlled is always true."
+                "Deprecating it from next release"
+            )
         if isinstance(base_opt, objects.Interface):
             if not base_opt.hotplug:
-                logger.info('Using NetworkManager, hotplug is always set to'
-                            'true. Deprecating it from next release')
+                logger.info(
+                    "Using NetworkManager, hotplug is always set to "
+                    "true. Deprecating it from next release"
+                )
 
         if base_opt.mtu:
             data[Interface.MTU] = base_opt.mtu
@@ -1105,31 +1183,36 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if v4_addresses:
                 for address in v4_addresses:
                     netmask_ip = netaddr.IPAddress(address.netmask)
-                    ip_netmask = {'ip': address.ip,
-                                  'prefix-length': netmask_ip.netmask_bits()}
+                    ip_netmask = {
+                        "ip": address.ip,
+                        "prefix-length": netmask_ip.netmask_bits(),
+                    }
                     if InterfaceIPv4.ADDRESS not in data[Interface.IPV4]:
                         data[Interface.IPV4][InterfaceIPv4.ADDRESS] = []
                     data[Interface.IPV4][InterfaceIPv4.ENABLED] = True
                     data[Interface.IPV4][InterfaceIPv4.ADDRESS].append(
-                        ip_netmask)
+                        ip_netmask
+                    )
 
             v6_addresses = base_opt.v6_addresses()
             if v6_addresses:
                 for v6_address in v6_addresses:
                     netmask_ip = netaddr.IPAddress(v6_address.netmask)
-                    v6ip_netmask = {'ip': v6_address.ip,
-                                    'prefix-length':
-                                        netmask_ip.netmask_bits()}
+                    v6ip_netmask = {
+                        "ip": v6_address.ip,
+                        "prefix-length": netmask_ip.netmask_bits(),
+                    }
                     if InterfaceIPv6.ADDRESS not in data[Interface.IPV6]:
                         data[Interface.IPV6][InterfaceIPv6.ADDRESS] = []
                     data[Interface.IPV6][InterfaceIPv6.ENABLED] = True
                     data[Interface.IPV6][InterfaceIPv6.ADDRESS].append(
-                        v6ip_netmask)
+                        v6ip_netmask
+                    )
 
         if base_opt.dhclient_args:
             msg = "DHCP Client args not supported in impl_nmstate, ignoring"
             logger.error(msg)
-        if hasattr(base_opt, 'members'):
+        if hasattr(base_opt, "members"):
             for member in base_opt.members:
                 if isinstance(member, objects.SriovVF):
                     self.update_vf_config(member)
@@ -1151,15 +1234,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
 
         routes_data = []
-        logger.info(f'adding custom route for interface: {interface_name}')
+        logger.info("%s: adding custom route", interface_name)
+        rt_tables = self.get_route_tables()
 
         for route in routes:
             route_data = {}
             if route.route_options:
-                value = get_route_options(route.route_options, 'metric')
+                value = get_route_options(route.route_options, "metric")
                 if value:
                     route.metric = value
-                value = get_route_options(route.route_options, 'table')
+                value = get_route_options(route.route_options, "table")
                 if value:
                     route.route_table = value
             if route.metric:
@@ -1171,34 +1255,42 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 route_data[NMRoute.NEXT_HOP_INTERFACE] = interface_name
                 if route.default:
                     if ":" in route.next_hop:
-                        route_data[NMRoute.DESTINATION] = \
+                        route_data[NMRoute.DESTINATION] = (
                             IPV6_DEFAULT_GATEWAY_DESTINATION
+                        )
                     else:
-                        route_data[NMRoute.DESTINATION] = \
+                        route_data[NMRoute.DESTINATION] = (
                             IPV4_DEFAULT_GATEWAY_DESTINATION
-            rt_tables = self.get_route_tables()
+                        )
             if route.route_table:
                 if str(route.route_table).isdigit():
                     route_data[NMRoute.TABLE_ID] = route.route_table
                 elif route.route_table in rt_tables:
-                    route_data[NMRoute.TABLE_ID] = \
-                        rt_tables[route.route_table]
+                    route_data[NMRoute.TABLE_ID] = rt_tables[route.route_table]
                 else:
-                    logger.error(f'Unidentified mapping for route_table '
-                                 '{route.route_table}')
+                    logger.error(
+                        "%s: Unidentified mapping for route_table %s",
+                        interface_name,
+                        route.route_table,
+                    )
 
             routes_data.append(route_data)
 
         self.route_data[interface_name] = routes_data
-        logger.debug(f'route data: {self.route_data[interface_name]}')
+        self.__dump_config(
+            routes_data, msg=f"{interface_name}: Prepared route config"
+        )
 
     def add_route_table(self, route_table):
         """Add a RouteTable object to the net config object.
 
         :param route_table: the RouteTable object to add.
         """
-        logger.info(f'adding route table: {route_table.table_id} '
-                    f'{route_table.name}')
+        logger.info(
+            "ROUTE: adding route table: %s %s",
+            route_table.table_id,
+            route_table.table_id,
+        )
         self.route_table_data[int(route_table.table_id)] = route_table.name
         location = route_table_config_path()
         data = self.generate_route_table_config(self.route_table_data)
@@ -1212,8 +1304,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
             elif table_id in rt_tables:
                 return rt_tables[table_id]
             else:
-                logger.error(f'Unidentified mapping for table_id '
-                             '{table_id}')
+                logger.error(
+                    "IP-RULES: Unidentified mapping for table_id %s",
+                    table_id
+                )
 
     def _parse_ip_rules(self, rule):
         """Parse IP rule commands
@@ -1225,31 +1319,41 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
 
         nm_rule_map = {
-            'blackhole': {'nm_key': NMRouteRule.ACTION,
-                          'nm_value': NMRouteRule.ACTION_BLACKHOLE},
-            'unreachable': {'nm_key': NMRouteRule.ACTION,
-                            'nm_value': NMRouteRule.ACTION_UNREACHABLE},
-            'prohibit': {'nm_key': NMRouteRule.ACTION,
-                         'nm_value': NMRouteRule.ACTION_PROHIBIT},
-            'fwmark': {'nm_key': NMRouteRule.FWMARK, 'nm_value': None},
-            'fwmask': {'nm_key': NMRouteRule.FWMASK, 'nm_value': None},
-            'iif': {'nm_key': NMRouteRule.IIF, 'nm_value': None},
-            'from': {'nm_key': NMRouteRule.IP_FROM, 'nm_value': None},
-            'to': {'nm_key': NMRouteRule.IP_TO, 'nm_value': None},
-            'priority': {'nm_key': NMRouteRule.PRIORITY, 'nm_value': None},
-            'table': {'nm_key': NMRouteRule.ROUTE_TABLE, 'nm_value': None,
-                      'nm_parse_value': self.rules_table_value_parse}}
-        logger.debug(f"Parse Rule {rule}")
+            "blackhole": {
+                "nm_key": NMRouteRule.ACTION,
+                "nm_value": NMRouteRule.ACTION_BLACKHOLE,
+            },
+            "unreachable": {
+                "nm_key": NMRouteRule.ACTION,
+                "nm_value": NMRouteRule.ACTION_UNREACHABLE,
+            },
+            "prohibit": {
+                "nm_key": NMRouteRule.ACTION,
+                "nm_value": NMRouteRule.ACTION_PROHIBIT,
+            },
+            "fwmark": {"nm_key": NMRouteRule.FWMARK, "nm_value": None},
+            "fwmask": {"nm_key": NMRouteRule.FWMASK, "nm_value": None},
+            "iif": {"nm_key": NMRouteRule.IIF, "nm_value": None},
+            "from": {"nm_key": NMRouteRule.IP_FROM, "nm_value": None},
+            "to": {"nm_key": NMRouteRule.IP_TO, "nm_value": None},
+            "priority": {"nm_key": NMRouteRule.PRIORITY, "nm_value": None},
+            "table": {
+                "nm_key": NMRouteRule.ROUTE_TABLE,
+                "nm_value": None,
+                "nm_parse_value": self.rules_table_value_parse,
+            },
+        }
+        logger.debug("IP-RULES: Parsing Rule: %s", rule)
         items = rule.split()
         keyword = items[0]
         parse_start_index = 1
         rule_config = {}
-        if keyword == 'del':
+        if keyword == "del":
             rule_config[NMRouteRule.STATE] = NMRouteRule.STATE_ABSENT
         elif keyword in nm_rule_map.keys():
             parse_start_index = 0
-        elif keyword != 'add':
-            msg = f"unhandled ip rule command {rule}"
+        elif keyword != "add":
+            msg = f"IP-RULES: unhandled command: {rule}"
             raise os_net_config.ConfigurationError(msg)
 
         items_iter = iter(items[parse_start_index:])
@@ -1259,21 +1363,20 @@ class NmstateNetConfig(os_net_config.NetConfig):
             try:
                 parse_complete = True
                 item = next(items_iter)
-                logger.debug(f"parse item {item}")
                 if item in nm_rule_map.keys():
-                    value = _get_type_value(nm_rule_map[item]['nm_value'])
+                    value = _get_type_value(nm_rule_map[item]["nm_value"])
                     if not value:
                         parse_complete = False
                         value = _get_type_value(next(items_iter))
-                        if 'nm_parse_value' in nm_rule_map[item]:
-                            value = nm_rule_map[item]['nm_parse_value'](value)
-                    rule_config[nm_rule_map[item]['nm_key']] = value
+                        if "nm_parse_value" in nm_rule_map[item]:
+                            value = nm_rule_map[item]["nm_parse_value"](value)
+                    rule_config[nm_rule_map[item]["nm_key"]] = value
                 else:
-                    msg = f"unhandled ip rule command {rule}"
+                    msg = f"IP-RULES: unhandled command: {rule}"
                     raise os_net_config.ConfigurationError(msg)
             except StopIteration:
                 if not parse_complete:
-                    msg = f"incomplete ip rule command {rule}"
+                    msg = f"IP-RULES: incomplete command: {rule}"
                     raise os_net_config.ConfigurationError(msg)
                 break
 
@@ -1288,14 +1391,19 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         # TODO(Karthik) Add support for ipv6 rules as well
         # When neither IP_FROM nor IP_TO is set, specify the IP family
-        if (NMRouteRule.IP_FROM not in rule_config.keys() and
-                NMRouteRule.IP_TO not in rule_config.keys()):
+        if (
+            NMRouteRule.IP_FROM not in rule_config.keys()
+            and NMRouteRule.IP_TO not in rule_config.keys()
+        ):
             rule_config[NMRouteRule.FAMILY] = NMRouteRule.FAMILY_IPV4
 
         if NMRouteRule.PRIORITY not in rule_config.keys():
-            logger.warning(f"The ip rule {rule} doesn't have the priority set."
-                           "Its advisable to configure the priorities in "
-                           "order to have a deterministic behaviour")
+            logger.warning(
+                "The ip rule %s doesn't have the priority set."
+                "Its advisable to configure the priorities in "
+                "order to have a deterministic behaviour",
+                rule
+            )
 
         return rule_config
 
@@ -1310,7 +1418,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             rule_nm = self._parse_ip_rules(rule.rule)
             self.rules_data.append(rule_nm)
 
-        logger.debug(f'{interface_name}: rule data\n{self.rules_data}')
+        logger.debug("%s: rule data\n%s", interface_name, self.rules_data)
 
     def _add_dns_servers(self, dns_servers):
         """Add dns servers in nmstate schema format
@@ -1318,9 +1426,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param dns_servers: A list of DNS servers
         """
         for dns_server in dns_servers:
-            if dns_server not in self.dns_data['server']:
-                logger.debug(f"Adding DNS server {dns_server}")
-                self.dns_data['server'].append(dns_server)
+            if dns_server not in self.dns_data["server"]:
+                logger.debug("DNS: Adding DNS server %s", dns_server)
+                self.dns_data["server"].append(dns_server)
 
     def _add_dns_domain(self, dns_domain):
         """Add dns domain in nmstate schema format
@@ -1328,14 +1436,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param dns_domain: A list of DNS domains
         """
         if isinstance(dns_domain, str):
-            logger.debug(f"Adding DNS domain {dns_domain}")
-            self.dns_data['domain'].extend([dns_domain])
+            logger.debug("DNS: Adding DNS domain %s", dns_domain)
+            self.dns_data["domain"].extend([dns_domain])
             return
 
         for domain in dns_domain:
-            if domain not in self.dns_data['domain']:
-                logger.debug(f"Adding DNS domain {domain}")
-                self.dns_data['domain'].append(domain)
+            if domain not in self.dns_data["domain"]:
+                logger.debug("DNS: Adding DNS domain %s", domain)
+                self.dns_data["domain"].append(domain)
 
     def add_dispatch_script(self, device_data, stage, cmd):
         """Add the dispatch script for device
@@ -1350,7 +1458,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             device_data[DISPATCH] = {}
         if stage not in device_data[DISPATCH]:
             device_data[DISPATCH][stage] = ""
-        device_data[DISPATCH][stage] += f'{cmd}\n'
+        device_data[DISPATCH][stage] += f"{cmd}\n"
 
     def add_vf_driver_override(self, vf):
         """Add driver override for VFs
@@ -1369,46 +1477,56 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param interface: The Interface object to add.
         """
-        if re.match(r'\w+\.\d+$', interface.name):
-            vlan_id = int(interface.name.split('.')[1])
-            device = interface.name.split('.')[0]
+        if re.match(r"\w+\.\d+$", interface.name):
+            vlan_id = int(interface.name.split(".")[1])
+            device = interface.name.split(".")[0]
             vlan_port = objects.Vlan(
-                device, vlan_id,
-                use_dhcp=interface.use_dhcp, use_dhcpv6=interface.use_dhcpv6,
-                addresses=interface.addresses, routes=interface.routes,
-                rules=interface.rules, mtu=interface.mtu,
-                primary=interface.primary, nic_mapping=None,
-                persist_mapping=None, defroute=interface.defroute,
+                device,
+                vlan_id,
+                use_dhcp=interface.use_dhcp,
+                use_dhcpv6=interface.use_dhcpv6,
+                addresses=interface.addresses,
+                routes=interface.routes,
+                rules=interface.rules,
+                mtu=interface.mtu,
+                primary=interface.primary,
+                nic_mapping=None,
+                persist_mapping=None,
+                defroute=interface.defroute,
                 dhclient_args=interface.dhclient_args,
-                dns_servers=interface.dns_servers, nm_controlled=True,
-                onboot=interface.onboot, domain=interface.domain)
+                dns_servers=interface.dns_servers,
+                nm_controlled=True,
+                onboot=interface.onboot,
+                domain=interface.domain,
+            )
             vlan_port.name = interface.name
             self.add_vlan(vlan_port)
             return
 
         if self.migration_enabled:
             self._clean_iface(interface.name, InterfaceType.ETHERNET)
-        logger.info(f'adding interface: {interface.name}')
+        logger.info("%s: adding interface", interface.name)
         data = self._add_common(interface)
 
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
         if utils.get_totalvfs(interface.name) > 0:
             data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
-                Ethernet.SRIOV.TOTAL_VFS: 0}
+                Ethernet.SRIOV.TOTAL_VFS: 0
+            }
 
         if interface.ethtool_opts:
-            self.add_ethtool_config(interface.name, data,
-                                    interface.ethtool_opts)
+            self.add_ethtool_config(
+                interface.name, data, interface.ethtool_opts
+            )
 
         if interface.renamed:
-            logger.info(f"Interface {interface.hwname} being renamed to"
-                        f"{interface.name}")
+            logger.info("%s: renamed from %s", interface.name, interface.hwname)
             self.renamed_interfaces[interface.hwname] = interface.name
         if interface.hwaddr:
             data[Interface.MAC] = interface.hwaddr
 
-        logger.debug(f'interface data: {data}')
+        self.__dump_key_config(data, msg=f"{interface.name}: Prepared config")
         self.interface_data[interface.name] = data
 
     def add_vlan(self, vlan):
@@ -1421,7 +1539,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 self._clean_iface(vlan.name, InterfaceType.OVS_INTERFACE)
             else:
                 self._clean_iface(vlan.name, InterfaceType.VLAN)
-        logger.info(f'adding vlan: {vlan.name}')
+        logger.info("%s: adding vlan", vlan.name)
 
         data = self._add_common(vlan)
         if vlan.device:
@@ -1439,8 +1557,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[VLAN.CONFIG_SUBTREE][VLAN.ID] = vlan.vlan_id
             data[VLAN.CONFIG_SUBTREE][VLAN.BASE_IFACE] = base_iface
 
-        logger.debug(f'vlan data: {data}')
         self.vlan_data[vlan.name] = data
+        self.__dump_key_config(data, msg=f"{vlan.name}: Prepared config")
 
     def _ovs_extra_cfg_eq_val(self, ovs_extra, cmd_map, data):
         """Parse ovs extra of the format key=value
@@ -1454,43 +1572,48 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :raises ConfigurationError: Invalid ovs_extra format
         """
         index = 0
-        logger.info(f'Current ovs_extra {ovs_extra}')
-        for a, b in zip(ovs_extra, cmd_map['command']):
+        for a, b in zip(ovs_extra, cmd_map["command"]):
             if not re.match(b, a, re.IGNORECASE):
                 return False
             index = index + 1
         for idx in range(index, len(ovs_extra)):
             value = None
-            for cfg in cmd_map['action']:
-                if re.match(cfg['config'], ovs_extra[idx], re.IGNORECASE):
+            for cfg in cmd_map["action"]:
+                if re.match(cfg["config"], ovs_extra[idx], re.IGNORECASE):
                     value = None
-                    if 'value' in cfg:
-                        value = cfg['value']
-                    elif 'value_pattern' in cfg:
-                        m = re.search(cfg['value_pattern'], ovs_extra[idx])
+                    if "value" in cfg:
+                        value = cfg["value"]
+                    elif "value_pattern" in cfg:
+                        m = re.search(cfg["value_pattern"], ovs_extra[idx])
                         if m:
                             value = _get_type_value(m.group(1))
                     if value is None:
-                        msg = "Invalid ovs_extra format detected. "\
-                              f"{' '.join(ovs_extra)}"
+                        msg = (
+                            "ovs_extra: Invalid format detected. \n"
+                            f"{' -- '.join(ovs_extra)}"
+                        )
                         raise os_net_config.ConfigurationError(msg)
-                    config = _add_sub_tree(data, cfg['sub_tree'])
-                    if cfg['nm_config']:
-                        config[cfg['nm_config']] = value
-                    elif cfg['nm_config_regex']:
-                        logger.info(f'Regex pattern seen for {ovs_extra}')
-                        m = re.search(cfg['nm_config_regex'], ovs_extra[idx])
+                    config = _add_sub_tree(data, cfg["sub_tree"])
+                    if cfg["nm_config"]:
+                        key = cfg["nm_config"]
+                        config[key] = value
+                    elif cfg["nm_config_regex"]:
+                        m = re.search(cfg["nm_config_regex"], ovs_extra[idx])
                         if m:
-                            config[m.group(1)] = value
+                            key = m.group(1)
+                            config[key] = value
                         else:
-                            msg = "Invalid ovs_extra format detected. "\
-                                  f"{' '.join(ovs_extra)}"
+                            msg = (
+                                "ovs_extra: Invalid format detected.\n"
+                                f"{' -- '.join(ovs_extra)}"
+                            )
                             raise os_net_config.ConfigurationError(msg)
                     else:
-                        msg = 'NM config not found'
+                        msg = "NM config not found"
                         raise os_net_config.ConfigurationError(msg)
-                    logger.info(f"Adding ovs_extra {config} in "
-                                f"{cfg['sub_tree']}")
+                    logger.info(
+                        "%s=%s", '->'.join(cfg['sub_tree'] + [(key)]), value
+                    )
 
     def _ovs_extra_cfg_val(self, ovs_extra, cmd_map, data):
         """Parse ovs extra where key,value are seperated by spaces
@@ -1504,42 +1627,50 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :raises ConfigurationError: Invalid ovs_extra format
         """
         index = 0
-        for a, b in zip(ovs_extra, cmd_map['command']):
+        for a, b in zip(ovs_extra, cmd_map["command"]):
             if not re.match(b, a, re.IGNORECASE):
                 return False
             index = index + 1
         if len(ovs_extra) > (index + 1):
             value = None
-            for cfg in cmd_map['action']:
-                if re.match(cfg['config'], ovs_extra[index], re.IGNORECASE):
+            for cfg in cmd_map["action"]:
+                if re.match(cfg["config"], ovs_extra[index], re.IGNORECASE):
                     value = None
-                    if 'value' in cfg:
-                        value = cfg['value']
-                    elif 'value_pattern' in cfg:
-                        m = re.search(cfg['value_pattern'],
-                                      ovs_extra[index + 1])
+                    if "value" in cfg:
+                        value = cfg["value"]
+                    elif "value_pattern" in cfg:
+                        m = re.search(
+                            cfg["value_pattern"], ovs_extra[index + 1]
+                        )
                         if m:
                             value = _get_type_value(m.group(1))
                     if value is None:
-                        msg = f"Invalid ovs_extra format detected."\
-                              f"{' '.join(ovs_extra)}"
+                        msg = (
+                            "ovs_extra: Invalid format detected.\n"
+                            f"{' -- '.join(ovs_extra)}"
+                        )
                         raise os_net_config.ConfigurationError(msg)
-                    config = _add_sub_tree(data, cfg['sub_tree'])
-                    if cfg['nm_config']:
-                        config[cfg['nm_config']] = value
-                    elif cfg['nm_config_regex']:
-                        m = re.search(cfg['nm_config_regex'], ovs_extra[index])
+                    config = _add_sub_tree(data, cfg["sub_tree"])
+                    if cfg["nm_config"]:
+                        key = cfg["nm_config"]
+                        config[key] = value
+                    elif cfg["nm_config_regex"]:
+                        m = re.search(cfg["nm_config_regex"], ovs_extra[index])
                         if m:
-                            config[m.group(1)] = value
+                            key = m.group(1)
+                            config[key] = value
                         else:
-                            msg = f"Invalid ovs_extra format detected."\
-                                  f"{' '.join(ovs_extra)}"
+                            msg = (
+                                "ovs_extra: Invalid format detected.\n"
+                                f"{' -- '.join(ovs_extra)}"
+                            )
                             raise os_net_config.ConfigurationError(msg)
                     else:
-                        msg = 'NM config not found'
+                        msg = "NM config not found"
                         raise os_net_config.ConfigurationError(msg)
-                    logger.info(f"Adding ovs_extra {config} in "
-                                f"{cfg['sub_tree']}")
+                    logger.info(
+                        "%s=%s", '->'.join(cfg['sub_tree'] + [key]), value
+                    )
 
     def parse_ovs_extra_for_bond(self, ovs_extras, name, data):
         """Parse ovs extra for bonding options
@@ -1553,31 +1684,44 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # Here the nm_config bond_mode matches the ovs_options
         # and not the Nmstate schema
         port_cfg = [
-            {'config': r'^bond_mode=[\w+]',
-             'sub_tree': None,
-             'nm_config': 'bond_mode',
-             'value_pattern': r'^bond_mode=(.+?)$'},
-            {'config': r'^lacp=[\w+]',
-             'sub_tree': None,
-             'nm_config': 'lacp',
-             'value_pattern': r'^lacp=(.+?)$'},
-            {'config': r'^bond_updelay=[\w+]',
-             'sub_tree': None,
-             'nm_config': 'bond_updelay',
-             'value_pattern': r'^bond_updelay=(.+?)$'},
-            {'config': r'^other_config:[\w+]',
-             'sub_tree': None,
-             'nm_config': None,
-             'nm_config_regex': r'^(.+?)=.*$',
-             'value_pattern': r'^other_config:.*=(.+?)$'}]
+            {
+                "config": r"^bond_mode=[\w+]",
+                "sub_tree": [],
+                "nm_config": "bond_mode",
+                "value_pattern": r"^bond_mode=(.+?)$",
+            },
+            {
+                "config": r"^lacp=[\w+]",
+                "sub_tree": [],
+                "nm_config": "lacp",
+                "value_pattern": r"^lacp=(.+?)$",
+            },
+            {
+                "config": r"^bond_updelay=[\w+]",
+                "sub_tree": [],
+                "nm_config": "bond_updelay",
+                "value_pattern": r"^bond_updelay=(.+?)$",
+            },
+            {
+                "config": r"^other_config:[\w+]",
+                "sub_tree": [],
+                "nm_config": None,
+                "nm_config_regex": r"^(.+?)=.*$",
+                "value_pattern": r"^other_config:.*=(.+?)$",
+            },
+        ]
 
         # ovs-vsctl set Port $name <config>=<value>
-        cfg_eq_val_pair = [{'command': ['set', 'port',
-                                        '({name}|%s)' % name],
-                            'action': port_cfg}]
+        cfg_eq_val_pair = [
+            {
+                "command": ["set", "port", "({name}|%s)" % name],
+                "action": port_cfg,
+            }
+        ]
 
         for ovs_extra in ovs_extras:
-            ovs_extra_cmd = ovs_extra.split(' ')
+            logger.debug("%s: Parse - %s", name, ovs_extra)
+            ovs_extra_cmd = ovs_extra.split(" ")
             for cmd_map in cfg_eq_val_pair:
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
@@ -1590,75 +1734,120 @@ class NmstateNetConfig(os_net_config.NetConfig):
             be modified after the parsing
         """
 
-        bridge_cfg = [{'config': r'^fail_mode=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.FAIL_MODE,
-                       'value_pattern': r'^fail_mode=(.+?)$'},
-                      {'config': r'^mcast_snooping_enable=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.MCAST_SNOOPING_ENABLED,
-                       'value_pattern': r'^mcast_snooping_enable=(.+?)$'},
-                      {'config': r'^rstp_enable=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.RSTP,
-                       'value_pattern': r'^rstp_enable=(.+?)$'},
-                      {'config': r'^stp_enable=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.STP,
-                       'value_pattern': r'^stp_enable=(.+?)$'},
-                      {'config': r'^other_config:[\w+]',
-                       'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                       'nm_config': None,
-                       'nm_config_regex': r'^other_config:(.+?)=',
-                       'value_pattern': r'^other_config:.*=(.+?)$'},
-                      {'config': r'^other-config:[\w+]',
-                       'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                       'nm_config': None,
-                       'nm_config_regex': r'^other-config:(.+?)=',
-                       'value_pattern': r'^other-config:.*=(.+?)$'}]
+        bridge_cfg = [
+            {
+                "config": r"^fail_mode=[\w+]",
+                "sub_tree": [
+                    OVSBridge.CONFIG_SUBTREE,
+                    OVSBridge.OPTIONS_SUBTREE,
+                ],
+                "nm_config": OVSBridge.Options.FAIL_MODE,
+                "value_pattern": r"^fail_mode=(.+?)$",
+            },
+            {
+                "config": r"^mcast_snooping_enable=[\w+]",
+                "sub_tree": [
+                    OVSBridge.CONFIG_SUBTREE,
+                    OVSBridge.OPTIONS_SUBTREE,
+                ],
+                "nm_config": OVSBridge.Options.MCAST_SNOOPING_ENABLED,
+                "value_pattern": r"^mcast_snooping_enable=(.+?)$",
+            },
+            {
+                "config": r"^rstp_enable=[\w+]",
+                "sub_tree": [
+                    OVSBridge.CONFIG_SUBTREE,
+                    OVSBridge.OPTIONS_SUBTREE,
+                ],
+                "nm_config": OVSBridge.Options.RSTP,
+                "value_pattern": r"^rstp_enable=(.+?)$",
+            },
+            {
+                "config": r"^stp_enable=[\w+]",
+                "sub_tree": [
+                    OVSBridge.CONFIG_SUBTREE,
+                    OVSBridge.OPTIONS_SUBTREE,
+                ],
+                "nm_config": OVSBridge.Options.STP,
+                "value_pattern": r"^stp_enable=(.+?)$",
+            },
+            {
+                "config": r"^other_config:[\w+]",
+                "sub_tree": [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+                "nm_config": None,
+                "nm_config_regex": r"^other_config:(.+?)=",
+                "value_pattern": r"^other_config:.*=(.+?)$",
+            },
+            {
+                "config": r"^other-config:[\w+]",
+                "sub_tree": [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+                "nm_config": None,
+                "nm_config_regex": r"^other-config:(.+?)=",
+                "value_pattern": r"^other-config:.*=(.+?)$",
+            },
+        ]
 
-        iface_cfg = [{'config': r'^other_config:[\w+]',
-                      'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                      'nm_config': None,
-                      'nm_config_regex': r'^other_config:(.+?)=',
-                      'value_pattern': r'^other_config:.*=(.+?)$'},
-                     {'config': r'^other-config:[\w+]',
-                      'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                      'nm_config': None,
-                      'nm_config_regex': r'^other-config:(.+?)=',
-                      'value_pattern': r'^other-config:.*=(.+?)$'},
-                     {'config': r'^options:n_rxq_desc=[\w+]',
-                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
-                      'nm_config': OVSInterface.Dpdk.N_RXQ_DESC,
-                      'value_pattern': r'^options:n_rxq_desc=(.+?)$'},
-                     {'config': r'^options:n_txq_desc=[\w+]',
-                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
-                      'nm_config': OVSInterface.Dpdk.N_TXQ_DESC,
-                      'value_pattern': r'^options:n_txq_desc=(.+?)$'}]
+        iface_cfg = [
+            {
+                "config": r"^other_config:[\w+]",
+                "sub_tree": [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+                "nm_config": None,
+                "nm_config_regex": r"^other_config:(.+?)=",
+                "value_pattern": r"^other_config:.*=(.+?)$",
+            },
+            {
+                "config": r"^other-config:[\w+]",
+                "sub_tree": [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+                "nm_config": None,
+                "nm_config_regex": r"^other-config:(.+?)=",
+                "value_pattern": r"^other-config:.*=(.+?)$",
+            },
+            {
+                "config": r"^options:n_rxq_desc=[\w+]",
+                "sub_tree": [OVSInterface.DPDK_CONFIG_SUBTREE],
+                "nm_config": OVSInterface.Dpdk.N_RXQ_DESC,
+                "value_pattern": r"^options:n_rxq_desc=(.+?)$",
+            },
+            {
+                "config": r"^options:n_txq_desc=[\w+]",
+                "sub_tree": [OVSInterface.DPDK_CONFIG_SUBTREE],
+                "nm_config": OVSInterface.Dpdk.N_TXQ_DESC,
+                "value_pattern": r"^options:n_txq_desc=(.+?)$",
+            },
+        ]
 
-        external_id_cfg = [{'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
-                            'config': r'.*',
-                            'nm_config': None,
-                            'nm_config_regex': r'^(.+?)$',
-                            'value_pattern': r'^(.+?)$'}]
-        cfg_eq_val_pair = [{'command': ['set', 'bridge', '({name}|%s)' % name],
-                            'action': bridge_cfg},
-                           {'command': ['set', 'interface',
-                                        '({name}|%s)' % name],
-                            'action': iface_cfg}]
+        external_id_cfg = [
+            {
+                "sub_tree": [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
+                "config": r".*",
+                "nm_config": None,
+                "nm_config_regex": r"^(.+?)$",
+                "value_pattern": r"^(.+?)$",
+            }
+        ]
+        cfg_eq_val_pair = [
+            {
+                "command": ["set", "bridge", "({name}|%s)" % name],
+                "action": bridge_cfg,
+            },
+            {
+                "command": ["set", "interface", "({name}|%s)" % name],
+                "action": iface_cfg,
+            },
+        ]
 
-        cfg_val_pair = [{'command': ['br-set-external-id',
-                                     '({name}|%s)' % name],
-                         'action': external_id_cfg}]
+        cfg_val_pair = [
+            {
+                "command": ["br-set-external-id", "({name}|%s)" % name],
+                "action": external_id_cfg,
+            }
+        ]
         # ovs-vsctl set Bridge $name <config>=<value>
-        # ovs-vsctl set Interface $name <config>=<value>
+        # ovs-vsctl set Inteeface $name <config>=<value>
         # ovs-vsctl br-set-external-id $name key [value]
         for ovs_extra in ovs_extras:
-            ovs_extra_cmd = ovs_extra.split(' ')
+            logger.info("%s: Parse - %s", name, ovs_extra)
+            ovs_extra_cmd = ovs_extra.split(" ")
             for cmd_map in cfg_eq_val_pair:
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
             for cmd_map in cfg_val_pair:
@@ -1672,19 +1861,29 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param data: The interface data that will be modified after
             the parsing
         """
-        port_vlan_cfg = [{'config': r'^tag=[\w+]',
-                          'sub_tree': [OVSBridge.Port.VLAN_SUBTREE],
-                          'nm_config': OVSBridge.Port.Vlan.TAG,
-                          'value_pattern': r'^tag=(.+?)$'},
-                         {'config': r'^tag=[\w+]',
-                          'sub_tree': [OVSBridge.Port.VLAN_SUBTREE],
-                          'nm_config': OVSBridge.Port.Vlan.MODE,
-                          'value': 'access'}]
-        cfg_eq_val_pair = [{'command': ['set', 'port',
-                                        '({name}|%s)' % bridge_name],
-                            'action': port_vlan_cfg}]
+        port_vlan_cfg = [
+            {
+                "config": r"^tag=[\w+]",
+                "sub_tree": [OVSBridge.Port.VLAN_SUBTREE],
+                "nm_config": OVSBridge.Port.Vlan.TAG,
+                "value_pattern": r"^tag=(.+?)$",
+            },
+            {
+                "config": r"^tag=[\w+]",
+                "sub_tree": [OVSBridge.Port.VLAN_SUBTREE],
+                "nm_config": OVSBridge.Port.Vlan.MODE,
+                "value": "access",
+            },
+        ]
+        cfg_eq_val_pair = [
+            {
+                "command": ["set", "port", "({name}|%s)" % bridge_name],
+                "action": port_vlan_cfg,
+            }
+        ]
         for ovs_extra in ovs_extras:
-            ovs_extra_cmd = ovs_extra.split(' ')
+            logger.info("%s: Parse - %s", bridge_name, ovs_extra)
+            ovs_extra_cmd = ovs_extra.split(" ")
             for cmd_map in cfg_eq_val_pair:
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
@@ -1707,24 +1906,33 @@ class NmstateNetConfig(os_net_config.NetConfig):
             mac = None
 
         ovs_interface_port = objects.OvsInterface(
-            ovs_port_name, use_dhcp=bridge.use_dhcp,
+            ovs_port_name,
+            use_dhcp=bridge.use_dhcp,
             use_dhcpv6=bridge.use_dhcpv6,
-            addresses=bridge.addresses, routes=bridge.routes,
-            rules=bridge.rules, mtu=bridge.mtu, primary=False,
-            nic_mapping=None, persist_mapping=None,
-            defroute=bridge.defroute, dhclient_args=bridge.dhclient_args,
+            addresses=bridge.addresses,
+            routes=bridge.routes,
+            rules=bridge.rules,
+            mtu=bridge.mtu,
+            primary=False,
+            nic_mapping=None,
+            persist_mapping=None,
+            defroute=bridge.defroute,
+            dhclient_args=bridge.dhclient_args,
             dns_servers=bridge.dns_servers,
-            nm_controlled=None, onboot=bridge.onboot,
-            domain=bridge.domain, hwaddr=mac)
+            nm_controlled=None,
+            onboot=bridge.onboot,
+            domain=bridge.domain,
+            hwaddr=mac,
+        )
         self.add_ovs_interface(ovs_interface_port)
 
-        ovs_int_port = {'name': ovs_interface_port.name}
+        ovs_int_port = {"name": ovs_interface_port.name}
         if bridge.ovs_extra:
-            logger.info(f"Parsing ovs_extra for ports: {bridge.ovs_extra}")
-            self.parse_ovs_extra_for_ports(bridge.ovs_extra,
-                                           bridge.name, ovs_int_port)
+            self.parse_ovs_extra_for_ports(
+                bridge.ovs_extra, bridge.name, ovs_int_port
+            )
 
-        logger.info(f'adding bridge: {bridge.name}')
+        logger.info("%s: adding bridge", bridge.name)
 
         # Clear the settings from the bridge, since these will be applied
         # on the interface
@@ -1743,89 +1951,107 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # address bits can't be on the ovs-bridge
         del data[Interface.IPV4]
         del data[Interface.IPV6]
-        ovs_bridge_options = {OVSBridge.Options.FAIL_MODE:
-                              objects.DEFAULT_OVS_BRIDGE_FAIL_MODE,
-                              OVSBridge.Options.MCAST_SNOOPING_ENABLED: False,
-                              OVSBridge.Options.RSTP: False,
-                              OVSBridge.Options.STP: False}
+        ovs_bridge_options = {
+            OVSBridge.Options.FAIL_MODE: objects.DEFAULT_OVS_BRIDGE_FAIL_MODE,
+            OVSBridge.Options.MCAST_SNOOPING_ENABLED: False,
+            OVSBridge.Options.RSTP: False,
+            OVSBridge.Options.STP: False,
+        }
 
         if bridge.name in self.bridge_data:
-            data[OVSBridge.CONFIG_SUBTREE] = self.bridge_data[
-                bridge.name][OVSBridge.CONFIG_SUBTREE]
-            data[OVSBridge.CONFIG_SUBTREE
-                 ][OVSBridge.OPTIONS_SUBTREE] = ovs_bridge_options
+            data[OVSBridge.CONFIG_SUBTREE] = self.bridge_data[bridge.name][
+                OVSBridge.CONFIG_SUBTREE
+            ]
+            data[OVSBridge.CONFIG_SUBTREE][OVSBridge.OPTIONS_SUBTREE] = (
+                ovs_bridge_options
+            )
         else:
             data[OVSBridge.CONFIG_SUBTREE] = {
                 OVSBridge.OPTIONS_SUBTREE: ovs_bridge_options,
                 OVSBridge.PORT_SUBTREE: [],
             }
-        data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {},
-                           OvsDB.OTHER_CONFIG: {}}
-        bridge.ovs_extra.append("set bridge %s other-config:mac-table-size=%d"
-                                % (bridge.name, common.MAC_TABLE_SIZE))
+        data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {}, OvsDB.OTHER_CONFIG: {}}
+        bridge.ovs_extra.append(
+            "set bridge %s other-config:mac-table-size=%d"
+            % (bridge.name, common.MAC_TABLE_SIZE)
+        )
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
-            bridge.ovs_extra.append("set bridge %s other_config:hwaddr=%s" %
-                                    (bridge.name, mac))
+            bridge.ovs_extra.append(
+                "set bridge %s other_config:hwaddr=%s" % (bridge.name, mac)
+            )
         self.parse_ovs_extra(bridge.ovs_extra, bridge.name, data)
 
         if dpdk:
-            ovs_bridge_options[OVSBridge.Options.DATAPATH] = 'netdev'
+            ovs_bridge_options[OVSBridge.Options.DATAPATH] = "netdev"
         if bridge.members:
             members = []
             ovs_bond = False
             ovs_port = False
             for member in bridge.members:
-                if (isinstance(member, objects.OvsBond) or
-                        isinstance(member, objects.OvsDpdkBond)):
+                if isinstance(member, objects.OvsBond) or isinstance(
+                    member, objects.OvsDpdkBond
+                ):
                     bond_options = {}
                     self.parse_ovs_extra_for_bond(
-                        member.ovs_extra, member.name, bond_options)
-                    logger.debug(f'{member.name}: Bond options from '
-                                 f'ovs_extra\n{bond_options}')
+                        member.ovs_extra, member.name, bond_options
+                    )
+                    logger.debug(
+                        "%s: Bond options from ovs_extra\n%s", member.name, bond_options
+                    )
                     if ovs_port:
-                        msg = "Ovs Bond and ovs port can't be members to "\
-                              "the ovs bridge"
+                        msg = (
+                            f"{bridge.name}: Ovs Bond and ovs port can't"
+                            "be members to the same ovs bridge"
+                        )
                         raise os_net_config.ConfigurationError(msg)
                     if member.primary_interface_name:
-                        add_bond_setting = "other_config:bond-primary="\
-                                           f"{member.primary_interface_name}"
+                        add_bond_setting = (
+                            "other_config:bond-primary="
+                            f"{member.primary_interface_name}"
+                        )
                         if member.ovs_options:
-                            member.ovs_options = member.ovs_options + " " +\
-                                add_bond_setting
+                            member.ovs_options = (
+                                member.ovs_options + " " + add_bond_setting
+                            )
                         else:
                             member.ovs_options = add_bond_setting
 
-                    logger.debug(f'{member.name}: Bond options from '
-                                 f'ovs_options:\n{member.ovs_options}')
+                    logger.debug(
+                        "%s: Bond options from ovs_options:\n%s", member.name, member.ovs_options
+                    )
                     bond_options |= parse_bonding_options(member.ovs_options)
-                    logger.info(f'{member.name}: Aggregated bond options - '
-                                f'{bond_options}')
+                    logger.info(
+                        "%s: Aggregated bond options - %s", member.name, bond_options
+                    )
                     bond_data = set_ovs_bonding_options(bond_options)
-                    bond_port = [{
-                        OVSBridge.Port.LINK_AGGREGATION_SUBTREE: bond_data,
-                        OVSBridge.Port.NAME: member.name},
-                        ovs_int_port]
-                    data[OVSBridge.CONFIG_SUBTREE
-                         ][OVSBridge.PORT_SUBTREE] = bond_port
+                    bond_port = [
+                        {
+                            OVSBridge.Port.LINK_AGGREGATION_SUBTREE: bond_data,
+                            OVSBridge.Port.NAME: member.name,
+                        },
+                        ovs_int_port,
+                    ]
+                    data[OVSBridge.CONFIG_SUBTREE][OVSBridge.PORT_SUBTREE] = (
+                        bond_port
+                    )
 
                     ovs_bond = True
-                    logger.debug("OVS Bond members %s added" % members)
                     if member.members:
                         members = [m.name for m in member.members]
                 elif ovs_bond:
-                    msg = "Ovs Bond and ovs port can't be members to "\
-                          "the ovs bridge"
+                    msg = (
+                        f"{bridge.name}: ovs bond and ovs port can't be"
+                        "members to the ovs bridge"
+                    )
                     raise os_net_config.ConfigurationError(msg)
                 else:
                     ovs_port = True
-                    logger.debug("Adding member ovs port %s" % member.name)
                     members.append(member.name)
             if members:
-                logger.debug("Add ovs ports and vlans to ovs bridge")
                 bps = self.get_ovs_ports(members)
             else:
-                msg = "No members added for ovs bridge"
+                msg = f"{bridge.name}: no member added to ovs bridge"
                 raise os_net_config.ConfigurationError(msg)
 
             self.member_names[bridge.name] = members
@@ -1833,20 +2059,29 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if ovs_port:
                 # Add the internal ovs interface
                 bps.append(ovs_int_port)
-                data[OVSBridge.CONFIG_SUBTREE][
-                    OVSBridge.PORT_SUBTREE].extend(bps)
+                data[OVSBridge.CONFIG_SUBTREE][OVSBridge.PORT_SUBTREE].extend(
+                    bps
+                )
+                bps_names = [port.get("name", "") for port in bps]
+                logger.debug(
+                    "%s: adding ovs ports - %s", bridge.name, ' '.join(bps_names)
+                )
             elif ovs_bond:
                 bond_data[OVSBridge.Port.LinkAggregation.PORT_SUBTREE] = bps
+                bps_names = [port.get("name", "") for port in bps]
+                logger.debug(
+                    f"%s: adding ovs ports - ", bridge.members[0].name, ' '.join(bps_names)
+                )
 
         self.bridge_data[bridge.name] = data
-        logger.debug('bridge data: %s' % data)
+        self.__dump_config(data, msg=f"{bridge.name}: Prepared config")
 
     def add_ovs_user_bridge(self, bridge):
         """Add an OvsUserBridge object to the net config object.
 
         :param bridge: The OvsUserBridge object to add.
         """
-        logger.info('adding ovs user bridge: %s' % bridge.name)
+        logger.info("%s: adding ovs user bridge", bridge.name)
         self.add_bridge(bridge, dpdk=True)
 
     def attach_patch_port_with_bridge(self, patch_port):
@@ -1869,7 +2104,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             port.append(patch_port_config)
 
         self.bridge_data[patch_port.bridge_name] = patch_br_data
-        logger.info('bridge_data: %s' % self.bridge_data)
+        self.__dump_config(
+            patch_br_data, msg=f"{patch_port.bridge_name}: Prepared config"
+        )
         return
 
     def add_ovs_patch_port(self, ovs_patch_port):
@@ -1880,16 +2117,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(ovs_patch_port.name, OVSInterface.TYPE)
 
-        logger.info('adding ovs patch port: %s' % ovs_patch_port.name)
+        logger.info("%s: adding ovs patch port", ovs_patch_port.name)
         data = self._add_common(ovs_patch_port)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
-        data[OVSInterface.PATCH_CONFIG_SUBTREE] = \
-            {OVSInterface.Patch.PEER: ovs_patch_port.peer}
-        logger.debug('ovs patch port data: %s' % data)
+        data[OVSInterface.PATCH_CONFIG_SUBTREE] = {
+            OVSInterface.Patch.PEER: ovs_patch_port.peer
+        }
         self.interface_data[ovs_patch_port.name] = data
-
         self.attach_patch_port_with_bridge(ovs_patch_port)
+        self.__dump_config(data, msg=f"{ovs_patch_port.name}: Prepared config")
 
     def add_ovs_interface(self, ovs_interface):
         """Add a OvsInterface object to the net config object.
@@ -1899,15 +2136,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(ovs_interface.name, OVSInterface.TYPE)
 
-        logger.info('adding ovs interface: %s' % ovs_interface.name)
+        logger.info("%s: adding ovs interface", ovs_interface.name)
         data = self._add_common(ovs_interface)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
         if ovs_interface.hwaddr:
             data[Interface.MAC] = ovs_interface.hwaddr
-        logger.debug(f'add ovs_interface data: {data}')
         self.interface_data[ovs_interface.name] = data
+        self.__dump_config(data, msg=f"{ovs_interface.name}: Prepared config")
 
     def add_ovs_dpdk_port(self, ovs_dpdk_port):
         """Add a OvsDpdkPort object to the net config object.
@@ -1917,7 +2154,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(ovs_dpdk_port.name, OVSInterface.TYPE)
 
-        logger.info('adding ovs dpdk port: %s' % ovs_dpdk_port.name)
+        logger.info("%s: adding ovs dpdk port", ovs_dpdk_port.name)
 
         # DPDK Port will have only one member of type Interface, validation
         # checks are added at the object creation stage.
@@ -1931,35 +2168,37 @@ class NmstateNetConfig(os_net_config.NetConfig):
             # in case of VFs the DPDK driver will be bound using
             # dispatcher script
             pci_address = utils.get_dpdk_pci_address(ifname)
-            utils.update_dpdk_map(ifname,
-                                  ovs_dpdk_port.driver)
+            utils.update_dpdk_map(ifname, ovs_dpdk_port.driver)
         else:
             # Bind the DPDK driver for interface objects
-            utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver,
-                                       self.noop)
-            pci_address = utils.get_dpdk_devargs(ifname,
-                                                 noop=self.noop)
+            utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver, self.noop)
+            pci_address = utils.get_dpdk_devargs(ifname, noop=self.noop)
 
-        data[OVSInterface.DPDK_CONFIG_SUBTREE
-             ] = {OVSInterface.Dpdk.DEVARGS: pci_address}
+        data[OVSInterface.DPDK_CONFIG_SUBTREE] = {
+            OVSInterface.Dpdk.DEVARGS: pci_address
+        }
         if ovs_dpdk_port.rx_queue:
-            data[OVSInterface.DPDK_CONFIG_SUBTREE
-                 ][OVSInterface.Dpdk.RX_QUEUE] = ovs_dpdk_port.rx_queue
+            data[OVSInterface.DPDK_CONFIG_SUBTREE][
+                OVSInterface.Dpdk.RX_QUEUE
+            ] = ovs_dpdk_port.rx_queue
         if ovs_dpdk_port.rx_queue_size:
-            data[OVSInterface.DPDK_CONFIG_SUBTREE
-                 ][OVSInterface.Dpdk.N_RXQ_DESC] = ovs_dpdk_port.rx_queue_size
+            data[OVSInterface.DPDK_CONFIG_SUBTREE][
+                OVSInterface.Dpdk.N_RXQ_DESC
+            ] = ovs_dpdk_port.rx_queue_size
         if ovs_dpdk_port.tx_queue_size:
-            data[OVSInterface.DPDK_CONFIG_SUBTREE
-                 ][OVSInterface.Dpdk.N_TXQ_DESC] = ovs_dpdk_port.tx_queue_size
-        data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {},
-                           OvsDB.OTHER_CONFIG: {}}
+            data[OVSInterface.DPDK_CONFIG_SUBTREE][
+                OVSInterface.Dpdk.N_TXQ_DESC
+            ] = ovs_dpdk_port.tx_queue_size
+        data[OvsDB.KEY] = {OvsDB.EXTERNAL_IDS: {}, OvsDB.OTHER_CONFIG: {}}
         if ovs_dpdk_port.ovs_extra:
-            logger.info(f"Parsing ovs_extra : {ovs_dpdk_port.ovs_extra}")
-            self.parse_ovs_extra(ovs_dpdk_port.ovs_extra,
-                                 ovs_dpdk_port.name, data)
-
-        logger.debug(f'ovs dpdk port data: {data}')
+            logger.info(
+                "%s: Parse - %s", ovs_dpdk_port.name, ovs_dpdk_port.ovs_extra
+            )
+            self.parse_ovs_extra(
+                ovs_dpdk_port.ovs_extra, ovs_dpdk_port.name, data
+            )
         self.interface_data[ovs_dpdk_port.name] = data
+        self.__dump_config(data, msg=f"{ovs_dpdk_port.name}: Prepared config")
 
     def add_linux_bridge(self, bridge):
         """Add a LinuxBridge object to the net config object.
@@ -1969,10 +2208,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(bridge.name, InterfaceType.LINUX_BRIDGE)
 
-        logger.info(f'adding linux bridge: {bridge.name}')
+        logger.info("%s: adding linux bridge", bridge.name)
         data = self._add_common(bridge)
-        logger.debug('bridge data: %s' % data)
         self.linuxbridge_data[bridge.name] = data
+        self.__dump_config(data, msg=f"{bridge.name}: Prepared config")
 
     def add_bond(self, bond):
         """Add an OvsBond object to the net config object.
@@ -1980,7 +2219,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param bond: The OvsBond object to add.
         """
         # The ovs bond is already added in add_bridge()
-        logger.info('adding bond: %s' % bond.name)
+        logger.info("%s: adding bond", bond.name)
         return
 
     def add_ovs_dpdk_bond(self, bond):
@@ -1988,7 +2227,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param bond: The OvsBond object to add.
         """
-        logger.info('adding Ovs DPDK Bond: %s' % bond.name)
+        logger.info("%s: adding ovs_dpdk_bond", bond.name)
         for member in bond.members:
             if bond.mtu:
                 member.mtu = bond.mtu
@@ -2011,7 +2250,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(bond.name, InterfaceType.BOND)
 
-        logger.info('adding linux bond: %s' % bond.name)
+        logger.info("%s: adding linux bond", bond.name)
         data = self._add_common(bond)
 
         data[Interface.TYPE] = InterfaceType.BOND
@@ -2022,7 +2261,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             bond_options = parse_bonding_options(bond.bonding_options)
 
         bond_data = set_linux_bonding_options(
-            bond_options, primary_iface=bond.primary_interface_name)
+            bond_options, primary_iface=bond.primary_interface_name
+        )
         if bond_data:
             data[Bond.CONFIG_SUBTREE] = bond_data
 
@@ -2031,8 +2271,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self.member_names[bond.name] = members
             data[Bond.CONFIG_SUBTREE][Bond.PORT] = members
 
-        logger.debug('bond data: %s' % data)
         self.linuxbond_data[bond.name] = data
+        self.__dump_config(data, msg=f"{bond.name}: Prepared config")
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -2044,9 +2284,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(sriov_pf.name, InterfaceType.ETHERNET)
 
-        logger.info(f'adding sriov pf: {sriov_pf.name}')
-        if sriov_pf.vdpa or sriov_pf.link_mode == 'switchdev':
-            msg = "Switchdev/vDPA is not supported by nmstate provider yet."
+        logger.info("%s: adding sriov pf", sriov_pf.name)
+        if sriov_pf.vdpa or sriov_pf.link_mode == "switchdev":
+            msg = (
+                f"{sriov_pf.name}: switchdev/vDPA is not supported "
+                "by nmstate provider yet."
+            )
             raise os_net_config.ConfigurationError(msg)
 
         data = self._add_common(sriov_pf)
@@ -2057,8 +2300,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # the desired numvfs
         max_vfs = utils.get_totalvfs(sriov_pf.name)
         if max_vfs <= 0:
-            msg = (f'{sriov_pf.name}: SR-IOV is not supported.'
-                   'Check BIOS settings')
+            msg = (
+                f"{sriov_pf.name}: SR-IOV is not supported."
+                "check BIOS settings"
+            )
             raise os_net_config.ConfigurationError(msg)
         elif max_vfs >= sriov_pf.numvfs:
             data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
@@ -2066,29 +2311,31 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 Ethernet.SRIOV.DRIVERS_AUTOPROBE: sriov_pf.drivers_autoprobe,
             }
         else:
-            msg = (f'{sriov_pf.name}: Maximum numvfs supported '
-                   f'({max_vfs}) is lesser than user requested '
-                   f'numvfs ({sriov_pf.numvfs})')
+            msg = (
+                f"{sriov_pf.name}: maximum numvfs supported "
+                f"({max_vfs}) is lesser than user requested "
+                f"numvfs ({sriov_pf.numvfs})"
+            )
             raise os_net_config.ConfigurationError(msg)
 
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
-        if sriov_pf.link_mode == 'legacy':
+        if sriov_pf.link_mode == "legacy":
             data[Ethtool.CONFIG_SUBTREE] = {}
             data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
-                'hw-tc-offload': False}
+                "hw-tc-offload": False
+            }
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
 
         if sriov_pf.ethtool_opts:
-            self.add_ethtool_config(sriov_pf.name, data,
-                                    sriov_pf.ethtool_opts)
+            self.add_ethtool_config(sriov_pf.name, data, sriov_pf.ethtool_opts)
 
-        logger.debug('sriov pf data: %s' % data)
         self.sriov_vf_data[sriov_pf.name] = [None] * sriov_pf.numvfs
         self.sriov_pf_data[sriov_pf.name] = data
         self.vf_drv_override[sriov_pf.name] = {}
         self.need_pf_config = True
+        self.__dump_config(data, msg=f"{sriov_pf.name}: Prepared config")
 
     def add_sriov_vf(self, sriov_vf):
         """Add a SriovVF object to the net config object
@@ -2100,30 +2347,31 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(sriov_vf.name, InterfaceType.ETHERNET)
 
-        logger.info('adding sriov vf: %s for pf: %s, vfid: %d'
-                    % (sriov_vf.name, sriov_vf.device, sriov_vf.vfid))
+        logger.info("%s-%d: adding vf", sriov_vf.device, sriov_vf.vfid)
         data = self._add_common(sriov_vf)
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
         if sriov_vf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
-        logger.debug('sriov vf data: %s' % data)
         self.interface_data[sriov_vf.name] = data
-        vf_config = self.get_vf_config(sriov_vf)
-        logger.debug("Adding vf config %s" % vf_config)
 
         # sriov_vf_data is a list of vf configuration data of size numvfs.
         # The vfid is used as index.
         if sriov_vf.device not in self.sriov_vf_data:
-            msg = f"VF configuration is seen while the parent device"\
-                  f" {sriov_vf.device} is not availavle"
+            msg = f"{sriov_vf.device}: PF is not configured yet"
             raise os_net_config.ConfigurationError(msg)
 
+        vf_config = self.get_vf_config(sriov_vf)
+        logger.debug(
+            f"{sriov_vf.device}-{sriov_vf.vfid}: " f"vf config {vf_config}"
+        )
         self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
         if sriov_vf.ethtool_opts:
-            self.add_ethtool_config(sriov_vf.name, data,
-                                    sriov_vf.ethtool_opts)
+            self.add_ethtool_config(sriov_vf.name, data, sriov_vf.ethtool_opts)
         self.need_vf_config = True
+        self.__dump_config(
+            data, msg=(f"{sriov_vf.device}-{sriov_vf.vfid}:" "Prepared config")
+        )
 
     def add_ib_interface(self, ib_interface):
         """Add an InfiniBand interface object to the net config object.
@@ -2133,19 +2381,20 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(ib_interface.name, InterfaceType.INFINIBAND)
 
-        logger.info('adding ib_interface: %s' % ib_interface.name)
+        logger.info(f"{ib_interface.name}: adding ib_interface")
         data = self._add_common(ib_interface)
-        logger.debug('ib_interface data: %s' % data)
         data[Interface.TYPE] = InterfaceType.INFINIBAND
         if ib_interface.ethtool_opts:
-            self.add_ethtool_config(ib_interface.name, data,
-                                    ib_interface.ethtool_opts)
+            self.add_ethtool_config(
+                ib_interface.name, data, ib_interface.ethtool_opts
+            )
         # Default mode is set to 'datagram' since 'connected' is not
         # supported in some devices
         config = {}
         config[InfiniBand.MODE] = InfiniBand.Mode.DATAGRAM
         data[InfiniBand.CONFIG_SUBTREE] = config
         self.interface_data[ib_interface.name] = data
+        self.__dump_config(data, msg=f"{ib_interface.name}: Prepared config")
 
     def add_ib_child_interface(self, ib_child_interface):
         """Add an InfiniBand child interface object to the net config object.
@@ -2154,12 +2403,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
          interface object to add.
         """
         if self.migration_enabled:
-            self._clean_iface(ib_child_interface.name,
-                              InterfaceType.INFINIBAND)
+            self._clean_iface(ib_child_interface.name, InterfaceType.INFINIBAND)
 
-        logger.info('adding ib_child_interface: %s' % ib_child_interface.name)
+        logger.info(f"{ib_child_interface.name}: adding ib_child_interface")
         data = self._add_common(ib_child_interface)
-        logger.debug('ib_child_interface data: %s' % data)
         data[Interface.TYPE] = InterfaceType.INFINIBAND
         config = {}
         config[InfiniBand.PKEY] = ib_child_interface.pkey_id
@@ -2169,6 +2416,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         config[InfiniBand.MODE] = InfiniBand.Mode.DATAGRAM
         data[InfiniBand.CONFIG_SUBTREE] = config
         self.interface_data[ib_child_interface.name] = data
+        self.__dump_config(
+            data, msg=f"{ib_child_interface.name}: Prepared config"
+        )
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
@@ -2189,9 +2439,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             mode).
         Note the noop mode is set via the constructor noop boolean
         """
-        logger.info('applying network configs...')
+        logger.info("applying network configs....")
         if cleanup:
-            logger.info('Cleaning up all network configs...')
+            logger.info("cleaning up all network configs...")
             self.cleanup_all_ifaces()
 
         add_routes = []
@@ -2200,7 +2450,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         updated_interfaces = {}
         updated_pfs = []
 
-        logger.debug("----------------------------")
         if self.need_pf_config:
             pf_devs = self.apply_pf_config(activate)
             updated_pfs.extend(pf_devs)
@@ -2220,20 +2469,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if not is_dict_subset(iface_state, iface_data):
                 updated_interfaces[interface_name] = iface_data
             else:
-                logger.info('No changes required for interface: '
-                            f'{interface_name}')
+                logger.info(f"{interface_name} : no change required")
             add_route, del_route = self.generate_routes(interface_name)
             add_routes.extend(add_route)
             del_routes.extend(del_route)
 
         for bridge_name, bridge_data in self.bridge_data.items():
-
             bridge_state = self.iface_state(bridge_name)
             if not is_dict_subset(bridge_state, bridge_data):
                 updated_interfaces[bridge_name] = bridge_data
             else:
-                logger.info('No changes required for bridge: %s' %
-                            bridge_name)
+                logger.info(f"{bridge_name}: no change required")
 
             add_route, del_route = self.generate_routes(bridge_name)
             add_routes.extend(add_route)
@@ -2244,8 +2490,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if not is_dict_subset(bond_state, bond_data):
                 updated_interfaces[bond_name] = bond_data
             else:
-                logger.info('No changes required for bond: %s' %
-                            bond_name)
+                logger.info(f"{bond_name}: no change required")
             add_route, del_route = self.generate_routes(bond_name)
             add_routes.extend(add_route)
             del_routes.extend(del_route)
@@ -2255,8 +2500,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if not is_dict_subset(vlan_state, vlan_data):
                 updated_interfaces[vlan_name] = vlan_data
             else:
-                logger.info('No changes required for vlan interface: %s' %
-                            vlan_name)
+                logger.info(f"{vlan_name}: no change required")
             add_route, del_route = self.generate_routes(vlan_name)
             add_routes.extend(add_route)
             del_routes.extend(del_route)
@@ -2293,7 +2537,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         if activate:
             if self.errors:
-                message = 'Failure(s) occurred when applying configuration'
+                message = "Failure(s) occurred when applying configuration"
                 logger.error(message)
                 for e in self.errors:
                     logger.error(str(e))
@@ -2309,9 +2553,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         for pf in updated_pfs:
             updated_interfaces[pf] = self.sriov_pf_data[pf]
 
-        logger.debug(f'Updated the intrefaces: '
-                     f'{" ".join(updated_interfaces.keys())}')
+        logger.debug(
+            f'Updated the interfaces: ' f'{" ".join(updated_interfaces.keys())}'
+        )
 
-        logger.info('Succesfully applied the network configuration with '
-                    'nmstate provider')
+        logger.info(
+            "Succesfully applied the network configuration with "
+            "nmstate provider"
+        )
         return updated_interfaces
