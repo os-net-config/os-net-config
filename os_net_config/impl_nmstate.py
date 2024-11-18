@@ -50,6 +50,9 @@ logger = logging.getLogger(__name__)
 # Import the raw NetConfig object so we can call its methods
 netconfig = os_net_config.NetConfig()
 
+# Script used to bind the VFs with appropriate drivers.
+# VFs specified in `dpdk_vfs` will be bound with vfio-pci.
+# VFs specified in `linux_vfs` will be bound with their default drivers
 _VF_BIND_DRV_SCRIPT = r'''
 dpdk_vfs="{dpdk_vfs}"
 linux_vfs="{linux_vfs}"
@@ -112,6 +115,13 @@ def _get_type_value(str_val):
 
 
 def get_route_options(route_options, key):
+    """Parse `route_options` and return the value corresponding to `key`
+
+    :param route_options: A string that has the key value pair seperated
+        by spaces
+    :param key: The `key` for which the value is required
+    :returns: the route_option value corresponding to the key
+    """
 
     items = route_options.split(' ')
     iter_list = iter(items)
@@ -122,7 +132,13 @@ def get_route_options(route_options, key):
 
 
 def is_dict_subset(superset, subset):
-    """Check to see if one dict is a subset of another dict."""
+    """Check to see if one dict is a subset of another dict.
+
+    :param superset: The bigger config, typically the present state
+    :param subset: The smaller config, typically the desired state
+    :returns: A boolean indicating if the desired state is already
+        configured
+    """
 
     if superset == subset:
         return True
@@ -170,6 +186,14 @@ def is_dict_subset(superset, subset):
 
 
 def _add_sub_tree(data, subtree):
+    """Create a nested dict with the keys mentioned in subtree
+
+    :param data: Starting point for the creation of nested dict
+    :param subtree: list of keys used in the creation of nested
+        dict.
+    :raises os_net_config.ConfigurationError: if the data is None
+    :returns: The tip of the nested dict created
+    """
     if data is None:
         msg = 'Subtree can\'t be created on None Types'
         raise os_net_config.ConfigurationError(msg)
@@ -183,6 +207,12 @@ def _add_sub_tree(data, subtree):
 
 
 def parse_bonding_options(bond_options_str):
+    """Parse the bonding actions for linux bond/ovs-bond
+
+    :param bond_options_str: A string having the bond_options in
+        space separated key value pair
+    :returns: A dict of bond options
+    """
     bond_options_dict = {}
     if bond_options_str:
         options = re.findall(r'(.+?)=(.+?)($|\s)', bond_options_str)
@@ -192,6 +222,14 @@ def parse_bonding_options(bond_options_str):
 
 
 def set_linux_bonding_options(bond_options, primary_iface=None):
+    """Parse the linux bond options from templates
+
+    The linux_bond options are mapped to the nmstate schema
+
+    :param bond_options: A dict of bond options
+    :param primary_iface: Specify the primary interface of the bond
+    :returns: The bond configuration in nmstate schema format
+    """
     linux_bond_options = [
         "ad_actor_system", "ad_actor_sys_prio", "ad_select",
         "ad_user_port_key", "arp_ip_target", "arp_validate",
@@ -222,6 +260,13 @@ def set_linux_bonding_options(bond_options, primary_iface=None):
 
 
 def set_ovs_bonding_options(bond_options):
+    """Parse the ovs bond options from templates
+
+    The ovs_bond options are mapped to the nmstate schema
+
+    :param bond_options: A dict of bond options
+    :returns: The bond configuration in nmstate schema format
+    """
     # Duplicate entries for other-config are added so as to avoid
     # the confusion around other-config vs other_config in ovs
     ovs_other_config = ["other_config:lacp-fallback-ab",
@@ -258,7 +303,6 @@ def set_ovs_bonding_options(bond_options):
         if options in bond_options:
             other_config[options[len("other_config:"):]
                          ] = bond_options[options]
-
     return bond_data
 
 
@@ -273,12 +317,18 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
     def __init__(self, noop=False, root_dir=''):
         super(NmstateNetConfig, self).__init__(noop, root_dir)
+        # Dict of the interface data, with key being the interface name
         self.interface_data = {}
+        # Dict of the vlan data, with keys being the vlan name
         self.vlan_data = {}
+        # Dict of the route data, with keys being the device name
         self.route_data = {}
+        # List of the rules data
         self.rules_data = []
         self.dns_data = {'server': [], 'domain': []}
+        # Dict of the ovs bridges, with keys being the device name
         self.bridge_data = {}
+        # Dict of the linux bond data, with keys being the device name
         self.linuxbond_data = {}
         self.ovs_port_data = {}
         self.member_names = {}
@@ -311,11 +361,27 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.info('nmstate net config provider created.')
 
     def reload_nm(self):
+        """Reload NetworkManager connections
+
+        Perform a reload of all the NM connections so that the
+        updates (if any) to the ifcfg-* files related to
+        NM_CONTROLLED shall be re-applied.
+        """
         cmd = ['nmcli', 'connection', 'reload']
         msg = "Reloading nmcli connections"
         self.execute(msg, *cmd)
 
     def rollback_to_initial_settings(self):
+        """Rollback to the initial settings
+
+        The nmstate apply rolls back to the previous state whenever
+        it fails. But os-net-config applies the nmstate templates
+        several times during the run and its possible that a certain
+        template could have failed. In that case, the roll back
+        provided by nmstate would be limited to the specific failure
+        and as such the failure needs to be handled so that the
+        initial settings is restored.
+        """
         logger.info("Rolling back to initial settings.")
         cur_state = netinfo.show_running_config()
         diff_state = gen_diff.generate_differences(self.initial_state,
@@ -337,9 +403,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.info(f"{msg}\n{cfg_dump}")
 
     def get_vf_config(self, sriov_vf):
-        """Identify the nmstate schema for the given VF
+        """Create the nmstate schema for the given VF
 
-        :param sriov_vf: The SriovVF object to add
+        The VF parameters are translated to nmstate schema.
+
+        :param sriov_vf: The SriovVF object that has the VF config
+        :returns: The VF config in nmstate schema format
         """
         logger.info(f'VF Config for vfid {sriov_vf.vfid} '
                     f'device {sriov_vf.device} Trust={sriov_vf.trust} '
@@ -372,6 +441,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return vf_config
 
     def update_vf_config(self, sriov_vf):
+        """Update the VF config data
+
+        The VF config in objects.SriovVF format will be converted in to
+        the nmstate schema format and updated in the provider's data struct.
+
+        :param sriov_vf: VF data (objects.SriovVF) that shall be converted to
+            nmstate schema and stored
+        :raises objects.InvalidConfigException: when the PF is not yet
+            configured, while attempting a VF configuration
+        """
         if sriov_vf.device in self.sriov_vf_data:
             logger.info(f'Updating the VF data for VF: {sriov_vf.vfid} '
                         f'Device: {sriov_vf.device} Trust: {sriov_vf.trust} '
@@ -388,7 +467,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             raise objects.InvalidConfigException(msg)
 
     def apply_pf_config(self, activate):
-        '''Apply the PF Configuration for all the required interfaces
+        """Apply the PF Configuration for all the required interfaces
 
             The required nmstate schema based configurations are available in
             `sriov_pf_data`. The generated nmstate schema is applied
@@ -400,7 +479,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param activate: A boolean which indicates if the config should
             be activated by applying the desired state.
         :returns: The list of devices configured
-        '''
+        """
         updated_pfs = []
         # The desired state of the PF's are applied one after the
         # other, so as to avoid driver errors.
@@ -422,7 +501,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return updated_pfs
 
     def apply_vf_config(self, activate):
-        '''Apply the VF Configuration for all the required interfaces
+        """Apply the VF Configuration for all the required interfaces
 
             The required nmstate schema based VF configurations are available
             in `sriov_vf_data` and the PF configuration in `sriov_pf_data`.
@@ -434,8 +513,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param activate: A boolean which indicates if the config should
             be activated by applying the desired state.
+        :raises ConfigurationError: when the PF is not yet
+            configured, while attempting a VF configuration
         :returns: The list of devices configured
-        '''
+        """
 
         updated_pfs = []
         for pf in self.sriov_vf_data.keys():
@@ -503,7 +584,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         any non-default tables exist, they will be kept unless they conflict
         with new tables defined in the route_tables dict.
 
-        :param route_tables: A dict of RouteTable objects
+        :returns route_tables: A dict of RouteTable objects
         """
 
         rt_tables = {}
@@ -529,6 +610,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         with new tables defined in the route_tables dict.
 
         :param route_tables: A dict of RouteTable objects
+        :raises ConfigurationError: when route table id/name conflicts with
+            reserved ones
+        :returns: The updated content for /etc/iproute2/rt_tables
         """
 
         custom_tables = {}
@@ -595,6 +679,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
             return ifaces
 
     def cleanup_all_ifaces(self, exclude_nics=[]):
+        """Cleanup all the interfaces that are available
+
+        Removes all the interfaces that are available to be configured
+        by nmstate. The nics marked in `exclude_nics` shall not be removed
+
+        :param exclude_nics: The list of nics that shall not be removed
+        """
 
         exclude_nics.extend(['lo'])
         ifaces = netinfo.show_running_config()[Interface.KEY]
@@ -646,7 +737,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return rules
 
     def set_ifaces(self, iface_data):
-        """Apply the desired state using nmstate.
+        """Prepare the nmstate schema for the interfaces.
 
         :param iface_data: interface config json
         :return Interface state
@@ -656,7 +747,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return state
 
     def set_dns(self):
-        """Apply the desired DNS using nmstate.
+        """Prepare the nmstate schema for DNS
 
         :param dns_data:  config json
         :return dns config
@@ -668,7 +759,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return state
 
     def set_routes(self, route_data):
-        """Apply the desired routes using nmstate.
+        """Prepare the nmstate schema for routes
 
         :param route_data: list of routes
         :return route states
@@ -679,12 +770,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return state
 
     def set_rules(self, rule_data):
-        """Apply the desired rules using nmstate.
+        """Prepare the nmstate schema for rules
 
         :param rule_data: list of rules
         :return route rule states
         """
-
         state = {NMRouteRule.KEY: {NMRouteRule.CONFIG: rule_data}}
         self.__dump_config(state, msg=f'Prepared rules are')
         return state
@@ -716,7 +806,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param interface_name: interface name for which routes are required
         :return: tuple having list of routes to be added and deleted
         """
-
         add_routes = self.route_data.get(interface_name, [])
         curr_routes = self.route_state(interface_name)
 
@@ -743,7 +832,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :return: tuple having list of rules to be added and deleted
         """
-
         add_rules = self.rules_data
         curr_rules = self.rule_state()
         del_rules = []
@@ -767,11 +855,20 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return add_rules, del_rules
 
     def interface_mac(self, iface):
+        """Get the interface's mac address
+
+        :param iface: name of the interface for which mac address is required
+        """
         iface_data = self.iface_state(iface)
         if iface_data and Interface.MAC in iface_data:
             return iface_data[Interface.MAC]
 
     def get_ovs_ports(self, members):
+        """Get the ovs ports in nmstate schema format
+
+        :param members: The members of the ovs/ovs-user bridges
+        :returns: The Bridge ports in nmstate schema
+        """
         bps = []
         for member in members:
             if member.startswith('vlan'):
@@ -804,6 +901,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return bps
 
     def add_ethtool_subtree(self, data, sub_config, command):
+        """Store the Ethtool options in nmstate schema format
+
+        :raises ConfigurationError: Non supported ethtool options
+        """
+
         config = _add_sub_tree(data, sub_config['sub-tree'])
         ethtool_map = sub_config['map']
 
@@ -820,7 +922,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 raise os_net_config.ConfigurationError(msg)
 
     def add_ethtool_config(self, iface_name, data, ethtool_options):
+        """Add Ethtool configs in nmstate schema format
 
+        :raises ConfigurationError: Non supported / Unhandled ethtool options
+        """
         ethtool_generic_options = {'sub-tree': [Ethernet.CONFIG_SUBTREE],
                                    'sub-options': None,
                                    'map': {
@@ -924,6 +1029,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 self.add_ethtool_subtree(data, ethtool_map[option], command)
 
     def _clean_iface(self, name, obj_type):
+        """Removes the NetrworkManager device coniguration"""
         iface_data = {Interface.NAME: name,
                       Interface.TYPE: obj_type,
                       Interface.STATE: InterfaceState.ABSENT}
@@ -932,11 +1038,20 @@ class NmstateNetConfig(os_net_config.NetConfig):
         netapplier.apply(absent_state_config, verify_change=True)
 
     def enable_migration(self):
+        """Enable migration from other providers to nmstate"""
         self.reload_nm()
         self.migration_enabled = True
         logger.info('Migration is enabled for nmstate provider.')
 
     def _add_common(self, base_opt):
+        """Add common atrributes of the interface
+
+        Add the common attributes of networks like IPv4, IPv6 addresses,
+        routes, rules, DNS, MTU
+
+        :param base_opt: The network object that has the device configs
+            defined in the form objects._BaseOpts
+        """
         data = {Interface.IPV4: {InterfaceIPv4.ENABLED: False},
                 Interface.IPV6: {InterfaceIPv6.ENABLED: False},
                 Interface.NAME: base_opt.name}
@@ -1029,6 +1144,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return data
 
     def _add_routes(self, interface_name, routes=[]):
+        """Adds the routes in nmstate schema format
+
+        :param interface_name: the name of the interface
+        :param routes: A list of routes that needs to be added
+        """
 
         routes_data = []
         logger.info(f'adding custom route for interface: {interface_name}')
@@ -1096,6 +1216,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
                              '{table_id}')
 
     def _parse_ip_rules(self, rule):
+        """Parse IP rule commands
+
+        The Ip rule commands are translated to nmstate schema
+
+        :params rule: The IP rule that will be translated
+        :raises ConfigurationError: Incomplete/Unhandled ip rule command
+        """
+
         nm_rule_map = {
             'blackhole': {'nm_key': NMRouteRule.ACTION,
                           'nm_value': NMRouteRule.ACTION_BLACKHOLE},
@@ -1172,6 +1300,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
         return rule_config
 
     def _add_rules(self, interface_name, rules=[]):
+        """Add ip rules in nmstate schema format
+
+        :param interface_name: Name of the interface for which the rules are
+            required.
+        :param rules: Rules required for the device (objects.RouteRule)
+        """
         for rule in rules:
             rule_nm = self._parse_ip_rules(rule.rule)
             self.rules_data.append(rule_nm)
@@ -1179,12 +1313,20 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.debug(f'{interface_name}: rule data\n{self.rules_data}')
 
     def _add_dns_servers(self, dns_servers):
+        """Add dns servers in nmstate schema format
+
+        :param dns_servers: A list of DNS servers
+        """
         for dns_server in dns_servers:
             if dns_server not in self.dns_data['server']:
                 logger.debug(f"Adding DNS server {dns_server}")
                 self.dns_data['server'].append(dns_server)
 
     def _add_dns_domain(self, dns_domain):
+        """Add dns domain in nmstate schema format
+
+        :param dns_domain: A list of DNS domains
+        """
         if isinstance(dns_domain, str):
             logger.debug(f"Adding DNS domain {dns_domain}")
             self.dns_data['domain'].extend([dns_domain])
@@ -1301,6 +1443,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.vlan_data[vlan.name] = data
 
     def _ovs_extra_cfg_eq_val(self, ovs_extra, cmd_map, data):
+        """Parse ovs extra of the format key=value
+
+        Parse the ovs_extra fields where the configs are in key=value format
+        Example: ovs-vsctl set Bridge $name <config>=<value>
+                 ovs-vsctl set Interface $name <config>=<value>
+        :param ovs_extra: given ovs extra as string
+        :param cmd_map: A map of the available ovs_extra commands, actions
+        :param data: The device data that will be modified after the parsing
+        :raises ConfigurationError: Invalid ovs_extra format
+        """
         index = 0
         logger.info(f'Current ovs_extra {ovs_extra}')
         for a, b in zip(ovs_extra, cmd_map['command']):
@@ -1341,6 +1493,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
                                 f"{cfg['sub_tree']}")
 
     def _ovs_extra_cfg_val(self, ovs_extra, cmd_map, data):
+        """Parse ovs extra where key,value are seperated by spaces
+
+        Parse ovs extra fields where key and value are seperated by spaces
+        Example: ovs-vsctl br-set-external-id $name key [value]
+
+        :param ovs_extra: given ovs extra as string
+        :param cmd_map: A map of the available ovs_extra commands, actions
+        :param data: The device data that will be modified after the parsing
+        :raises ConfigurationError: Invalid ovs_extra format
+        """
         index = 0
         for a, b in zip(ovs_extra, cmd_map['command']):
             if not re.match(b, a, re.IGNORECASE):
@@ -1380,7 +1542,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
                                 f"{cfg['sub_tree']}")
 
     def parse_ovs_extra_for_bond(self, ovs_extras, name, data):
+        """Parse ovs extra for bonding options
 
+        Parse ovs extra fields for the bonding options
+
+        :param ovs_extras: given ovs extra as string
+        :param name: Bond name
+        :param data: The bond data that will be modified after the parsing
+        """
         # Here the nm_config bond_mode matches the ovs_options
         # and not the Nmstate schema
         port_cfg = [
@@ -1413,6 +1582,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
     def parse_ovs_extra(self, ovs_extras, name, data):
+        """Parse ovs extra for bridges, ports
+
+        :param ovs_extras: given ovs extra as string
+        :param name: bridge/port name
+        :param data: The OVS Interface or Bridge data that will
+            be modified after the parsing
+        """
 
         bridge_cfg = [{'config': r'^fail_mode=[\w+]',
                        'sub_tree': [OVSBridge.CONFIG_SUBTREE,
@@ -1489,6 +1665,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 self._ovs_extra_cfg_val(ovs_extra_cmd, cmd_map, data)
 
     def parse_ovs_extra_for_ports(self, ovs_extras, bridge_name, data):
+        """Parse ovs extra for VLAN
+
+        :param ovs_extras: given ovs extra as string
+        :param bridge_name: bridge name
+        :param data: The interface data that will be modified after
+            the parsing
+        """
         port_vlan_cfg = [{'config': r'^tag=[\w+]',
                           'sub_tree': [OVSBridge.Port.VLAN_SUBTREE],
                           'nm_config': OVSBridge.Port.Vlan.TAG,
@@ -1509,6 +1692,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """Add an OvsBridge object to the net config object.
 
         :param bridge: The OvsBridge object to add.
+        :raises ConfigurationError: Invalid member types
         """
 
         # Create the internal ovs interface. Some of the settings of the
@@ -1854,6 +2038,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """Add a SriovPF object to the net config object
 
         :param sriov_pf: The SriovPF object to add
+        :raises ConfigurationError: Unsupported link mode or mismatch in SR-IOV
+            capability
         """
         if self.migration_enabled:
             self._clean_iface(sriov_pf.name, InterfaceType.ETHERNET)
@@ -1908,6 +2094,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """Add a SriovVF object to the net config object
 
         :param sriov_vf: The SriovVF object to add
+        :raises ConfigurationError: Indicates that VF config is performed
+            without configuring the PF.
         """
         if self.migration_enabled:
             self._clean_iface(sriov_vf.name, InterfaceType.ETHERNET)
@@ -1995,6 +2183,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param config_rules_dns: A boolean that indicates if the rules should
             be applied. This makes sure that the rules are configured only if
             config_rules_dns is set to True.
+        :raises ConfigurationError: Failed to apply the generated templates.
         :returns: a dict of the format: filename/data which contains info
             for each file that was changed (or would be changed if in --noop
             mode).
