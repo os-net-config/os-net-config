@@ -188,7 +188,7 @@ def is_nmstate_available():
         logger.info("Could not find libnmstate packages")
         return False
 
-    logger.info('libnmstate version {libnmstate.__version__} is '
+    logger.info(f'libnmstate version {libnmstate.__version__} is '
                 'incompatible for minimum support')
     return False
 

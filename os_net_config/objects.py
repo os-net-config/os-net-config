@@ -196,8 +196,7 @@ def mapped_nics(nic_mapping=None):
                                "NIC." % (nic_alias))
 
             _MAPPED_NICS[nic_alias] = nic_mapped
-            logger.info("%s in mapping file mapped to: %s"
-                        % (nic_alias, nic_mapped))
+            logger.info(f"{nic_alias} => {nic_mapped}")
 
     # nics not in mapping file must be active in order to be mapped
     active_nics = utils.ordered_active_nics()
@@ -211,7 +210,7 @@ def mapped_nics(nic_mapping=None):
                            % (nic_mapped, nic_alias, _MAPPED_NICS[nic_alias]))
         else:
             _MAPPED_NICS[nic_alias] = nic_mapped
-            logger.info("%s mapped to: %s" % (nic_alias, nic_mapped))
+            logger.info(f"{nic_alias} => {nic_mapped}")
 
     if not _MAPPED_NICS:
         logger.warning('No active nics found.')
@@ -732,16 +731,16 @@ class OvsBridge(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Trust is not set, "
+                        "defaulting to on")
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Spoofcheck is not set, "
+                        "defaulting to off")
             iface.spoofcheck = "off"
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Promisc is not set, "
+                        "defaulting to on")
             iface.promisc = "on"
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1103,7 +1102,7 @@ class LinuxBond(_BaseOpts):
             member.linux_bond_name = name
             if member.primary:
                 if self.primary_interface_name:
-                    msg = 'Only one primary interface allowed per bond.'
+                    msg = f'{name}: Only one primary interface allowed.'
                     raise InvalidConfigException(msg)
                 if member.primary_interface_name:
                     self.primary_interface_name = member.primary_interface_name
@@ -1113,16 +1112,16 @@ class LinuxBond(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Trust is not set,"
+                        "defaulting to on")
             iface.trust = 'on'
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Spoofcheck is not set, "
+                        "defaulting to off")
             iface.spoofcheck = 'off'
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Promisc is not set, "
+                        "defaulting to off")
             iface.promisc = 'off'
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1187,7 +1186,7 @@ class OvsBond(_BaseOpts):
                 OvsBond.update_vf_config(member)
             if member.primary:
                 if self.primary_interface_name:
-                    msg = 'Only one primary interface allowed per bond.'
+                    msg = f'{name}: Only one primary interface allowed.'
                     raise InvalidConfigException(msg)
                 if member.primary_interface_name:
                     self.primary_interface_name = member.primary_interface_name
@@ -1201,16 +1200,16 @@ class OvsBond(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Trust is not set, "
+                        "defaulting to on")
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Spoofcheck is not set, "
+                        "defaulting to off")
             iface.spoofcheck = "off"
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Promisc is not set, "
+                        "defaulting to on")
             iface.promisc = "on"
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1429,15 +1428,16 @@ class OvsDpdkPort(_BaseOpts):
     @staticmethod
     def update_vf_config(iface, driver=None):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Trust is not set, "
+                        "defaulting to on")
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(f"{iface.device}-{iface.vfid}: Spoofcheck is not set, "
+                        "defaulting to off")
             iface.spoofcheck = "off"
         if iface.promisc is not None:
-            logger.warning("Promisc can't be changed for ovs_dpdk_port")
+            logger.warning(f"{iface.device}-{iface.vfid}: "
+                           "Promisc can't be changed for ovs_dpdk_port")
             iface.promisc = None
         logger.info(f'{iface.device}-{iface.vfid}: Overriding the default '
                     f'driver for DPDK with {driver}')
@@ -1682,24 +1682,24 @@ class SriovPF(_BaseOpts):
         vdpa = json.get('vdpa', False)
         vdpa_queues = json.get('vdpa_queues', None)
         if vdpa_queues and not strutils.is_int_like(vdpa_queues):
-            msg = 'vdpa_queues config value must be an integer'
+            msg = f'{name}: vdpa_queues config value must be an integer'
             raise InvalidConfigException(msg)
         steering_mode = json.get('steering_mode')
         if steering_mode is not None and steering_mode not in ['smfs', 'dmfs']:
-            msg = 'Expecting steering_mode to match smfs/dmfs'
+            msg = f'{name}: Expecting steering_mode to match smfs/dmfs'
             raise InvalidConfigException(msg)
         if vdpa:
             msg = ""
             if link_mode != 'switchdev':
-                msg += "Expecting link_mode to be switchdev when vdpa is "\
-                       f"enabled, not {link_mode}\n"
+                msg += (f"{name}: Expecting link_mode to be switchdev when "
+                        f"vdpa is enabled, not {link_mode}\n")
             if not int(numvfs):
-                msg += ("Expecting to have at least 1 numvfs when vdpa is "
-                        "enabled\n")
+                msg += (f"{name}: Expecting to have at least 1 numvfs when "
+                        "vdpa is enabled\n")
             if len(msg):
                 raise InvalidConfigException(msg)
         if link_mode not in ['legacy', 'switchdev']:
-            msg = 'Expecting link_mode to match legacy/switchdev'
+            msg = f'{name}: Expecting link_mode to match legacy/switchdev'
             raise InvalidConfigException(msg)
 
         dcb_config_json = json.get('dcb')
@@ -1753,7 +1753,7 @@ class OvsDpdkBond(_BaseOpts):
         for member in self.members:
             if member.primary:
                 if self.primary_interface_name:
-                    msg = 'Only one primary interface allowed per bond (dpdk).'
+                    msg = f'{name}: Only one primary interface allowed.'
                     raise InvalidConfigException(msg)
                 if member.primary_interface_name:
                     self.primary_interface_name = member.primary_interface_name
@@ -1779,8 +1779,9 @@ class OvsDpdkBond(_BaseOpts):
                         else:
                             device = devname
                     else:
-                        msg = ('DCB applies to ovs dpdk port Interface only. '
-                               'Invalid object type encountered.')
+                        msg = (f'{device}: DCB applies to ovs dpdk port '
+                               'Interface only. Invalid object type '
+                               'encountered.')
                         raise InvalidConfigException(msg)
 
                     dcb_config_json['device'] = device
@@ -1790,7 +1791,7 @@ class OvsDpdkBond(_BaseOpts):
                                           driver=dcb_config.driver, noop=False,
                                           dscp2prio=dcb_config.dscp2prio)
                 else:
-                    msg = ('OVS DPDK Port should have only one member. '
+                    msg = (f'OVS DPDK Port should have only one member. '
                            f'Found {len(ovsdpdkport_json)} members.')
                     raise InvalidConfigException(msg)
             else:
@@ -1825,10 +1826,10 @@ class OvsDpdkBond(_BaseOpts):
                     if isinstance(obj, OvsDpdkPort):
                         members.append(obj)
                     else:
-                        msg = 'Members must be of type ovs_dpdk_port'
+                        msg = f'{name}: Members must be of type ovs_dpdk_port'
                         raise InvalidConfigException(msg)
             else:
-                msg = 'Members must be a list.'
+                msg = f'{name}: Members must be a list.'
                 raise InvalidConfigException(msg)
 
         dcb_config_json = json.get('dcb')

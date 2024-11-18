@@ -288,7 +288,7 @@ def interface_mac(name):
         if dpdk_mac_address:
             return dpdk_mac_address
 
-        logger.error("Unable to read mac address: %s" % name)
+        logger.error(f"{name}: Unable to read mac address")
         raise
 
 
@@ -338,27 +338,25 @@ def is_vf_by_name(interface_name, check_mapping_file=False):
 
 def set_driverctl_override(pci_address, driver):
     if driver is None:
-        logger.info(f"Driver override is not required for device"
-                    "{pci_address}")
+        logger.info(f"{pci_address}: Driver override is not required.")
         return False
     iface_driver = get_interface_driver_by_pci_address(pci_address)
     if iface_driver == driver:
-        logger.info(f"Driver {driver} is already bound to the device"
-                    "{pci_address}")
+        logger.info(f"{pci_address}: {driver} is already bound")
         return False
     try:
         if is_vf(pci_address):
-            out, err = processutils.execute('driverctl', '--nosave',
-                                            'set-override', pci_address,
-                                            driver)
+            cmd = ['driverctl', '--nosave', 'set-override', pci_address,
+                   driver]
         else:
-            out, err = processutils.execute('driverctl', 'set-override',
-                                            pci_address, driver)
+            cmd = ['driverctl', 'set-override', pci_address, driver]
+        logger.info(f"{pci_address}: Binding with {driver}\n{' '.join(cmd)}")
+        out, err = processutils.execute(*cmd)
         if err:
-            msg = f"Failed to bind dpdk interface {pci_address} err - {err}"
+            msg = f"{pci_address}: Failed to bind dpdk interface. err - {err}"
             raise OvsDpdkBindException(msg)
     except processutils.ProcessExecutionError:
-        msg = f"Failed to bind interface {pci_address} with dpdk"
+        msg = f"{pci_address}: Failed to bind interface with dpdk"
         raise OvsDpdkBindException(msg)
     return err
 

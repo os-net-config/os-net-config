@@ -86,7 +86,7 @@ class SRIOVAutoprobeException(ValueError):
 def udev_event_handler(action, device):
     event = {"action": action, "device": device.sys_path}
     logger.info(
-        f"Received udev event {event['action']} for {event['device']}"
+        f"{event['device']}: Received udev event {event['action']}"
     )
     vf_queue.put(event)
 
@@ -126,7 +126,7 @@ def _wait_for_vf_creation(pf_name, numvfs):
             event = vf_queue.get(True, 5)
             vf_name = os.path.basename(event["device"])
             pf_path = _get_pf_path(event["device"])
-            logger.debug(f"{event['device']}: Got udev event: {event}")
+            logger.debug(f"{event['device']}: Got udev event - {event}")
             if pf_path:
                 pf_nic = os.listdir(pf_path)
                 # NOTE(dvd): For vDPA devices, the VF event we're interrested
@@ -221,22 +221,22 @@ def get_numvfs(ifname):
     """
     sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
     cmd = ["/usr/bin/udevadm", "wait", "-t", "60", common.get_dev_path(ifname)]
-    logger.debug(f"{ifname}: Running command: {cmd}")
+    logger.debug(f"{ifname}: Running {' '.join(cmd)}")
     try:
         processutils.execute(*cmd)
     except processutils.ProcessExecutionError:
         cmd = ["/usr/bin/udevadm", "settle", "-E", sriov_numvfs_path,
                "-t", "60"]
-        logger.debug(f"{ifname}: Running command: {' '.join(cmd)}")
+        logger.debug(f"{ifname}: Running {' '.join(cmd)}")
         processutils.execute(*cmd)
-    logger.debug(f"{ifname}: Getting numvfs for interface")
+    logger.debug(f"{ifname}: Getting numvfs")
     try:
         with open(sriov_numvfs_path, 'r') as f:
             curr_numvfs = int(f.read())
     except IOError as exc:
         msg = f"{ifname}: Unable to read numvfs: {exc}"
         raise SRIOVNumvfsException(msg)
-    logger.debug(f"{ifname}: Interface has {curr_numvfs} configured")
+    logger.debug(f"{ifname}: numvfs = {curr_numvfs}")
     return curr_numvfs
 
 
@@ -250,15 +250,14 @@ def reset_sriov_pfs():
         if item['device_type'] == 'pf' and \
             item.get('link_mode') == "legacy":
             ifname = item['name']
-            logger.info(f'Resetting the PF {ifname} for numvfs')
+            logger.info(f'{ifname}: Resetting the PF for numvfs')
             sriov_numvfs_path = common.get_dev_path(ifname,
                                                     "sriov_numvfs")
             try:
-                logger.debug(f"Resetting {sriov_numvfs_path}")
                 with open(sriov_numvfs_path, "w") as f:
                     f.write("0")
             except IOError as exc:
-                logger.error(f'{ifname}: Unable to set zero numvfs.'
+                logger.error(f'{ifname}: Unable to reset numvfs.'
                              f'Received {exc}')
 
 
@@ -287,8 +286,6 @@ def set_numvfs(ifname, numvfs, autoprobe=True):
     :raises: SRIOVNumvfsException
     """
     curr_numvfs = get_numvfs(ifname)
-    logger.debug(f"{ifname}: Interface has {curr_numvfs} configured, setting "
-                 f"to {numvfs}")
     if not isinstance(numvfs, int):
         msg = (f"{ifname}: Unable to configure pf with numvfs: {numvfs}\n"
                f"numvfs must be an integer")
@@ -296,17 +293,17 @@ def set_numvfs(ifname, numvfs, autoprobe=True):
 
     if numvfs != curr_numvfs:
         if curr_numvfs != 0:
-            logger.warning(f"{ifname}: Numvfs already configured to "
+            logger.warning(f"{ifname}: numvfs already configured to "
                            f"{curr_numvfs}")
             return curr_numvfs
 
         sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
         try:
-            logger.debug(f"Setting {sriov_numvfs_path} to {numvfs}")
+            logger.debug(f"{ifname}: Setting {sriov_numvfs_path} <= {numvfs}")
             with open(sriov_numvfs_path, "w") as f:
                 f.write("%d" % numvfs)
         except IOError as exc:
-            msg = (f"{ifname} Unable to configure pf  with numvfs: {numvfs}\n"
+            msg = (f"{ifname}: Unable to configure pf with numvfs: {numvfs}\n"
                    f"{exc}")
             raise SRIOVNumvfsException(msg)
 
@@ -381,7 +378,7 @@ def is_partitioned_pf(dev_name: str) -> bool:
             name = config.get('device', {}).get('name')
             vf_name = config.get('name')
             if dev_name == name:
-                logger.warning(f"{name} has VF({vf_name}) used by host")
+                logger.info(f"{name}: VF({vf_name}) used by host")
                 return True
     return False
 
@@ -404,7 +401,7 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
     for item in sriov_map:
         if item['device_type'] == 'pf':
             if pf_configure_status(item):
-                logger.debug(f"PF {item['name']} is already configured")
+                logger.debug(f"{item['name']}: SR-IOV already configured")
                 continue
             _pf_interface_up(item)
             if item.get('link_mode') == "legacy":
@@ -512,7 +509,7 @@ def _wait_for_uplink_rep_creation(pf_name):
 
     for i in range(MAX_RETRIES):
         if common.get_file_data(uplink_rep_phys_switch_id_path):
-            logger.info(f"{pf_name} Uplink representor ready")
+            logger.info(f"{pf_name}: Uplink representor ready")
             break
         time.sleep(1)
     else:
@@ -527,16 +524,16 @@ def _wait_for_lag_creation(lag_sriov_pf_list):
             for i in range(MAX_RETRIES):
                 lag_state = common.get_file_data(lag_path).strip()
                 if lag_state == "active":
-                    logger.info(f"VF-LAG is enabled for interface {sriov_pf}"
-                                f" after {i} retries")
+                    logger.info(f"{sriov_pf}: VF-LAG is enabled "
+                                f"after {i} retries")
                     break
                 time.sleep(1)
             else:
-                raise RuntimeError("VF-LAG is not created for interface"
-                                   f" {sriov_pf} after {i} retries")
+                raise RuntimeError(f"{sriov_pf}: VF-LAG is not created for "
+                                   f"interface after {i} retries")
         else:
-            logger.warning(f"Lag path {lag_path} does not exist for this "
-                           "kernel, skipping..")
+            logger.warning(f"{sriov_pf}: Lag path {lag_path} does not exist "
+                           "for this kernel, skipping..")
 
 
 def create_rep_link_name_script():
@@ -595,12 +592,13 @@ def add_udev_rule_for_vdpa_representors(pf_name):
         vadd = VF_PCI_RE.search(att.get('device'))
         if not vadd:
             logger.error(
-                f"{att.get('device')}/{vf}: Failed to get pf/vf numbers "
-                "and so failed to create a udev rule for renaming vdpa dev"
+                f"{pf_name}: {att.get('device')}/{vf}: Failed to get "
+                "pf/vf numbers and so failed to create a udev rule for "
+                "renaming vdpa dev"
             )
             continue
         vdpa_rep = f"vdpa{vadd.group(1)}p{vadd.group(2)}vf{vadd.group(3)}"
-        logger.info(f"{vdpa_rep}: Adding udev representor rule.")
+        logger.info(f"{pf_name}: {vdpa_rep} Adding udev representor rule.")
         udev_lines += (
             'SUBSYSTEM=="net", ACTION=="add", '
             f'ATTR{{address}}=="{mac}", NAME="{vdpa_rep}"\n'
@@ -759,11 +757,11 @@ def configure_flow_steering(pf_name, steering_mode):
 
 
 def run_ip_config_cmd(*cmd, **kwargs):
-    logger.info("Running %s" % ' '.join(cmd))
+    logger.info(f"Running {' '.join(cmd)}")
     try:
         processutils.execute(*cmd, delay_on_retry=True, attempts=10, **kwargs)
     except processutils.ProcessExecutionError as exc:
-        logger.error("Failed to execute %s: %s" % (' '.join(cmd), exc))
+        logger.error(f"Failed to execute {' '.join(cmd)}: {exc}")
         raise
 
 
