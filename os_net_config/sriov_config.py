@@ -219,10 +219,16 @@ def get_numvfs(ifname):
     :returns: int -- the number of current VFs on ifname
     :raises: SRIOVNumvfsException
     """
+    sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
     cmd = ["/usr/bin/udevadm", "wait", "-t", "60", common.get_dev_path(ifname)]
     logger.debug(f"{ifname}: Running command: {cmd}")
-    processutils.execute(*cmd)
-    sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
+    try:
+        processutils.execute(*cmd)
+    except processutils.ProcessExecutionError:
+        cmd = ["/usr/bin/udevadm", "settle", "-E", sriov_numvfs_path,
+               "-t", "60"]
+        logger.debug(f"{ifname}: Running command: {' '.join(cmd)}")
+        processutils.execute(*cmd)
     logger.debug(f"{ifname}: Getting numvfs for interface")
     try:
         with open(sriov_numvfs_path, 'r') as f:
@@ -417,8 +423,9 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
             # It has to happen before we set_numvfs
             if vdpa and is_mlnx:
                 configure_switchdev(item['name'])
-            set_drivers_autoprobe(item['name'], item['drivers_autoprobe'])
-            set_numvfs(item['name'], item['numvfs'], item['drivers_autoprobe'])
+            autoprobe = item.get('drivers_autoprobe', True)
+            set_drivers_autoprobe(item['name'], autoprobe)
+            set_numvfs(item['name'], item['numvfs'], autoprobe)
             # Configure switchdev, unbind driver and configure vdpa
             if item.get('link_mode') == "switchdev" and is_mlnx:
                 logger.info(f"{item['name']}: Mellanox card")

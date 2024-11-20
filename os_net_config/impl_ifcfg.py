@@ -648,7 +648,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             data += "OVS_BRIDGE=%s\n" % base_opt.bridge_name
             data += "OVS_PATCH_PEER=%s\n" % base_opt.peer
         elif isinstance(base_opt, objects.OvsDpdkPort):
-            ovs_extra.extend(base_opt.ovs_extra)
             data += "DEVICETYPE=ovs\n"
             data += "TYPE=OVSDPDKPort\n"
             data += "OVS_BRIDGE=%s\n" % base_opt.bridge_name
@@ -675,8 +674,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 data += "TX_QUEUE_SIZE=%i\n" % base_opt.tx_queue_size
                 ovs_extra.append("set Interface $DEVICE " +
                                  "options:n_txq_desc=$TX_QUEUE_SIZE")
-        elif isinstance(base_opt, objects.OvsDpdkBond):
             ovs_extra.extend(base_opt.ovs_extra)
+        elif isinstance(base_opt, objects.OvsDpdkBond):
             # Referring to bug:1643026, the below commenting of the interfaces,
             # is to workaround the error, but is not the long term solution.
             # The long term solution is to run DPDK options before
@@ -1703,8 +1702,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 update_files[br_route_path] = route_data
                 if bridge_name not in restart_bridges:
                     apply_routes.append((bridge_name, route_data))
-            if utils.diff(route6_path, route6_data):
-                update_files[route6_path] = route6_data
+            if utils.diff(br_route6_path, route6_data):
+                update_files[br_route6_path] = route6_data
                 if bridge_name not in restart_bridges:
                     apply_routes.append((bridge_name, route6_data))
             if utils.diff(br_rule_path, rule_data):

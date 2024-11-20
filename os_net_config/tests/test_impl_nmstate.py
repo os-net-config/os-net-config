@@ -1429,26 +1429,27 @@ class TestNmstateNetConfig(base.TestCase):
         pf = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf)
         exp_pf_config = """
-        name: eth2
-        state: up
-        type: ethernet
-        ethernet:
+        - name: eth2
+          state: up
+          type: ethernet
+          ethernet:
             sr-iov:
-                total-vfs: 10
-                drivers-autoprobe: true
-        ethtool:
+              total-vfs: 10
+              drivers-autoprobe: true
+          ethtool:
             feature:
-                hw-tc-offload: False
-        ipv4:
+              hw-tc-offload: False
+          ipv4:
             dhcp: False
             enabled: False
-        ipv6:
+          ipv6:
             autoconf: False
             dhcp: False
             enabled: False
         """
+        self.provider.apply_pf_config(False)
         self.assertEqual(yaml.safe_load(exp_pf_config),
-                         self.get_interface_config('eth2'))
+                         list(self.provider.sriov_pf_data.values()))
 
     def test_sriov_pf_with_switchdev(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
@@ -1607,9 +1608,9 @@ class TestNmstateNetConfig(base.TestCase):
             other_config: { mac-table-size: 50000 }
         """
 
-        vf_config = self.provider.prepare_sriov_vf_config()
+        self.provider.apply_vf_config(False)
         self.assertEqual(yaml.safe_load(exp_pf_config),
-                         vf_config)
+                         list(self.provider.sriov_pf_data.values()))
         self.assertEqual(yaml.safe_load(exp_bridge_config),
                          self.get_bridge_config('br-bond'))
 
@@ -1686,9 +1687,9 @@ class TestNmstateNetConfig(base.TestCase):
             other_config: {'mac-table-size': 50000}
         """
 
-        vf_config = self.provider.prepare_sriov_vf_config()
+        self.provider.apply_vf_config(False)
         self.assertEqual(yaml.safe_load(exp_pf_config),
-                         vf_config)
+                         list(self.provider.sriov_pf_data.values()))
         self.assertEqual(yaml.safe_load(exp_bridge_config),
                          self.get_bridge_config('br-dpdk2'))
 
@@ -2340,9 +2341,9 @@ class TestNmstateNetConfig(base.TestCase):
             other_config: {'mac-table-size': 50000}
         """
 
-        vf_config = self.provider.prepare_sriov_vf_config()
+        self.provider.apply_vf_config(False)
         self.assertEqual(yaml.safe_load(exp_pf_config),
-                         vf_config)
+                         list(self.provider.sriov_pf_data.values()))
         self.assertEqual(yaml.safe_load(exp_bridge_config),
                          self.get_bridge_config('br-bond'))
 
@@ -2475,9 +2476,9 @@ class TestNmstateNetConfig(base.TestCase):
             other_config: {'mac-table-size': 50000}
         """
 
-        vf_config = self.provider.prepare_sriov_vf_config()
+        self.provider.apply_vf_config(False)
         self.assertEqual(yaml.safe_load(exp_pf_config),
-                         vf_config)
+                         list(self.provider.sriov_pf_data.values()))
         self.assertEqual(yaml.safe_load(exp_bridge_config),
                          self.get_bridge_config('br-bond'))
 
@@ -2588,9 +2589,9 @@ class TestNmstateNetConfig(base.TestCase):
                 - eth2_3
         """
 
-        vf_config = self.provider.prepare_sriov_vf_config()
+        self.provider.apply_vf_config(False)
         self.assertEqual(yaml.safe_load(exp_pf_config),
-                         vf_config)
+                         list(self.provider.sriov_pf_data.values()))
         self.assertEqual(yaml.safe_load(exp_bond_config),
                          self.get_linuxbond_config('bond_lnx'))
 
