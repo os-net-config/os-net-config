@@ -45,6 +45,7 @@ from os_net_config import common
 from os_net_config import objects
 from os_net_config import utils
 
+
 logger = logging.getLogger(__name__)
 
 # Import the raw NetConfig object so we can call its methods
@@ -1169,9 +1170,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
+        int_data = self.iface_state(interface.name)
+        try:
+            cur_numvfs = int_data['ethernet']['sr-iov']['total-vfs']
+        except (KeyError, TypeError):
+            cur_numvfs = 0
         if utils.get_totalvfs(interface.name) > 0:
             data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
-                Ethernet.SRIOV.TOTAL_VFS: 0}
+                Ethernet.SRIOV.TOTAL_VFS: cur_numvfs}
 
         if interface.ethtool_opts:
             self.add_ethtool_config(interface.name, data,
