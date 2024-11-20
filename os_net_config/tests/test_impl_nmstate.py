@@ -656,6 +656,46 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(expected_route_table),
                          self.get_route_config('em1'))
 
+    def test_network_with_route_via_device(self):
+        expected_route_table = """
+               - destination: 0.0.0.0/0
+                 metric: 10
+                 next-hop-interface: em1
+               - destination: 172.22.0.0/24
+                 metric: 100
+                 next-hop-address: 172.20.0.1
+                 next-hop-interface: em1
+           """
+        route1 = objects.Route("self", ip_netmask='0.0.0.0/0',
+                               route_options="metric 10")
+        route2 = objects.Route('172.20.0.1', '172.22.0.0/24',
+                               route_options="metric 100")
+        v4_addr = objects.Address('192.168.1.2/24')
+        interface = objects.Interface('em1', addresses=[v4_addr],
+                                      routes=[route1, route2])
+        self.provider.add_interface(interface)
+        self.assertEqual(yaml.safe_load(expected_route_table),
+                         self.get_route_config('em1'))
+
+    def test_network_with_ipv6_routes_via_device(self):
+        expected_route_table = """
+            - destination: ::/0
+              next-hop-interface: em1
+            - destination: beaf::/56
+              next-hop-address: beaf::1
+              next-hop-interface: em1
+        """
+        route4 = objects.Route('self', ip_netmask='::/0')
+        route5 = objects.Route('beaf::1', ip_netmask='beaf::/56')
+        v4_addr = objects.Address('192.168.1.2/24')
+        v6_addr = objects.Address('2001:abc:a::/64')
+        interface = objects.Interface('em1', addresses=[v4_addr, v6_addr],
+                                      routes=[route4, route5])
+
+        self.provider.add_interface(interface)
+        self.assertEqual(yaml.safe_load(expected_route_table),
+                         self.get_route_config('em1'))
+
     def test_network_with_ipv6_routes(self):
         expected_route_table = """
             - destination: ::/0
