@@ -992,9 +992,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if route.ip_netmask:
                 route_data[NMRoute.DESTINATION] = route.ip_netmask
             if route.next_hop:
-                route_data[NMRoute.NEXT_HOP_ADDRESS] = route.next_hop
-                route_data[NMRoute.NEXT_HOP_INTERFACE] = interface_name
+                if route.next_hop in "self":
+                    route_data[NMRoute.NEXT_HOP_INTERFACE] = interface_name
+                else:
+                    route_data[NMRoute.NEXT_HOP_ADDRESS] = route.next_hop
+                    route_data[NMRoute.NEXT_HOP_INTERFACE] = interface_name
                 if route.default:
+                    if "self" in route.next_hop:
+                        msg = "self as next_hop allowed only with ip_netmask"
+                        raise os_net_config.ConfigurationError(msg)
                     if ":" in route.next_hop:
                         route_data[NMRoute.DESTINATION] = \
                             IPV6_DEFAULT_GATEWAY_DESTINATION
