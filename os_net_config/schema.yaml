@@ -121,7 +121,9 @@ definitions:
         type: string
         pattern: >-
           ^(?=^.{1,255}$)(?!.*\.\..*)(.{1,63}\.)+(.{0,63}\.?)|(?!\.)(?!.*\.\..*)(^.{1,63}$)|(^\.$)$
-
+    self_interface:
+        type: string
+        pattern: "^self$"
     list_of_domain_name_string_or_domain_name_string:
         oneOf:
           - type: array
@@ -169,7 +171,9 @@ definitions:
         oneOf:
         - properties:
             next_hop:
-                $ref: "#/definitions/ip_address_string_or_param"
+              oneOf:
+                - $ref: "#/definitions/ip_address_string_or_param"
+                - $ref: "#/definitions/self_interface"
             ip_netmask:
                 $ref: "#/definitions/ip_cidr_string_or_param"
             default:
