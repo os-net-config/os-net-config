@@ -991,7 +991,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if route.ip_netmask:
                 route_data[NMRoute.DESTINATION] = route.ip_netmask
             if route.next_hop:
-                route_data[NMRoute.NEXT_HOP_ADDRESS] = route.next_hop
+                if route.next_hop != interface_name:
+                    route_data[NMRoute.NEXT_HOP_ADDRESS] = route.next_hop
                 route_data[NMRoute.NEXT_HOP_INTERFACE] = interface_name
                 if route.default:
                     if ":" in route.next_hop:
