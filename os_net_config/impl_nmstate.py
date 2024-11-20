@@ -44,6 +44,7 @@ import os_net_config
 from os_net_config import common
 from os_net_config import objects
 from os_net_config import utils
+from os_net_config import sriov_config
 
 logger = logging.getLogger(__name__)
 
@@ -1168,9 +1169,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}
+        cur_numvfs = sriov_config.get_numvfs(interface.name)
         if utils.get_totalvfs(interface.name) > 0:
             data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
-                Ethernet.SRIOV.TOTAL_VFS: 0}
+                Ethernet.SRIOV.TOTAL_VFS: cur_numvfs}
 
         if interface.ethtool_opts:
             self.add_ethtool_config(interface.name, data,
