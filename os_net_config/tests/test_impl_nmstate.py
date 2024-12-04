@@ -792,7 +792,7 @@ class TestNmstateNetConfig(base.TestCase):
 
     def test_network_ovs_bridge_with_dhcp(self):
         expected_brctl_p_cfg = """
-        name: br-ctlplane-p
+        name: br-ctlplane
         state: up
         type: ovs-interface
         ipv4:
@@ -817,7 +817,7 @@ class TestNmstateNetConfig(base.TestCase):
                 stp: False
             port:
                 - name: em1
-                - name: br-ctlplane-p
+                - name: br-ctlplane
         ovs-db:
             external_ids: {}
             other_config: { mac-table-size: 50000 }
@@ -829,13 +829,13 @@ class TestNmstateNetConfig(base.TestCase):
                                    members=[interface])
         self.provider.add_bridge(bridge)
         self.assertEqual(yaml.safe_load(expected_brctl_p_cfg),
-                         self.get_interface_config('br-ctlplane-p'))
+                         self.get_interface_config('br-ctlplane-if'))
         self.assertEqual(yaml.safe_load(expected_brctl_cfg),
                          self.get_bridge_config('br-ctlplane'))
 
     def test_network_ovs_bridge_with_bond(self):
         expected_brctl2_p_cfg = """
-        name: br-ctlplane2-p
+        name: br-ctlplane2
         state: up
         type: ovs-interface
         ipv4:
@@ -868,7 +868,7 @@ class TestNmstateNetConfig(base.TestCase):
                       ovs-db:
                           other_config:
                               bond-primary: em2
-                - name: br-ctlplane2-p
+                - name: br-ctlplane2
         ovs-db:
             external_ids: {}
             other_config: { mac-table-size: 50000 }
@@ -882,7 +882,7 @@ class TestNmstateNetConfig(base.TestCase):
                                    members=[bond])
         self.provider.add_bridge(bridge)
         self.assertEqual(yaml.safe_load(expected_brctl2_p_cfg),
-                         self.get_interface_config('br-ctlplane2-p'))
+                         self.get_interface_config('br-ctlplane2-if'))
         self.assertEqual(yaml.safe_load(expected_brctl2_cfg),
                          self.get_bridge_config('br-ctlplane2'))
 
@@ -912,7 +912,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: em2
                           - name: em3
-                - name: br-ctlplane2-p
+                - name: br-ctlplane2
         state: up
         ovs-db:
             external_ids: {}
@@ -956,7 +956,7 @@ class TestNmstateNetConfig(base.TestCase):
                       ovs-db:
                           other_config:
                              bond-primary: em2
-                - name: br-ctlplane2-p
+                - name: br-ctlplane2
                   vlan:
                       tag: 70
                       mode: access
@@ -1000,7 +1000,7 @@ class TestNmstateNetConfig(base.TestCase):
             port:
                 - name: em2
                 - name: em3
-                - name: br-ctlplane2-p
+                - name: br-ctlplane2
                   vlan:
                       tag: 70
                       mode: access
@@ -1041,7 +1041,7 @@ class TestNmstateNetConfig(base.TestCase):
                 stp: False
             port:
                 - name: bond0
-                - name: br-ctlplane2-p
+                - name: br-ctlplane2
         ovs-db:
             external_ids: {}
             other_config: {}
@@ -1159,7 +1159,7 @@ class TestNmstateNetConfig(base.TestCase):
                   vlan:
                       mode: access
                       tag: 5
-                - name: br-ctlplane-p
+                - name: br-ctlplane
         ovs-db:
             external_ids: {}
             other_config: { mac-table-size: 50000 }
@@ -1225,7 +1225,7 @@ class TestNmstateNetConfig(base.TestCase):
                   vlan:
                       mode: access
                       tag: 5
-                - name: br-ctlplane-p
+                - name: br-ctlplane
         ovs-db:
             external_ids: {}
             other_config: { mac-table-size: 50000 }
@@ -1253,7 +1253,7 @@ class TestNmstateNetConfig(base.TestCase):
               stp: false
            port:
              - name: physnet0-br-ex-patch
-             - name: br-phys-0-p
+             - name: br-phys-0
         ovs-db:
            external_ids: {}
            other_config: { mac-table-size: 50000 }
@@ -1270,7 +1270,7 @@ class TestNmstateNetConfig(base.TestCase):
               stp: false
            port:
              - name: br-ex-physnet0-patch
-             - name: br-ex-p
+             - name: br-ex
              - name: br-ex-physnet1-patch
         ovs-db:
            external_ids: {}
@@ -1614,7 +1614,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: eth2_2
                           - name: eth1_2
-                - name: br-bond-p
+                - name: br-bond
         ovs-db:
             external_ids: {}
             other_config: { mac-table-size: 50000 }
@@ -1703,7 +1703,7 @@ class TestNmstateNetConfig(base.TestCase):
                 stp: False
             port:
                 - name: dpdk2
-                - name: br-dpdk2-p
+                - name: br-dpdk2
         ovs-db:
             external_ids: {}
             other_config: {'mac-table-size': 50000}
@@ -1783,7 +1783,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: dpdk2
                           - name: dpdk3
-                - name: br-bond-p
+                - name: br-bond
         ovs-db:
             external_ids: {}
             other_config: {'mac-table-size': 50000}
@@ -1904,7 +1904,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: dpdk2
                           - name: dpdk3
-                - name: br-bond-p
+                - name: br-bond
         ovs-db:
             external_ids: {}
             other_config: {'mac-table-size': 50000}
@@ -2043,7 +2043,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: dpdk2
                           - name: dpdk3
-                - name: br-bond-p
+                - name: br-bond
         ovs-db:
             external_ids: {}
             other_config: {'mac-table-size': 50000}
@@ -2181,7 +2181,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: dpdk2
                           - name: dpdk3
-                - name: br-bond-p
+                - name: br-bond
         ovs-db:
             external_ids: {}
             other_config: {'mac-table-size': 50000}
@@ -2373,7 +2373,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: dpdk2
                           - name: dpdk3
-                - name: br-bond-p
+                - name: br-bond
         ovs-db:
             external_ids: {}
             other_config: {'mac-table-size': 50000}
@@ -2524,7 +2524,7 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: dpdk2
                           - name: dpdk3
-                - name: br-bond-p
+                - name: br-bond
         ovs-db:
             external_ids: {}
             other_config: {'mac-table-size': 50000}

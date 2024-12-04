@@ -1700,7 +1700,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(bridge.name, OVSBridge.TYPE)
 
-        ovs_port_name = f"{bridge.name}-p"
+        ovs_port_name = bridge.name
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
         else:
@@ -1907,7 +1907,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if ovs_interface.hwaddr:
             data[Interface.MAC] = ovs_interface.hwaddr
         logger.debug(f'add ovs_interface data: {data}')
-        self.interface_data[ovs_interface.name] = data
+        self.interface_data[ovs_interface.name + '-if'] = data
 
     def add_ovs_dpdk_port(self, ovs_dpdk_port):
         """Add a OvsDpdkPort object to the net config object.
