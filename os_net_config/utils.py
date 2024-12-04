@@ -168,13 +168,13 @@ def _ordered_nics(check_active):
         nic = name[(len(common.SYS_CLASS_NET) + 1):]
         if _is_available_nic(nic, check_active):
             if _is_embedded_nic(nic):
-                logger.info("%s is an embedded active nic" % nic)
+                logger.info(f"{nic}: an embedded active nic")
                 embedded_nics.append(nic)
             else:
-                logger.info("%s is an active nic" % nic)
+                logger.info(f"{nic}: an active nic")
                 nics.append(nic)
         else:
-            logger.info("%s is not an active nic" % nic)
+            logger.info(f"{nic}: not an active nic")
 
     # Adding nics which are bound to DPDK as it will not be found in '/sys'
     # after it is bound to DPDK driver.
@@ -186,15 +186,15 @@ def _ordered_nics(check_active):
             # to be skipped for the NIC ordering
             nic = item['name']
             if common.is_vf(item['pci_address']):
-                logger.info("%s is a VF, skipping it for NIC ordering" % nic)
+                logger.info(f"{nic}: a VF, skipping it for NIC ordering")
             elif common.is_vf_by_name(nic, True):
-                logger.info("%s is a VF, skipping it for NIC ordering" % nic)
+                logger.info(f"{nic}: a VF, skipping it for NIC ordering")
             elif _is_embedded_nic(nic):
-                logger.info("%s is an embedded DPDK bound nic" % nic)
+                logger.info(f"{nic}: an embedded DPDK bound nic")
                 if nic not in embedded_nics:
                     embedded_nics.append(nic)
             else:
-                logger.info("%s is an DPDK bound nic" % nic)
+                logger.info(f"{nic}: an DPDK bound nic")
                 if nic not in nics:
                     nics.append(nic)
     else:
@@ -206,7 +206,7 @@ def _ordered_nics(check_active):
     # (more backwards compatible)
     active_nics = (sorted(embedded_nics, key=_natural_sort_key) +
                    sorted(nics, key=_natural_sort_key))
-    logger.info("Active nics are %s" % active_nics)
+    logger.info(f"Active nics: {active_nics}")
     return active_nics
 
 
@@ -243,14 +243,13 @@ def get_dpdk_pci_address(ifname):
 
 def bind_dpdk_interfaces(ifname, driver, noop):
     if common.is_mellanox_interface(ifname) and 'vfio-pci' in driver:
-        msg = ("For Mellanox NIC %s, the default driver vfio-pci "
-               "needs to be overridden" % ifname)
+        msg = (f"{ifname}: For Mellanox NIC, the default driver vfio-pci "
+               "needs to be overridden")
         raise common.OvsDpdkBindException(msg)
 
     iface_driver = get_interface_driver(ifname)
     if iface_driver == driver:
-        logger.info("Driver (%s) is already bound to the device (%s)" %
-                    (driver, ifname))
+        logger.info(f"{ifname}: Driver {driver} is already bound")
         return
     pci_address = get_pci_address(ifname, noop)
     if not noop:
@@ -285,12 +284,10 @@ def bind_dpdk_interfaces(ifname, driver, noop):
             # raise OvsDpdkBindException, since the interface is neither
             # available nor bound with dpdk.
             if not get_stored_pci_address(ifname, noop):
-                msg = "Interface %s cannot be found" % ifname
+                msg = f"{ifname}: Interface cannot be found"
                 raise common.OvsDpdkBindException(msg)
     else:
-        logger.info('Interface %(name)s bound to DPDK driver %(driver)s '
-                    'using driverctl command' %
-                    {'name': ifname, 'driver': driver})
+        logger.info(f'{ifname}: Interface bound to DPDK driver {driver}')
 
 
 def get_pci_address(ifname, noop):
@@ -309,8 +306,7 @@ def get_pci_address(ifname, noop):
             return
 
     else:
-        logger.info('Fetch the PCI address of the interface %s using '
-                    'ethtool' % ifname)
+        logger.info(f'{ifname}: Fetch the PCI address of the interface')
 
 
 def get_stored_pci_address(ifname, noop):
@@ -320,8 +316,7 @@ def get_stored_pci_address(ifname, noop):
             if dpdk_nic['name'] == ifname:
                 return dpdk_nic['pci_address']
     else:
-        logger.info('Fetch the PCI address of the interface %s using '
-                    'ethtool' % ifname)
+        logger.info(f'{ifname}: Fetch the PCI address of the interface')
 
 
 def get_driver(ifname, noop):
@@ -339,7 +334,7 @@ def get_driver(ifname, noop):
             return
 
     else:
-        logger.info('Fetch the driver of the interface {ifname} using ethtool')
+        logger.info(f'{ifname}: Fetch the driver of the interface')
 
 
 def translate_ifname_to_pci_address(ifname, noop):
@@ -370,7 +365,7 @@ def get_dpdk_devargs(ifname, noop):
         vendor_id = common.get_vendor_id(ifname)
         device_id = common.get_device_id(ifname)
         if vendor_id == common.MLNX_VENDOR_ID:
-            logger.info("Getting devargs for Mellanox cards")
+            logger.info(f"{ifname}: Getting devargs for Mellanox cards")
             if device_id == "0x1007":
                 # Some NICs (i.e. Mellanox ConnectX-3) have only one PCI
                 # address associated with multiple ports. Using a PCI
@@ -384,9 +379,9 @@ def get_dpdk_devargs(ifname, noop):
                 # so we need to get their pci address with ethtool.
                 dpdk_devargs = get_pci_address(ifname, noop)
         else:
-            logger.info("Getting stored PCI address as devarg")
+            logger.info(f"{ifname}: Getting stored PCI address as devarg")
             dpdk_devargs = get_stored_pci_address(ifname, noop)
-        logger.debug("Devargs found: %s" % (dpdk_devargs))
+        logger.debug(f"{ifname}: Devargs found: %s" % (dpdk_devargs))
         return dpdk_devargs
 
 
@@ -621,10 +616,10 @@ def get_vf_devname(pf_name, vfid):
         if vf_name is not None:
             return vf_name
         else:
-            msg = "NIC %s with VF id: %d could not be found" % (pf_name, vfid)
+            msg = "{pf_name}-{vfid}: Could not be found"
             raise SriovVfNotFoundException(msg)
     if len(vf_nic) != 1:
-        msg = "VF name could not be identified in %s" % vf_path
+        msg = f"VF name could not be identified in {vf_path}"
         raise SriovVfNotFoundException(msg)
     # The VF's actual device name shall be the only directory seen in the path
     # /sys/class/net/<pf_name>/device/virtfn<vfid>/net
