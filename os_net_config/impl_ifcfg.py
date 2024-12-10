@@ -794,6 +794,20 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             if route.route_table:
                 if route.route_options.find('table ') == -1:
                     table = " table %s" % route.route_table
+
+            if 'self' in route.next_hop:
+                if route.default:
+                    msg = "self as next_hop allowed only with ip_netmask"
+                    raise os_net_config.ConfigurationError(msg)
+
+                if ":" not in route.ip_netmask:
+                    data += "%s dev %s%s%s\n" % (
+                        route.ip_netmask, interface_name, table, options)
+                else:
+                    data6 += "%s dev %s%s%s\n" % (
+                        route.ip_netmask, interface_name, table, options)
+                continue
+
             if ":" not in route.next_hop:
                 # Route is an IPv4 route
                 if route.default:
