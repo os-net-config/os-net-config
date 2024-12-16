@@ -162,9 +162,13 @@ class DcbConfig():
         msg.set_attr(attr=[iface_attr] + attr)
         msg.encode()
         try:
-            logger.debug(f'{self.device}: Sending message '
-                         f'{msg_type_to_name(msg_type)} cmd '
-                         f'{cmd_to_name(cmd)} attr {attr}')
+            logger.debug(
+                "%s: Sending message %s cmd %s attr %s",
+                self.device,
+                msg_type_to_name(msg_type),
+                cmd_to_name(cmd),
+                attr,
+            )
             self.nlsock.sendto(msg.data, (0, 0))
         except Exception:
             e_msg = (f'{self.device}: Failed to send '
@@ -177,7 +181,7 @@ class DcbConfig():
                 rd_data = self.nlsock.recv(netlink.NLMSG_MAX_LEN)
                 r_msg = DcbMessage(rd_data)
                 r_msg.decode()
-                logger.debug(f'{self.device}: Received message {r_msg}')
+                logger.debug("%s: Received message %s", self.device, r_msg)
                 err = self.check_error(r_msg, seq)
                 if err == netlink.NLMSG_ERROR:
                     e_msg = (f'{self.device}: NLMSG_ERROR for command '
@@ -197,18 +201,19 @@ class DcbConfig():
                                       msg_type=RTM_GETDCB,
                                       attr=[])
         dcbx = r_msg.get_encoded('DCB_ATTR_DCBX')
-        logger.debug(f"{self.device}: DCBX mode {dcbx%2} FW-0 OS-1")
+        logger.debug("%s: DCBX mode %d 0->FW 1->OS", self.device, dcbx % 2)
         return dcbx
 
     def set_dcbx(self, mode):
         dcbx_data = ['DCB_ATTR_DCBX', mode]
-        logger.debug(f'Setting DCBX mode for {self.device}\
-                       mode:{dcbx_data}')
+        logger.debug("%s: Setting DCBX mode: %s", self.device, dcbx_data)
         r_msg = self.send_and_receive(cmd=dcb_netlink.DCB_CMD_SDCBX,
                                       msg_type=RTM_SETDCB,
                                       attr=[dcbx_data])
         dcbx = r_msg.get_encoded('DCB_ATTR_DCBX')
-        logger.debug(f"{self.device}: Got DCBX mode:{dcbx%2} FW-0 OS-1")
+        logger.debug(
+            "%s: Read DCBX mode: %d 0->FW 1->OS", self.device, dcbx % 2
+        )
         return dcbx
 
     def get_ieee_ets(self):
@@ -226,9 +231,13 @@ class DcbConfig():
         else:
             return None, None, None
 
-        logger.debug(f'{device}: Received for interface\n'
-                     f'tc_tx_bw: {tc_tx_bw} tc_tsa: {tc_tsa}'
-                     f'prio_tc: {prio_tc}')
+        logger.debug(
+            "%s: Received tc_tx_bw: %s tc_tsa: %s prio_tc: %s",
+            device,
+            tc_tx_bw,
+            tc_tsa,
+            prio_tc,
+        )
 
         return prio_tc, tc_tsa, tc_tx_bw
 
@@ -267,7 +276,8 @@ class DcbConfig():
         dcb_app = {'selector': selector,
                    'priority': priority,
                    'protocol': protocol}
-        logger.debug(f'Adding ieee app {dcb_app}')
+        logger.debug("Adding ieee app %s", dcb_app)
+
         ieee_app = ['DCB_ATTR_IEEE_APP', dcb_app]
         ieee_app_table = self.add_nested_attr('DCB_ATTR_IEEE_APP_TABLE',
                                               ieee_app)
@@ -281,7 +291,7 @@ class DcbConfig():
         dcb_app = {'selector': selector,
                    'priority': priority,
                    'protocol': protocol}
-        logger.debug(f'Deleting ieee app {dcb_app}')
+        logger.debug("Deleting ieee app %s", dcb_app)
         ieee_app = ['DCB_ATTR_IEEE_APP', dcb_app]
         ieee_app_table = self.add_nested_attr('DCB_ATTR_IEEE_APP_TABLE',
                                               ieee_app)
@@ -316,12 +326,12 @@ class DcbApplyConfig():
 
             prio_tc, tsa, tc_bw = dcb_config.get_ieee_ets()
 
-            logger.info(f'-----------------------------')
-            logger.info(f'Interface: {device}')
-            logger.info(f'DCBX Mode : {mode[dcbx_mode]}')
-            logger.info(f'Trust mode: {trust}')
+            logger.info("-----------------------------")
+            logger.info("Interface: %s", device)
+            logger.info("DCBX Mode : %s", mode[dcbx_mode])
+            logger.info("Trust mode: %s", trust)
             if dscp_map:
-                logger.info(f'dscp2prio mapping: {dscp_map}')
+                logger.info("dscp2prio mapping: %s", dscp_map)
 
             if prio_tc is None:
                 logger.info('Failed to get IEEE ETS')
@@ -349,14 +359,14 @@ class DcbApplyConfig():
                 except Exception:
                     pass
 
-                msg += f', priority: '
+                msg += ', priority: '
                 try:
                     for up in tc2up[tc]:
                         msg += f' {up} '
                 except Exception:
                     pass
                 if msg:
-                    logger.info(f'{msg}')
+                    logger.info(msg)
 
     def apply(self):
 
@@ -386,12 +396,15 @@ class DcbApplyConfig():
                 dcb_app = DcbApp(selector, priority, protocol)
                 for key in curr_apptable.apps.keys():
                     if dcb_app.is_equal(curr_apptable.apps[key]):
-                        logger.debug(f"{cfg['device']}: Not adding "
-                                     f"{dcb_app.dump()}")
+                        logger.debug(
+                            "%s: Not adding %s", cfg["device"], dcb_app.dump()
+                        )
                         curr_apptable.apps.pop(key)
                         break
                 else:
-                    logger.debug(f"{cfg['device']}: Adding {dcb_app.dump()}")
+                    logger.debug(
+                        "%s: Adding %s", cfg["device"], dcb_app.dump()
+                    )
                     add_app_table.apps.update({i: dcb_app})
                     i += 1
             curr_apptable.del_app_entry(dcb_config,
@@ -406,25 +419,25 @@ def mstconfig(device, pci_addr):
     :pci_addr pci address of the interface
     """
 
-    logger.info(f"{device}: Running mstconfig")
+    logger.info("%s: Running mstconfig", device)
     try:
         processutils.execute('mstconfig', '-y', '-d', pci_addr, 'set',
                              'LLDP_NB_DCBX_P1=TRUE', 'LLDP_NB_TX_MODE_P1=2',
                              'LLDP_NB_RX_MODE_P1=2', 'LLDP_NB_DCBX_P2=TRUE',
                              'LLDP_NB_TX_MODE_P2=2', 'LLDP_NB_RX_MODE_P2=2')
     except processutils.ProcessExecutionError:
-        logger.error(f"mstconfig failed for {device}")
+        logger.error("%s: mstconfig failed", device)
         raise
 
 
 def mstfwreset(device, pci_addr):
     """mstfwreset is an utility to reset the PCI device and load new FW"""
-    logger.info(f"{device}: Running mstfwreset")
+    logger.info("%s: Running mstfwreset", device)
     try:
         processutils.execute('mstfwreset', '--device', pci_addr,
                              '--level', '3', '-y', 'r')
     except processutils.ProcessExecutionError:
-        logger.error(f"mstfwreset failed for {device}")
+        logger.error("%s: mstfwreset failed", device)
         raise
 
 
@@ -484,12 +497,12 @@ def parse_config(user_config_file):
         try:
             with open(user_config_file) as cf:
                 iface_array = yaml.safe_load(cf.read()).get("dcb_config")
-                logger.debug(f"dcb_config: {iface_array}")
+                logger.debug("dcb_config: %s", iface_array)
         except IOError:
-            logger.error(f"Error reading file: {user_config_file}")
+            logger.error("Error reading file: %s", user_config_file)
             return 1
     else:
-        logger.error(f"No config file exists at: {user_config_file}")
+        logger.error("No config file exists at: %s", user_config_file)
         return 1
 
     # Validate the configurations for schematic errors

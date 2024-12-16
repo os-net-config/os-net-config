@@ -58,7 +58,7 @@ def remove_ifcfg_config(ifname):
     if re.match(r'[\w-]+$', ifname):
         ifcfg_file = ifcfg_config_path(ifname)
         if os.path.exists(ifcfg_file):
-            logger.info('removing existing ifcfg script for intf: %s' % ifname)
+            logger.info("removing existing ifcfg script for intf: %s", ifname)
             os.remove(ifcfg_file)
 
 
@@ -118,7 +118,7 @@ def stop_dhclient_process(interface):
     try:
         dhclient = dhclient_path()
     except RuntimeError as err:
-        logger.info('Exception when stopping dhclient: %s' % err)
+        logger.info("Exception when stopping dhclient: %s", err)
         return
 
     if os.path.exists(pid_file):
@@ -128,8 +128,9 @@ def stop_dhclient_process(interface):
         try:
             os.unlink(pid_file)
         except OSError as err:
-            logger.error('Could not remove dhclient pid file \'%s\': %s' %
-                         (pid_file, err))
+            logger.error(
+                "Could not remove dhclient pid file '%s': %s", pid_file, err
+            )
 
 
 class IfcfgNetConfig(os_net_config.NetConfig):
@@ -259,8 +260,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         """
 
         file_data = common.get_file_data(filename)
-        logger.debug(f'Original ifcfg file:\n{file_data}')
-        logger.debug(f'New ifcfg file:\n{new_data}')
+        logger.debug("Original ifcfg file:\n%s", file_data)
+        logger.debug("New ifcfg file:\n%s", new_data)
         file_values = self.parse_ifcfg(file_data)
         new_values = self.parse_ifcfg(new_data)
         restart_required = False
@@ -278,7 +279,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     if change in new_values:
                         if (new_values[change].upper() == 'DHCP'):
                             restart_required = True
-                            logger.debug(f'DHCP on {change} requires restart')
+                            logger.debug("DHCP on %s requires restart", change)
                 else:
                     restart_required = True
         if not restart_required:
@@ -307,8 +308,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         previous_cfg = common.get_file_data(filename)
         file_values = self.parse_ifcfg(previous_cfg)
         data_values = self.parse_ifcfg(data)
-        logger.debug(f'File values:\n{file_values}')
-        logger.debug(f'Data values:\n{data_values}')
+        logger.debug("%s: File values:\n%s", dev_name, file_values)
+        logger.debug("%s: Data values:\n%s", dev_name, data_values)
         changes = self.enumerate_ifcfg_changes(file_values, data_values)
         resolv_conf = ''
         if 'DOMAIN' in changes or 'DNS1' in changes or 'DNS2' in changes:
@@ -338,8 +339,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         previous_cfg = common.get_file_data(filename)
         file_values = self.parse_ifcfg(previous_cfg)
         data_values = self.parse_ifcfg(data)
-        logger.debug(f'File values:\n{file_values}')
-        logger.debug(f'Data values:\n{data_values}')
+        logger.debug("%s: File values:\n%s", dev_name, file_values)
+        logger.debug("%s: Data values:\n%s", dev_name, data_values)
         changes = self.enumerate_ifcfg_changes(file_values, data_values)
         commands = []
         new_cidr = 0
@@ -389,8 +390,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         previous_cfg = common.get_file_data(filename)
         file_values = self.parse_ifcfg(previous_cfg)
         data_values = self.parse_ifcfg(data)
-        logger.debug(f'File values:\n{file_values}')
-        logger.debug(f'Data values:\n{data_values}')
+        logger.debug("%s: File values:\n%s", device_name, file_values)
+        logger.debug("%s: Data values:\n%s", device_name, data_values)
         changes = self.enumerate_ifcfg_changes(file_values, data_values)
         commands = []
 
@@ -781,7 +782,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         return data
 
     def _add_routes(self, interface_name, routes=[]):
-        logger.info('adding custom route for interface: %s' % interface_name)
+        logger.info("%s: adding custom route", interface_name)
         data = ""
         first_line = ""
         data6 = ""
@@ -816,8 +817,16 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                              interface_name, table, options)
         self.route_data[interface_name] = first_line + data
         self.route6_data[interface_name] = first_line6 + data6
-        logger.debug('route data: %s' % self.route_data[interface_name])
-        logger.debug('ipv6 route data: %s' % self.route6_data[interface_name])
+        logger.debug(
+            "%s: route data: %s",
+            interface_name,
+            self.route_data[interface_name],
+        )
+        logger.debug(
+            "%s: ipv6 route data: %s",
+            interface_name,
+            self.route6_data[interface_name],
+        )
 
     def _add_rules(self, interface, rules):
         """Add RouteRule objects to an interface.
@@ -825,7 +834,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param interface: the name of the interface to apply rules.
         :param rules: the list of rules to apply to the interface.
         """
-        logger.info('adding route rules for interface: %s' % interface)
+        logger.info("%s: adding route rules", interface)
         data = ""
         first_line = _IFCFG_FILE_HEADER
         for rule in rules:
@@ -833,15 +842,18 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 data += "# %s\n" % rule.comment
             data += "%s\n" % rule.rule
         self.rule_data[interface] = first_line + data
-        logger.debug('rules for interface: %s' % self.rule_data[interface])
+        logger.debug(
+            "%s: rules for interface: %s", interface, self.rule_data[interface]
+        )
 
     def add_route_table(self, route_table):
         """Add a RouteTable object to the net config object.
 
         :param route_table: the RouteTable object to add.
         """
-        logger.info('adding route table: %s %s' % (route_table.table_id,
-                                                   route_table.name))
+        logger.info(
+            "adding route table: %s %s", route_table.table_id, route_table.name
+        )
         self.route_table_data[int(route_table.table_id)] = route_table.name
 
     def del_route_table(self, route_table):
@@ -852,9 +864,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param interface: The Interface object to add.
         """
-        logger.info('adding interface: %s' % interface.name)
+        logger.info("%s: adding interface", interface.name)
         data = self._add_common(interface)
-        logger.debug('interface data: %s' % data)
+        logger.debug("interface data: %s", data)
         self.interface_data[interface.name] = data
         if interface.routes:
             self._add_routes(interface.name, interface.routes)
@@ -862,8 +874,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(interface.name, interface.rules)
 
         if interface.renamed:
-            logger.info("Interface %s being renamed to %s"
-                        % (interface.hwname, interface.name))
+            logger.info(
+                "Interface %s being renamed to %s",
+                interface.hwname,
+                interface.name,
+            )
             self.renamed_interfaces[interface.hwname] = interface.name
 
     def del_interface(self, interface):
@@ -871,7 +886,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param interface: The Interface object to be deleted.
         """
-        logger.info(f'Deleting {interface}')
+        logger.info("%s: Deleting", interface)
         self._del_common(interface)
 
     def add_vlan(self, vlan):
@@ -879,9 +894,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param vlan: The vlan object to add.
         """
-        logger.info('adding vlan: %s' % vlan.name)
+        logger.info("%s: adding vlan", vlan.name)
         data = self._add_common(vlan)
-        logger.debug('vlan data: %s' % data)
+        logger.debug("vlan data: %s", data)
         self.vlan_data[vlan.name] = data
         if vlan.routes:
             self._add_routes(vlan.name, vlan.routes)
@@ -893,7 +908,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param vlan: The vlan object to be deleted.
         """
-        logger.info(f'Deleting vlan {vlan}')
+        logger.info("%s: Deleting vlan ", vlan)
         self._del_common(vlan)
 
     def add_ivs_interface(self, ivs_interface):
@@ -901,9 +916,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ivs_interface: The ivs_interface object to add.
         """
-        logger.info('adding ivs_interface: %s' % ivs_interface.name)
+        logger.info("%s: adding ivs_interface", ivs_interface.name)
         data = self._add_common(ivs_interface)
-        logger.debug('ivs_interface data: %s' % data)
+        logger.debug("ivs_interface data: %s", data)
         self.ivsinterface_data[ivs_interface.name] = data
         if ivs_interface.routes:
             self._add_routes(ivs_interface.name, ivs_interface.routes)
@@ -916,9 +931,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param nfvswitch_internal: The nfvswitch_internal object to add.
         """
         iface_name = nfvswitch_internal.name
-        logger.info('adding nfvswitch_internal interface: %s' % iface_name)
+        logger.info("%s: adding nfvswitch_internal interface", iface_name)
         data = self._add_common(nfvswitch_internal)
-        logger.debug('nfvswitch_internal interface data: %s' % data)
+        logger.debug("nfvswitch_internal interface data: %s", data)
         self.nfvswitch_intiface_data[iface_name] = data
         if nfvswitch_internal.routes:
             self._add_routes(iface_name, nfvswitch_internal.routes)
@@ -930,9 +945,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bridge: The OvsBridge object to add.
         """
-        logger.info('adding bridge: %s' % bridge.name)
+        logger.info("%s: adding bridge", bridge.name)
         data = self._add_common(bridge)
-        logger.debug('bridge data: %s' % data)
+        logger.debug("bridge data: %s", data)
         self.bridge_data[bridge.name] = data
         if bridge.routes:
             self._add_routes(bridge.name, bridge.routes)
@@ -944,7 +959,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bridge: The OvsBridge object to be deleted
         """
-        logger.info(f'Deleting bridge: {bridge.name}')
+        logger.info("%s: Deleting bridge", bridge.name)
         self._del_common(bridge)
 
     def add_ovs_user_bridge(self, bridge):
@@ -952,9 +967,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bridge: The OvsUserBridge object to add.
         """
-        logger.info('adding ovs user bridge: %s' % bridge.name)
+        logger.info("%s: adding ovs user bridge", bridge.name)
         data = self._add_common(bridge)
-        logger.debug('ovs user bridge data: %s' % data)
+        logger.debug("ovs user bridge data: %s", data)
         self.bridge_data[bridge.name] = data
         if bridge.routes:
             self._add_routes(bridge.name, bridge.routes)
@@ -966,7 +981,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bridge: The OvsUserBridge object to be deleted.
         """
-        logger.info(f'Deleting ovs user bridge: {bridge.name}')
+        logger.info("%s: Deleting ovs user bridge", bridge.name)
         self._del_common(bridge)
 
     def add_linux_bridge(self, bridge):
@@ -974,9 +989,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bridge: The LinuxBridge object to add.
         """
-        logger.info('adding linux bridge: %s' % bridge.name)
+        logger.info("%s: adding linux bridge", bridge.name)
         data = self._add_common(bridge)
-        logger.debug('bridge data: %s' % data)
+        logger.debug("bridge data: %s" % data)
         self.linuxbridge_data[bridge.name] = data
         if bridge.routes:
             self._add_routes(bridge.name, bridge.routes)
@@ -1010,9 +1025,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bond: The OvsBond object to add.
         """
-        logger.info('adding bond: %s' % bond.name)
+        logger.info("%s: adding bond", bond.name)
         data = self._add_common(bond)
-        logger.debug('bond data: %s' % data)
+        logger.debug("bond data: %s", data)
         self.interface_data[bond.name] = data
         if bond.routes:
             self._add_routes(bond.name, bond.routes)
@@ -1024,7 +1039,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bond: The OvsBond object to be deleted.
         """
-        logger.info(f'Deleting bond: {bond.name}')
+        logger.info("%s: Deleting bond", bond.name)
         self._del_common(bond)
 
     def add_linux_bond(self, bond):
@@ -1032,9 +1047,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bond: The LinuxBond object to add.
         """
-        logger.info('adding linux bond: %s' % bond.name)
+        logger.info("%s: adding linux bond", bond.name)
         data = self._add_common(bond)
-        logger.debug('bond data: %s' % data)
+        logger.debug("bond data: %s", data)
         self.linuxbond_data[bond.name] = data
         if bond.routes:
             self._add_routes(bond.name, bond.routes)
@@ -1046,7 +1061,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param bond: The LinuxBond object to be deleted.
         """
-        logger.info(f'Deleting linux bond: {bond.name}')
+        logger.info("%s: Deleting linux bond", bond.name)
         self._del_common(bond)
 
     def add_linux_team(self, team):
@@ -1054,9 +1069,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param team: The LinuxTeam object to add.
         """
-        logger.info('adding linux team: %s' % team.name)
+        logger.info("%s: adding linux team", team.name)
         data = self._add_common(team)
-        logger.debug('team data: %s' % data)
+        logger.debug("team data: %s", data)
         self.linuxteam_data[team.name] = data
         if team.routes:
             self._add_routes(team.name, team.routes)
@@ -1068,9 +1083,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param tunnel: The OvsTunnel object to add.
         """
-        logger.info('adding ovs tunnel: %s' % tunnel.name)
+        logger.info("%s: adding ovs tunnel", tunnel.name)
         data = self._add_common(tunnel)
-        logger.debug('ovs tunnel data: %s' % data)
+        logger.debug("ovs tunnel data: %s", data)
         self.interface_data[tunnel.name] = data
 
     def add_ovs_patch_port(self, ovs_patch_port):
@@ -1078,9 +1093,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ovs_patch_port: The OvsPatchPort object to add.
         """
-        logger.info('adding ovs patch port: %s' % ovs_patch_port.name)
+        logger.info("%s: adding ovs patch port", ovs_patch_port.name)
         data = self._add_common(ovs_patch_port)
-        logger.debug('ovs patch port data: %s' % data)
+        logger.debug("ovs patch port data: %s", data)
         self.interface_data[ovs_patch_port.name] = data
 
     def add_ib_interface(self, ib_interface):
@@ -1088,9 +1103,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ib_interface: The InfiniBand interface object to add.
         """
-        logger.info('adding ib_interface: %s' % ib_interface.name)
+        logger.info("%s: adding ib_interface", ib_interface.name)
         data = self._add_common(ib_interface)
-        logger.debug('ib_interface data: %s' % data)
+        logger.debug("ib_interface data: %s", data)
         self.ib_interface_data[ib_interface.name] = data
         if ib_interface.routes:
             self._add_routes(ib_interface.name, ib_interface.routes)
@@ -1098,8 +1113,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(ib_interface.name, ib_interface.rules)
 
         if ib_interface.renamed:
-            logger.info("InfiniBand interface %s being renamed to %s"
-                        % (ib_interface.hwname, ib_interface.name))
+            logger.info(
+                "InfiniBand interface %s being renamed to %s",
+                ib_interface.hwname,
+                ib_interface.name,
+            )
             self.renamed_interfaces[ib_interface.hwname] = ib_interface.name
 
     def del_ib_interface(self, ib_interface):
@@ -1107,7 +1125,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ib_interface: The InfiniBand interface object to be deleted
         """
-        logger.info(f'Deleting ib_interface: {ib_interface.name}')
+        logger.info("%s: Deleting ib_interface", ib_interface.name)
         self._del_common(ib_interface)
 
     def add_ib_child_interface(self, ib_child_interface):
@@ -1116,9 +1134,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ib_child_interface: The InfiniBand child
          interface object to add.
         """
-        logger.info('adding ib_child_interface: %s' % ib_child_interface.name)
+        logger.info(
+            "%s: adding ib_child_interface: %s", ib_child_interface.name
+        )
         data = self._add_common(ib_child_interface)
-        logger.debug('ib_child_interface data: %s' % data)
+        logger.debug("ib_child_interface data: %s", data)
         self.ib_childs_data[ib_child_interface.name] = data
         if ib_child_interface.routes:
             self._add_routes(ib_child_interface.name,
@@ -1132,7 +1152,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ib_child_interface: The InfiniBand child
          interface object to be deleted.
         """
-        logger.info(f'Deleting ib_child_interface: {ib_child_interface.name}')
+        logger.info("%s: Deleting ib_child_interface", ib_child_interface.name)
         self._del_common(ib_child_interface)
 
     def add_ovs_dpdk_port(self, ovs_dpdk_port):
@@ -1140,7 +1160,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ovs_dpdk_port: The OvsDpdkPort object to add.
         """
-        logger.info('adding ovs dpdk port: %s' % ovs_dpdk_port.name)
+        logger.info("%s: adding ovs dpdk port", ovs_dpdk_port.name)
 
         # DPDK Port will have only one member of type Interface, validation
         # checks are added at the object creation stage.
@@ -1152,7 +1172,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             remove_ifcfg_config(ifname)
 
         data = self._add_common(ovs_dpdk_port)
-        logger.debug('ovs dpdk port data: %s' % data)
+        logger.debug("ovs dpdk port data: %s", data)
         self.interface_data[ovs_dpdk_port.name] = data
 
         """Add an extra ifcfg entry for mellanox NICs,
@@ -1170,7 +1190,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ovs_dpdk_port: The OvsDpdkPort object to be deleted.
         """
-        logger.info(f'Deleting ovs dpdk port: {ovs_dpdk_port.name}')
+        logger.info("%s: Deleting ovs dpdk port", ovs_dpdk_port.name)
         self._del_common(ovs_dpdk_port)
 
     def add_ovs_dpdk_bond(self, ovs_dpdk_bond):
@@ -1178,7 +1198,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ovs_dpdk_bond: The OvsBond object to add.
         """
-        logger.info('adding ovs dpdk bond: %s' % ovs_dpdk_bond.name)
+        logger.info("%s: adding ovs dpdk bond", ovs_dpdk_bond.name)
 
         # Bind the dpdk interface
         for dpdk_port in ovs_dpdk_bond.members:
@@ -1190,7 +1210,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 remove_ifcfg_config(ifname)
 
         data = self._add_common(ovs_dpdk_bond)
-        logger.debug('ovs dpdk bond data: %s' % data)
+        logger.debug("ovs dpdk bond data: %s", data)
         self.interface_data[ovs_dpdk_bond.name] = data
         if ovs_dpdk_bond.routes:
             self._add_routes(ovs_dpdk_bond.name, ovs_dpdk_bond.routes)
@@ -1214,7 +1234,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param ovs_dpdk_bond: The OvsBond object to be deleted.
         """
-        logger.info(f'Deleting ovs dpdk bond: {ovs_dpdk_bond.name}')
+        logger.info("%s: Deleting ovs dpdk bond", ovs_dpdk_bond.name)
         self._del_common(ovs_dpdk_bond)
 
     def add_sriov_pf(self, sriov_pf):
@@ -1222,9 +1242,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param sriov_pf: The SriovPF object to add
         """
-        logger.info('adding sriov pf: %s' % sriov_pf.name)
+        logger.info("%s: adding sriov pf", sriov_pf.name)
         data = self._add_common(sriov_pf)
-        logger.debug('sriov pf data: %s' % data)
+        logger.debug("sriov pf data: %s" % data)
         self.interface_data[sriov_pf.name] = data
         if sriov_pf.routes:
             self._add_routes(sriov_pf.name, sriov_pf.routes)
@@ -1236,7 +1256,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param sriov_pf: The SriovPF object to be deleted
         """
-        logger.info(f'Deleting sriov pf: {sriov_pf.name}')
+        logger.info("%s: Deleting sriov pf", sriov_pf.name)
         self.remove_sriov_pfs.append(sriov_pf.name)
 
     def add_sriov_vf(self, sriov_vf):
@@ -1244,10 +1264,14 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to add
         """
-        logger.info('adding sriov vf: %s for pf: %s, vfid: %d'
-                    % (sriov_vf.name, sriov_vf.device, sriov_vf.vfid))
+        logger.info(
+            "%s-%d: adding sriov vf: %s",
+            sriov_vf.device,
+            sriov_vf.vfid,
+            sriov_vf.name,
+        )
         data = self._add_common(sriov_vf)
-        logger.debug('sriov vf data: %s' % data)
+        logger.debug("sriov vf data: %s", data)
         self.interface_data[sriov_vf.name] = data
         if sriov_vf.routes:
             self._add_routes(sriov_vf.name, sriov_vf.routes)
@@ -1259,8 +1283,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to be deleted
         """
-        logger.info(f'Deleting sriov vf: {sriov_vf.name} for pf: '
-                    f'{sriov_vf.device}, vfid: {sriov_vf.vfid}')
+        logger.info(
+            "%s-%d: Deleting sriov vf: %s",
+            sriov_vf.device,
+            sriov_vf.vfid,
+            sriov_vf.name,
+        )
         self._del_common(sriov_vf)
 
     def add_vpp_interface(self, vpp_interface):
@@ -1277,8 +1305,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         if not self.noop:
             self.ifdown(vpp_interface.name)
             remove_ifcfg_config(vpp_interface.name)
-        logger.info('adding vpp interface: %s %s'
-                    % (vpp_interface.name, vpp_interface.pci_dev))
+        logger.info(
+            "%s: adding vpp interface: %s",
+            vpp_interface.name,
+            vpp_interface.pci_dev,
+        )
         self.vpp_interface_data[vpp_interface.name] = vpp_interface
 
     def add_vpp_bond(self, vpp_bond):
@@ -1286,7 +1317,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param vpp_bond: The VPPBond object to add
         """
-        logger.info('adding vpp bond: %s' % vpp_bond.name)
+        logger.info("%s: adding vpp bond", vpp_bond.name)
         self.vpp_bond_data[vpp_bond.name] = vpp_bond
 
     def add_contrail_vrouter(self, contrail_vrouter):
@@ -1295,14 +1326,15 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param contrail_vrouter:
            The ContrailVrouter object to add
         """
-        logger.info('adding contrail_vrouter interface: %s'
-                    % contrail_vrouter.name)
+        logger.info(
+            "%s: adding contrail_vrouter interface", contrail_vrouter.name
+        )
         ifnames = ",".join([m.name for m in contrail_vrouter.members])
         data = self._add_common(contrail_vrouter)
         data += "DEVICETYPE=vhost\n"
         data += "TYPE=kernel_mode\n"
         data += "BIND_INT=%s\n" % ifnames
-        logger.debug('contrail data: %s' % data)
+        logger.debug("contrail data: %s" % data)
         self.interface_data[contrail_vrouter.name] = data
         if contrail_vrouter.routes:
             self._add_routes(contrail_vrouter.name, contrail_vrouter.routes)
@@ -1315,8 +1347,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param contrail_vrouter_dpdk:
            The ContrailVrouterDpdk object to add
         """
-        logger.info('adding contrail vrouter dpdk interface: %s'
-                    % contrail_vrouter_dpdk.name)
+        logger.info(
+            "%s: adding contrail vrouter dpdk interface",
+            contrail_vrouter_dpdk.name,
+        )
         pci_string = ",".join(
             utils.translate_ifname_to_pci_address(bind_int.name, self.noop)
             for bind_int in contrail_vrouter_dpdk.members)
@@ -1331,7 +1365,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         data += "CPU_LIST=%s\n" % contrail_vrouter_dpdk.cpu_list
         if contrail_vrouter_dpdk.vlan_id:
             data += "VLAN_ID=%s\n" % contrail_vrouter_dpdk.vlan_id
-        logger.debug('contrail dpdk data: %s' % data)
+        logger.debug("contrail dpdk data: %s", data)
         self.interface_data[contrail_vrouter_dpdk.name] = data
         if contrail_vrouter_dpdk.routes:
             self._add_routes(contrail_vrouter_dpdk.name,
@@ -1346,8 +1380,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param linux_tap:
            The LinuxTap object to add
         """
-        logger.info('adding Linux TAP interface: %s'
-                    % linux_tap.name)
+        logger.info("%s: adding Linux TAP interface", linux_tap.name)
         data = self._add_common(linux_tap)
         data += "TYPE=Tap\n"
         self.interface_data[linux_tap.name] = data
@@ -1463,12 +1496,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         the same provider.
         """
         for iface in self.remove_iface:
-            logger.info(f'Purging {iface}')
+            logger.info("%s: Purging ", iface)
             self.purge(iface)
         if self.remove_sriov_pfs:
             sriov_config.reset_sriov_pfs()
         for sriov_dev in self.remove_sriov_pfs:
-            logger.info(f'Purging SR-IOV device {sriov_dev}')
+            logger.info("%s: Purging SR-IOV device", sriov_dev)
             self.purge(sriov_dev)
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
@@ -1546,8 +1579,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     stop_dhclient_interfaces.append(interface_name)
 
             else:
-                logger.info('No changes required for interface: %s' %
-                            interface_name)
+                logger.info(
+                    "%s: No changes required for interface", interface_name
+                )
             if utils.diff(route_path, route_data):
                 update_files[route_path] = route_data
                 if interface_name not in restart_interfaces:
@@ -1582,8 +1616,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         (interface_name, interface_path, iface_data))
                 update_files[interface_path] = iface_data
             else:
-                logger.info('No changes required for ivs interface: %s' %
-                            interface_name)
+                logger.info(
+                    "%s: No changes required for ivs interface", interface_name
+                )
             if utils.diff(route_path, route_data):
                 update_files[route_path] = route_data
                 if interface_name not in restart_interfaces:
@@ -1618,8 +1653,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         (iface_name, iface_path, iface_data))
                 update_files[iface_path] = iface_data
             else:
-                logger.info('No changes required for nfvswitch interface: %s' %
-                            iface_name)
+                logger.info(
+                    "%s: No changes required for nfvswitch interface",
+                    iface_name,
+                )
             if utils.diff(route_path, route_data):
                 update_files[route_path] = route_data
                 if iface_name not in restart_interfaces:
@@ -1658,7 +1695,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                           bridge_data))
                 update_files[bridge_path] = bridge_data
             else:
-                logger.info('No changes required for bridge: %s' % bridge_name)
+                logger.info("%s: No changes required for bridge", bridge_name)
             if utils.diff(br_route_path, route_data):
                 update_files[br_route_path] = route_data
                 if bridge_name not in restart_interfaces:
@@ -1697,7 +1734,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                           bridge_data))
                 update_files[bridge_path] = bridge_data
             else:
-                logger.info('No changes required for bridge: %s' % bridge_name)
+                logger.info("%s: No changes required for bridge", bridge_name)
             if utils.diff(br_route_path, route_data):
                 update_files[br_route_path] = route_data
                 if bridge_name not in restart_bridges:
@@ -1736,8 +1773,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         (team_name, team_path, team_data))
                 update_files[team_path] = team_data
             else:
-                logger.info('No changes required for linux team: %s' %
-                            team_name)
+                logger.info(
+                    "%s: No changes required for linux team", team_name
+                )
             if utils.diff(team_route_path, route_data):
                 update_files[team_route_path] = route_data
                 if team_name not in restart_linux_teams:
@@ -1781,8 +1819,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         restart_linux_bonds.append(bond_name)
                         break
                 else:
-                    logger.info('No changes required for linux bond: %s' %
-                                bond_name)
+                    logger.info(
+                        "%s: No changes required for linux bond", bond_name
+                    )
             if utils.diff(bond_route_path, route_data):
                 update_files[bond_route_path] = route_data
                 if bond_name not in restart_linux_bonds:
@@ -1818,8 +1857,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         (interface_name, interface_path, iface_data))
                 update_files[interface_path] = iface_data
             else:
-                logger.info('No changes required for InfiniBand iface: %s' %
-                            interface_name)
+                logger.info(
+                    "%s: No changes required for InfiniBand iface",
+                    interface_name,
+                )
             if utils.diff(route_path, route_data):
                 update_files[route_path] = route_data
                 if interface_name not in restart_interfaces:
@@ -1863,8 +1904,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         (vlan_name, vlan_path, vlan_data))
                 update_files[vlan_path] = vlan_data
             else:
-                logger.info('No changes required for vlan interface: %s' %
-                            vlan_name)
+                logger.info(
+                    "%s: No changes required for vlan interface", vlan_name
+                )
             if utils.diff(vlan_route_path, route_data):
                 update_files[vlan_route_path] = route_data
                 if vlan_name not in restart_vlans:
@@ -1909,8 +1951,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         (ib_child_name, ib_child_path, ib_child_data))
                 update_files[ib_child_path] = ib_child_data
             else:
-                logger.info('No changes required for the ib child interface: '
-                            '%s' % ib_child_name)
+                logger.info(
+                    "%s: No changes required for the ib child interface",
+                    ib_child_name,
+                )
             if utils.diff(ib_child_route_path, route_data):
                 update_files[ib_child_route_path] = route_data
                 if ib_child_name not in restart_ib_childs:
@@ -1939,8 +1983,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 if ifcfg_file not in all_file_names:
                     interface_name = ifcfg_file[len(cleanup_pattern()) - 1:]
                     if interface_name != 'lo':
-                        logger.info('cleaning up interface: %s'
-                                    % interface_name)
+                        logger.info(
+                            "%s: cleaning up interface", interface_name
+                        )
                         self.ifdown(interface_name)
                         self.remove_config(ifcfg_file)
 
@@ -1950,16 +1995,20 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                                         interface[1],
                                                         interface[2])
                 if commands:
-                    logger.debug('Running ip commands on interface: %s' %
-                                 interface[0])
+                    logger.debug(
+                        "%s: Running ip commands on interface", interface[0]
+                    )
                 for command in commands:
                     try:
                         args = command.split()
                         self.execute(f'Running ip {command}', ipcmd, *args)
                     except Exception as e:
-                        logger.warning(f"Error in 'ip {command}', "
-                                       f"restarting {interface[0]}:\n"
-                                       f"{str(e)}")
+                        logger.warning(
+                            "Error in 'ip %s', restarting %s:\n%s",
+                            command,
+                            interface[0],
+                            e,
+                        )
                         restart_interfaces.append(interface[0])
                         restart_interfaces.extend(
                             self.child_members(interface[0]))
@@ -1969,17 +2018,22 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                                       interface[1],
                                                       interface[2])
                 if resolv_conf:
-                    logger.debug('Updating /etc/resolv.conf with config from '
-                                 f'interface {interface[0]}')
+                    logger.debug(
+                        "%s: Updating /etc/resolv.conf with config",
+                        interface[0],
+                    )
                     header = '# Generated by os-net-config\n'
                     resolv_conf = header + resolv_conf
                     try:
                         with open('/etc/resolv.conf', 'w') as f:
                             f.write(resolv_conf)
                     except Exception as e:
-                        logger.warning("Error writing to /etc/resolv.conf "
-                                       f"restarting {interface[0]}:\n"
-                                       f"{str(e)}")
+                        logger.warning(
+                            "Error writing to /etc/resolv.conf, "
+                            "restarting %s\n%s",
+                            interface[0],
+                            e,
+                        )
                         restart_interfaces.append(interface[0])
                         restart_interfaces.extend(
                             self.child_members(interface[0]))
@@ -1989,8 +2043,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                                       interface[1],
                                                       interface[2])
                 if commands:
-                    logger.debug('Running ethtool commands on interface: %s' %
-                                 interface[0])
+                    logger.debug(
+                        "%s: Running ethtool commands on interface",
+                        interface[0],
+                    )
                 for command in commands:
                     try:
                         args = command.split()
@@ -2000,9 +2056,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         self.execute('Running ethtool %s' % command,
                                      ethtoolcmd, *args)
                     except Exception as e:
-                        logger.warning("Error in 'ethtool %s', restarting %s:\
-                                       \n%s)" %
-                                       (command, interface[0], str(e)))
+                        logger.warning(
+                            "Error in 'ethtool %s', restarting %s:\n%s)",
+                            command,
+                            interface[0],
+                            e,
+                        )
                         restart_interfaces.append(interface[0])
                         restart_interfaces.extend(
                             self.child_members(interface[0]))
@@ -2013,14 +2072,20 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                                         bridge[1],
                                                         bridge[2])
                 if commands:
-                    logger.debug(f'Running ip commands on bridge: {bridge[0]}')
+                    logger.debug(
+                        "%s: Running ip commands on bridge", bridge[0]
+                    )
                 for command in commands:
                     try:
                         args = command.split()
                         self.execute('Running ip %s' % command, ipcmd, *args)
                     except Exception as e:
-                        logger.warning("Error in 'ip %s', restarting %s:\n%s" %
-                                       (command, bridge[0], str(e)))
+                        logger.warning(
+                            "Error in 'ip %s', restarting %s:\n%s",
+                            command,
+                            bridge[0],
+                            e,
+                        )
                         restart_bridges.append(bridge[0])
                         restart_interfaces.extend(
                             self.child_members(bridge[0]))
@@ -2030,24 +2095,26 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                                       bridge[1],
                                                       bridge[2])
                 if resolv_conf:
-                    logger.debug('Updating /etc/resolv.conf with config from '
-                                 f'bridge {bridge[0]}')
+                    logger.debug("%s: Updating /etc/resolv.conf", bridge[0])
                     header = '# Generated by os-net-config\n'
                     resolv_conf = header + resolv_conf
                     try:
                         with open('/etc/resolv.conf', 'w') as f:
                             f.write(resolv_conf)
                     except Exception as e:
-                        logger.warning("Error writing to /etc/resolv.conf "
-                                       f"restarting {bridge[0]}:\n"
-                                       f"{str(e)}")
+                        logger.warning(
+                            "Error writing to /etc/resolv.conf, restarting "
+                            "%s:\n%s",
+                            bridge[0],
+                            e,
+                        )
                         restart_bridges.append(bridge[0])
                         restart_bridges.extend(
                             self.child_members(bridge[0]))
                         break
 
             for interface in apply_routes:
-                logger.debug('Applying routes for interface %s' % interface[0])
+                logger.debug("%s: Applying routes for interface", interface[0])
                 filename = self.root_dir + route_config_path(interface[0])
                 commands = self.iproute2_route_commands(filename, interface[1])
                 for command in commands:
@@ -2057,15 +2124,19 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                             self.execute('Running ip %s' % command, ipcmd,
                                          *args)
                     except Exception as e:
-                        logger.warning("Error in 'ip %s', restarting %s:\n%s" %
-                                       (command, interface[0], str(e)))
+                        logger.warning(
+                            "Error in 'ip %s', restarting %s:\n%s",
+                            command,
+                            interface[0],
+                            e,
+                        )
                         restart_interfaces.append(interface[0])
                         restart_interfaces.extend(
                             self.child_members(interface[0]))
                         break
 
             for interface in apply_rules:
-                logger.debug('Applying rules for interface %s' % interface[0])
+                logger.debug("%s: Applying rules for interface", interface[0])
                 filename = self.root_dir + route_rule_config_path(interface[0])
                 commands = self.iproute2_rule_commands(filename, interface[1])
                 for command in commands:
@@ -2075,8 +2146,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                             self.execute('Running ip %s' % command, ipcmd,
                                          *args)
                     except Exception as e:
-                        logger.warning("Error in 'ip %s', restarting %s:\n%s" %
-                                       (command, interface[0], str(e)))
+                        logger.warning(
+                            "Error in 'ip %s', restarting %s:\n%s",
+                            command,
+                            interface[0],
+                            e,
+                        )
                         restart_interfaces.append(interface[0])
                         restart_interfaces.extend(
                             self.child_members(interface[0]))
@@ -2156,8 +2231,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
             # If dhclient is running and dhcp not set, stop dhclient
             for interface in stop_dhclient_interfaces:
-                logger.debug("Calling stop_dhclient_interfaces() for %s" %
-                             interface)
+                logger.debug(
+                    "%s: Calling stop_dhclient_interfaces()", interface
+                )
                 if not self.noop:
                     stop_dhclient_process(interface)
 
@@ -2177,20 +2253,24 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                                 ignore_err=True)
 
             if ivs_uplinks or ivs_interfaces:
-                logger.info("Attach to ivs with "
-                            "uplinks: %s, "
-                            "interfaces: %s" %
-                            (ivs_uplinks, ivs_interfaces))
+                logger.info(
+                    "Attach to ivs with uplinks: %s, interfaces: %s",
+                    ivs_uplinks,
+                    ivs_interfaces,
+                )
                 for ivs_uplink in ivs_uplinks:
                     self.ifup(ivs_uplink)
                 for ivs_interface in ivs_interfaces:
                     self.ifup(ivs_interface)
 
             if nfvswitch_interfaces or nfvswitch_internal_ifaces:
-                logger.info("Attach to nfvswitch with "
-                            "interfaces: %s, "
-                            "internal interfaces: %s" %
-                            (nfvswitch_interfaces, nfvswitch_internal_ifaces))
+                logger.info(
+                    "Attach to nfvswitch with "
+                    "interfaces: %s, "
+                    "internal interfaces: %s",
+                    nfvswitch_interfaces,
+                    nfvswitch_internal_ifaces,
+                )
                 for nfvswitch_interface in nfvswitch_interfaces:
                     self.ifup(nfvswitch_interface)
                 for nfvswitch_internal in nfvswitch_internal_ifaces:
@@ -2231,22 +2311,22 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         if os.path.exists(ifcfg_file):
             new_ifcfg_file = os.path.join(PURGE_IFCFG_FILES,
                                           f'ifcfg-{iface_name}')
-            logger.info(f'Moving {ifcfg_file} to {new_ifcfg_file}')
+            logger.info("Moving %s -> %s", ifcfg_file, new_ifcfg_file)
             shutil.move(ifcfg_file, new_ifcfg_file)
         if os.path.exists(route_file):
             new_route_file = os.path.join(PURGE_IFCFG_FILES,
                                           f'route-{iface_name}')
-            logger.info(f'Moving {route_file} to {new_route_file}')
+            logger.info("Moving %s -> %s", route_file, new_route_file)
             shutil.move(route_file, new_route_file)
         if os.path.exists(route6_file):
             new_route6_file = os.path.join(PURGE_IFCFG_FILES,
                                            f'route6-{iface_name}')
-            logger.info(f'Moving {route6_file} to {new_route6_file}')
+            logger.info("Moving %s - %s", route6_file, new_route6_file)
             shutil.move(route6_file, new_route6_file)
         if os.path.exists(rule_file):
             new_rule_file = os.path.join(PURGE_IFCFG_FILES,
                                          f'rule-{iface_name}')
-            logger.info(f'Moving {rule_file} to {new_rule_file}')
+            logger.info("Moving %s -> %s", rule_file, new_rule_file)
             shutil.move(rule_file, new_rule_file)
 
     def roll_back_migration(self):
@@ -2289,7 +2369,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 device_name = file[len('route6-'):]
 
             if device_name:
-                logger.info(f'Bringing up device {device_name}')
+                logger.info("%s: Bringing up device", device_name)
                 self.ifup(device_name)
 
     def purge(self, iface_name):
@@ -2298,9 +2378,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             with open(ifcfg_file, 'r') as f:
                 file_content = f.read()
             if _IFCFG_FILE_HEADER in file_content:
-                logger.info(f'Calling ifdown {iface_name}')
+                logger.info("%s: Bringing down", iface_name)
                 self.ifdown(iface_name)
                 self.move_ifcfg(iface_name)
             else:
-                logger.info(f'Device {iface_name} is not managed by ifcfg '
-                            'provider')
+                logger.info(
+                    "%s: Device is not managed by ifcfg provider", iface_name
+                )

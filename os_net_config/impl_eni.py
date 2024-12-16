@@ -150,9 +150,9 @@ class ENINetConfig(os_net_config.NetConfig):
 
         :param interface: The Interface object to add.
         """
-        logger.info('adding interface: %s' % interface.name)
+        logger.info("adding interface: %s", interface.name)
         data = self._add_common(interface)
-        logger.debug('interface data: %s' % data)
+        logger.debug("interface data: %s", data)
         self.interfaces[interface.name] = data
         if interface.routes:
             self._add_routes(interface.name, interface.routes)
@@ -162,9 +162,9 @@ class ENINetConfig(os_net_config.NetConfig):
 
         :param bridge: The OvsBridge object to add.
         """
-        logger.info('adding bridge: %s' % bridge.name)
+        logger.info("adding bridge: %s", bridge.name)
         data = self._add_common(bridge)
-        logger.debug('bridge data: %s' % data)
+        logger.debug("bridge data: %s", data)
         self.bridges[bridge.name] = data
         if bridge.routes:
             self._add_routes(bridge.name, bridge.routes)
@@ -174,15 +174,15 @@ class ENINetConfig(os_net_config.NetConfig):
 
         :param vlan: The vlan object to add.
         """
-        logger.info('adding vlan: %s' % vlan.name)
+        logger.info("adding vlan: %s", vlan.name)
         data = self._add_common(vlan)
-        logger.debug('vlan data: %s' % data)
+        logger.debug("vlan data: %s", data)
         self.interfaces[vlan.name] = data
         if vlan.routes:
             self._add_routes(vlan.name, vlan.routes)
 
     def _add_routes(self, interface_name, routes=[]):
-        logger.info('adding custom route for interface: %s' % interface_name)
+        logger.info("adding custom route for interface: %s", interface_name)
         data = ""
         for route in routes:
             options = ""
@@ -197,7 +197,7 @@ class ENINetConfig(os_net_config.NetConfig):
             data += "down route del -net %s netmask %s gw %s%s\n" % (
                     str(rt.ip), str(rt.netmask), route.next_hop, options)
         self.routes[interface_name] = data
-        logger.debug('route data: %s' % self.routes[interface_name])
+        logger.debug("route data: %s", self.routes[interface_name])
 
     def apply(self, cleanup=False, activate=True):
         """Apply the network configuration.
