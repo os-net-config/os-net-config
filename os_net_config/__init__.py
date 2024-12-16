@@ -93,7 +93,7 @@ class NetConfig(object):
             self.del_sriov_vf(obj)
         else:
             obj_type = json.get("type")
-            logger.error(f'del_object not handled for {obj_type}')
+            logger.error("del_object not handled for %s", obj_type)
 
     def enable_migration():
         logger.info('Migration is not supported for this provider')
@@ -475,23 +475,23 @@ class NetConfig(object):
         Print a message and run a command with processutils
         in noop mode, this just prints a message.
         """
-        logger.info('%s%s' % (self.log_prefix, msg))
+        logger.info("%s%s", self.log_prefix, msg)
         if not self.noop:
             out, err = processutils.execute(cmd, *args, **kwargs)
             if err:
-                logger.error(f"stderr : {err}")
+                logger.error("stderr : %s", err)
             if out:
-                logger.debug(f"stdout : {out}")
+                logger.debug("stdout : %s", out)
 
     def write_config(self, filename, data, msg=None):
         msg = msg or "Writing config %s" % filename
-        logger.info('%s%s' % (self.log_prefix, msg))
+        logger.info("%s%s", self.log_prefix, msg)
         if not self.noop:
             utils.write_config(filename, data)
 
     def remove_config(self, filename, msg=None):
         msg = msg or "Removing config %s" % filename
-        logger.info('%s%s' % (self.log_prefix, msg))
+        logger.info("%s%s", self.log_prefix, msg)
         if not self.noop:
             os.remove(filename)
 

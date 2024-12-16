@@ -56,13 +56,13 @@ WantedBy=multi-user.target
 
 def get_file_data(filename):
     if not os.path.exists(filename):
-        logger.error("Error file is not exist: %s" % filename)
+        logger.error("%s: File does not exist", filename)
         raise FileNotFoundError(filename)
     try:
         with open(filename, 'r') as f:
             return f.read()
     except IOError:
-        logger.error("Error reading file: %s" % filename)
+        logger.error("%s: Error reading file", filename)
         raise
 
 
@@ -124,9 +124,9 @@ def bind_vfs(sriov_bind_pcis_map=None):
                 try:
                     with open(pci_driver_bind_file_path, 'w') as f:
                         f.write("%s" % vf_pci)
-                    logger.info("Vf %s has been bound" % vf_pci)
+                    logger.info("%s: Vf has been bound", vf_pci)
                 except IOError:
-                    logger.error("Failed to bind vf %s" % vf_pci)
+                    logger.error("%s: Failed to bind vf", vf_pci)
 
 
 def main():

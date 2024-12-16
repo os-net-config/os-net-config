@@ -168,13 +168,13 @@ def _ordered_nics(check_active):
         nic = name[(len(common.SYS_CLASS_NET) + 1):]
         if _is_available_nic(nic, check_active):
             if _is_embedded_nic(nic):
-                logger.info("%s is an embedded active nic" % nic)
+                logger.info("%s: an embedded active nic", nic)
                 embedded_nics.append(nic)
             else:
-                logger.info("%s is an active nic" % nic)
+                logger.info("%s: an active nic", nic)
                 nics.append(nic)
         else:
-            logger.info("%s is not an active nic" % nic)
+            logger.info("%s: not an active nic", nic)
 
     # Adding nics which are bound to DPDK as it will not be found in '/sys'
     # after it is bound to DPDK driver.
@@ -186,34 +186,35 @@ def _ordered_nics(check_active):
             # to be skipped for the NIC ordering
             nic = item['name']
             if common.is_vf(item['pci_address']):
-                logger.info("%s is a VF, skipping it for NIC ordering" % nic)
+                logger.info("%s: a VF, skipping it for NIC ordering", nic)
             elif common.is_vf_by_name(nic, True):
-                logger.info("%s is a VF, skipping it for NIC ordering" % nic)
+                logger.info("%s: a VF, skipping it for NIC ordering", nic)
             elif _is_embedded_nic(nic):
-                logger.info("%s is an embedded DPDK bound nic" % nic)
+                logger.info("%s: an embedded DPDK bound nic", nic)
                 if nic not in embedded_nics:
                     embedded_nics.append(nic)
             else:
-                logger.info("%s is an DPDK bound nic" % nic)
+                logger.info("%s: an DPDK bound nic", nic)
                 if nic not in nics:
                     nics.append(nic)
     else:
-        logger.info("No DPDK mapping available in path (%s)" %
-                    common.DPDK_MAPPING_FILE)
+        logger.info(
+            "No DPDK mapping available in path %s", common.DPDK_MAPPING_FILE
+        )
 
     # NOTE: we could just natural sort all active devices,
     # but this ensures em, eno, and eth are ordered first
     # (more backwards compatible)
     active_nics = (sorted(embedded_nics, key=_natural_sort_key) +
                    sorted(nics, key=_natural_sort_key))
-    logger.info("Active nics are %s" % active_nics)
+    logger.info("Active nics: %s", active_nics)
     return active_nics
 
 
 def diff(filename, data):
     file_data = common.get_file_data(filename)
-    logger.debug("Diff file data:\n%s" % file_data)
-    logger.debug("Diff data:\n%s" % data)
+    logger.debug("Diff file data:\n%s", file_data)
+    logger.debug("Diff data:\n%s", data)
     # convert to string as JSON may have unicode in it
     return not file_data == data
 
@@ -249,8 +250,7 @@ def bind_dpdk_interfaces(ifname, driver, noop):
 
     iface_driver = get_interface_driver(ifname)
     if iface_driver == driver:
-        logger.info("Driver (%s) is already bound to the device (%s)" %
-                    (driver, ifname))
+        logger.info("%s: Driver %s is already bound", ifname, driver)
         return
     pci_address = get_pci_address(ifname, noop)
     if not noop:
@@ -288,9 +288,7 @@ def bind_dpdk_interfaces(ifname, driver, noop):
                 msg = "Interface %s cannot be found" % ifname
                 raise common.OvsDpdkBindException(msg)
     else:
-        logger.info('Interface %(name)s bound to DPDK driver %(driver)s '
-                    'using driverctl command' %
-                    {'name': ifname, 'driver': driver})
+        logger.info("%s: Interface bound to DPDK driver %s", ifname, driver)
 
 
 def get_pci_address(ifname, noop):
@@ -309,8 +307,7 @@ def get_pci_address(ifname, noop):
             return
 
     else:
-        logger.info('Fetch the PCI address of the interface %s using '
-                    'ethtool' % ifname)
+        logger.info("%s: Fetch the PCI address of the interface", ifname)
 
 
 def get_stored_pci_address(ifname, noop):
@@ -320,8 +317,7 @@ def get_stored_pci_address(ifname, noop):
             if dpdk_nic['name'] == ifname:
                 return dpdk_nic['pci_address']
     else:
-        logger.info('Fetch the PCI address of the interface %s using '
-                    'ethtool' % ifname)
+        logger.info("%s: Fetch the PCI address of the interface", ifname)
 
 
 def get_driver(ifname, noop):
@@ -339,7 +335,7 @@ def get_driver(ifname, noop):
             return
 
     else:
-        logger.info('Fetch the driver of the interface {ifname} using ethtool')
+        logger.info("%s: Fetch the driver of the interface", ifname)
 
 
 def translate_ifname_to_pci_address(ifname, noop):
@@ -370,7 +366,7 @@ def get_dpdk_devargs(ifname, noop):
         vendor_id = common.get_vendor_id(ifname)
         device_id = common.get_device_id(ifname)
         if vendor_id == common.MLNX_VENDOR_ID:
-            logger.info("Getting devargs for Mellanox cards")
+            logger.info("%s: Getting devargs for Mellanox cards", ifname)
             if device_id == "0x1007":
                 # Some NICs (i.e. Mellanox ConnectX-3) have only one PCI
                 # address associated with multiple ports. Using a PCI
@@ -384,9 +380,9 @@ def get_dpdk_devargs(ifname, noop):
                 # so we need to get their pci address with ethtool.
                 dpdk_devargs = get_pci_address(ifname, noop)
         else:
-            logger.info("Getting stored PCI address as devarg")
+            logger.info("%s: Getting stored PCI address as devarg", ifname)
             dpdk_devargs = get_stored_pci_address(ifname, noop)
-        logger.debug("Devargs found: %s" % (dpdk_devargs))
+        logger.debug("%s: Devargs found: %s", ifname, dpdk_devargs)
         return dpdk_devargs
 
 
@@ -421,13 +417,18 @@ def get_totalvfs(iface_name):
         try:
             with open(max_vf_path, 'r') as f:
                 max_vfs = int(f.read())
-                logger.info(f'{iface_name}: sriov_totalvfs={max_vfs}')
+                logger.info("%s: sriov_totalvfs=%d", iface_name, max_vfs)
                 return max_vfs
         except IOError as exc:
-            logger.error(f'{iface_name}: Unable to read total_vfs: {exc}')
+            logger.error(
+                "%s: Unable to read total_vfs: %s",
+                iface_name,
+                exc
+            )
             return -1
-    logger.info(f'{iface_name}: sriov_totalvfs can\'t be read.'
-                'SR-IOV is not enabled.')
+    logger.info(
+        "%s: sriov_totalvfs can't be read. SR-IOV is not enabled.", iface_name
+    )
     return -1
 
 
@@ -664,7 +665,7 @@ def _get_vpp_interface(pci_addr, tries=1, timeout=5):
             processutils.execute('systemctl', 'is-active', 'vpp')
             out, err = processutils.execute('vppctl', 'show', 'interface',
                                             check_exit_code=False)
-            logger.debug("vppctl show interface\n%s\n%s\n" % (out, err))
+            logger.debug("vppctl show interface\n%s\n%s\n", out, err)
             m = re.search(r':([0-9a-fA-F]{2}):([0-9a-fA-F]{2}).([0-9a-fA-F])',
                           pci_addr)
             if m:
@@ -677,16 +678,18 @@ def _get_vpp_interface(pci_addr, tries=1, timeout=5):
             m = re.search(r'^(\w+%s)\s+(\d+)' % formatted_pci, out,
                           re.MULTILINE)
             if m:
-                logger.info('VPP interface found: %s, index: %s' %
-                            (m.group(1), m.group(2)))
+                logger.info(
+                    "VPP interface found: %s, index: %s",
+                    m.group(1),
+                    m.group(2),
+                )
                 return {'name': m.group(1), 'index': m.group(2)}
         except processutils.ProcessExecutionError:
             pass
 
         time.sleep(max(0, (timestamp + timeout) - time.time()))
     else:
-        logger.info('Interface with pci address %s not bound to vpp' %
-                    pci_addr)
+        logger.info("Interface with pci address %s not bound to vpp", pci_addr)
         return None
 
 
@@ -705,17 +708,18 @@ def _get_vpp_bond(member_ids):
     out, err = processutils.execute('vppctl', 'show',
                                     'hardware-interfaces', 'bond', 'brief',
                                     check_exit_code=False)
-    logger.debug('vppctl show hardware-interfaces bond brief\n%s' % out)
+    logger.debug("vppctl show hardware-interfaces bond brief\n%s", out)
     m = re.search(r'^\s*(BondEthernet\d+)\s+(\d+)\s+.+Slave-Idx:\s+%s\s*$' %
                   member_ids_str,
                   out,
                   re.MULTILINE)
     if m:
-        logger.info('Bond found: %s, index: %s' % (m.group(1), m.group(2)))
+        logger.info("Bond found: %s, index: %s", m.group(1), m.group(2))
         return {'name': m.group(1), 'index': m.group(2)}
     else:
-        logger.info('Bond with member indices "%s" not found in VPP'
-                    % member_ids_str)
+        logger.info(
+            'Bond with member indices "%s" not found in VPP', member_ids_str
+        )
         return None
 
 
@@ -745,8 +749,11 @@ def generate_vpp_config(vpp_config_path, vpp_interfaces, vpp_bonds):
     # Add interface config to 'dpdk' section
     for vpp_interface in vpp_interfaces:
         if vpp_interface.pci_dev:
-            logger.info('vpp interface %s pci dev: %s'
-                        % (vpp_interface.name, vpp_interface.pci_dev))
+            logger.info(
+                "vpp interface %s pci dev: %s",
+                vpp_interface.name,
+                vpp_interface.pci_dev,
+            )
 
             if vpp_interface.options:
                 int_cfg = '%s {%s}' % (vpp_interface.pci_dev,
@@ -877,10 +884,14 @@ def update_vpp_mapping(vpp_interfaces, vpp_bonds):
                                 % (int_info['name'], address.ip,
                                    address.prefixlen))
 
-        logger.info('Updating mapping for vpp interface %s:'
-                    'pci_dev: %s mac address: %s uio driver: %s'
-                    % (vpp_int.name, vpp_int.pci_dev, vpp_int.hwaddr,
-                       vpp_int.uio_driver))
+        logger.info(
+            "Updating mapping for vpp interface %s:"
+            "pci_dev: %s mac address: %s uio driver: %s",
+            vpp_int.name,
+            vpp_int.pci_dev,
+            vpp_int.hwaddr,
+            vpp_int.uio_driver,
+        )
         _update_dpdk_map(vpp_int.name, vpp_int.pci_dev, vpp_int.hwaddr,
                          vpp_int.uio_driver)
 
