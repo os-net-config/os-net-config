@@ -181,15 +181,20 @@ def is_nmstate_available():
         import libnmstate
         from packaging.version import Version
         if Version(libnmstate.__version__) > Version('2.2.32'):
-            logger.info(f'libnmstate - {libnmstate.__version__} '
-                        f'is available')
+            logger.info(
+                "libnmstate version %s > 2.2.32. Supports nmstate provider",
+                libnmstate.__version__
+            )
             return True
     except ImportError:
         logger.info("Could not find libnmstate packages")
         return False
 
-    logger.info('libnmstate version {libnmstate.__version__} is '
-                'incompatible for minimum support')
+    logger.info(
+        "libnmstate version %s is incompatible for minimum support. "
+        "Need 2.2.32",
+        libnmstate.__version__,
+    )
     return False
 
 
@@ -201,7 +206,7 @@ def main(argv=sys.argv, main_logger=None):
     if not main_logger:
         main_logger = common.configure_logger(log_file=not opts.noop)
     common.logger_level(main_logger, opts.verbose, opts.debug)
-    main_logger.info(f"Using config file at: {opts.config_file}")
+    main_logger.info("Using config file at: %s", opts.config_file)
     iface_array = []
     configure_sriov = False
     sriovpf_bond_ovs_ports = []
@@ -225,27 +230,28 @@ def main(argv=sys.argv, main_logger=None):
 
     if opts.purge_provider:
         if opts.purge_provider == opts.provider:
-            main_logger.error('purge-provider and provider can\'t be the same')
+            main_logger.error("purge-provider and provider can't be the same")
             return 1
         try:
             purge_provider = load_provider(opts.purge_provider, opts.noop,
                                            opts.root_dir)
         except ImportError as e:
-            main_logger.error('cannot load purge provider %s: %s',
-                              opts.purge_provider, e)
+            main_logger.error(
+                "cannot load purge provider %s: %s", opts.purge_provider, e
+            )
             return 1
 
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
     # mappings by specifying a specific nicN->name or nicN->MAC mapping
     if os.path.exists(opts.mapping_file):
-        main_logger.info(f"Using mapping file at: {opts.mapping_file}")
+        main_logger.info("Using mapping file at: %s", opts.mapping_file)
         with open(opts.mapping_file) as cf:
             iface_map = yaml.safe_load(cf.read())
             iface_mapping = iface_map.get("interface_mapping")
-            main_logger.debug(f"interface_mapping: {iface_mapping}")
+            main_logger.debug("interface_mapping: %s", iface_mapping)
             persist_mapping = opts.persist_mapping
-            main_logger.debug(f"persist_mapping: {persist_mapping}")
+            main_logger.debug("persist_mapping: %s", persist_mapping)
     else:
         main_logger.info("Not using any mapping file.")
         iface_mapping = None
@@ -268,16 +274,19 @@ def main(argv=sys.argv, main_logger=None):
                 if requested_nic in mapped_nics.values():
                     if found is True:  # Name matches alias and real NIC
                         # (return the mapped NIC, but warn of overlap).
-                        main_logger.warning(f"{requested_nic} overlaps with "
-                                            "real NIC name.")
+                        main_logger.warning(
+                            "%s overlaps with real NIC name.", requested_nic
+                        )
                     else:
                         reported_nics[requested_nic] = requested_nic
                         found = True
                 if not found:
                     retval = 1
             if reported_nics:
-                main_logger.debug("Interface mapping requested for interface: "
-                                  "%s" % reported_nics.keys())
+                main_logger.debug(
+                    "Interface mapping requested for interface: %s",
+                    reported_nics.keys(),
+                )
         else:
             main_logger.debug("Interface mapping requested for all interfaces")
             reported_nics = mapped_nics
@@ -292,17 +301,18 @@ def main(argv=sys.argv, main_logger=None):
         try:
             with open(opts.config_file) as cf:
                 iface_array = yaml.safe_load(cf.read()).get("network_config")
-                main_logger.debug(f"network_config: {iface_array}")
+                main_logger.debug("network_config: %s", iface_array)
         except IOError:
-            main_logger.error(f"Error reading file: {opts.config_file}")
+            main_logger.error("Error reading file: %s", opts.config_file)
             return 1
     else:
-        main_logger.error(f"No config file exists at: {opts.config_file}")
+        main_logger.error("No config file exists at: %s", opts.config_file)
         return 1
 
     if not isinstance(iface_array, list):
-        main_logger.error("No interfaces defined in config: "
-                          f"{opts.config_file}")
+        main_logger.error(
+            "No interfaces defined in config: %s", opts.config_file
+        )
         return 1
 
     for iface_json in iface_array:
@@ -313,10 +323,12 @@ def main(argv=sys.argv, main_logger=None):
     validation_errors = validator.validate_config(iface_array)
     if validation_errors:
         if opts.exit_on_validation_errors:
-            main_logger.error('\n'.join(validation_errors))
+            for e in validation_errors:
+                main_logger.error(e)
             return 1
         else:
-            main_logger.warning('\n'.join(validation_errors))
+            for e in validation_errors:
+                main_logger.warning(e)
 
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
@@ -410,14 +422,20 @@ def main(argv=sys.argv, main_logger=None):
 
         files_changed = provider.apply(cleanup=opts.cleanup,
                                        activate=not opts.no_activate)
-        logger.info('Succesfully applied the network configuration with '
-                    f'{opts.provider} provider')
+        logger.info(
+            "Succesfully applied the network configuration with "
+            "%s provider",
+            opts.provider,
+        )
     except Exception as e:
-        logger.error(f'***Failed to configure with {opts.provider} '
-                     f'provider***\n{e!r}')
+        logger.error(
+            "***Failed to configure with %s provider***\n%s",
+            opts.provider,
+            e
+        )
 
         if purge_provider:
-            logger.info(f'Rolling back to {opts.purge_provider}')
+            logger.info("Rolling back to %s", opts.purge_provider)
             # Rolling back to the earlier provider.
             purge_provider.roll_back_migration()
             migration_failed = True
@@ -429,7 +447,7 @@ def main(argv=sys.argv, main_logger=None):
         try:
             from os_net_config import dcb_config
         except ImportError as e:
-            logger.error(f'cannot apply DCB configuration: {e!r}')
+            logger.error("cannot apply DCB configuration: %s", e)
             return 1
 
         utils.configure_dcb_config_service()
@@ -437,19 +455,23 @@ def main(argv=sys.argv, main_logger=None):
         dcb_apply.apply()
 
     if purge_provider and migration_failed is False:
-        logger.info('Cleaning the residue files from '
-                    f'{opts.purge_provider} provider')
+        logger.info(
+            "Cleaning the residue files from %s provider", opts.purge_provider
+        )
         purge_provider.clean_migration()
     elif migration_failed:
-        logger.info('Migration Failed. Reverted back to '
-                    f'{opts.purge_provider} provider')
+        logger.info(
+            "Migration Failed. Reverted back to %s provider",
+            opts.purge_provider,
+        )
         return 1
 
     if opts.noop:
         if configure_sriov:
             files_changed.update(pf_files_changed)
         for location, data in files_changed.items():
-            print("File: %s\n" % location)
+            print("File:", location)
+            print()
             print(data)
             print("----")
 

@@ -176,7 +176,7 @@ def get_file_data(filename):
         with open(filename, 'r') as f:
             return f.read()
     except IOError:
-        logger.error(f"Error reading file: {filename}")
+        logger.error("Error reading file: %s", filename)
         return ''
 
 
@@ -288,7 +288,7 @@ def interface_mac(name):
         if dpdk_mac_address:
             return dpdk_mac_address
 
-        logger.error("Unable to read mac address: %s" % name)
+        logger.error("%s: Unable to read mac address", name)
         raise
 
 
@@ -338,27 +338,32 @@ def is_vf_by_name(interface_name, check_mapping_file=False):
 
 def set_driverctl_override(pci_address, driver):
     if driver is None:
-        logger.info(f"Driver override is not required for device"
-                    "{pci_address}")
+        logger.info("%s: Driver override is not required.", pci_address)
         return False
     iface_driver = get_interface_driver_by_pci_address(pci_address)
     if iface_driver == driver:
-        logger.info(f"Driver {driver} is already bound to the device"
-                    "{pci_address}")
+        logger.info("%s: %s is already bound", pci_address, driver)
         return False
     try:
         if is_vf(pci_address):
-            out, err = processutils.execute('driverctl', '--nosave',
-                                            'set-override', pci_address,
-                                            driver)
+            cmd = [
+                "driverctl",
+                "--nosave",
+                "set-override",
+                pci_address,
+                driver,
+            ]
         else:
-            out, err = processutils.execute('driverctl', 'set-override',
-                                            pci_address, driver)
+            cmd = ["driverctl", "set-override", pci_address, driver]
+        logger.info(
+            "%s: Binding with %s\n%s", pci_address, driver, " ".join(cmd)
+        )
+        out, err = processutils.execute(*cmd)
         if err:
-            msg = f"Failed to bind dpdk interface {pci_address} err - {err}"
+            msg = f"{pci_address}: Failed to bind dpdk interface. err - {err}"
             raise OvsDpdkBindException(msg)
     except processutils.ProcessExecutionError:
-        msg = f"Failed to bind interface {pci_address} with dpdk"
+        msg = f"{pci_address}: Failed to bind interface with dpdk"
         raise OvsDpdkBindException(msg)
     return err
 
@@ -372,7 +377,7 @@ def list_kmods(mods: list) -> list:
     try:
         stdout, stderr = processutils.execute('lsmod')
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"Failed to get lsmod: {exc}")
+        logger.error("Failed to get lsmod: %s", exc)
         raise
     modules = set([line.split()[0] for line in stdout.strip().split('\n')])
     return list(set(mods) - set(modules))
@@ -388,17 +393,17 @@ def load_kmods(mods: list):
         try:
             stdout, stderr = processutils.execute('modprobe', mod)
         except processutils.ProcessExecutionError as exc:
-            logger.error(f"Failed to modprobe {mod}: {exc}")
+            logger.error("Failed to modprobe %s: %s", mod, exc)
             raise
 
 
 def restorecon(path: str):
     """Executes restorecon on a path"""
-    logger.info(f"Restoring selinux context on {path}")
+    logger.info("Restoring selinux context on %s", path)
     try:
         stdout, stderr = processutils.execute('restorecon', '-R', '-F', '-v',
                                               path)
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"Failed to restorecon on {path}: {exc}")
+        logger.error("Failed to restorecon on %s: %s", path, exc)
         raise
-    logger.debug(f"Restorecon completed: {stdout}")
+    logger.debug("Restorecon completed: %s", stdout)
