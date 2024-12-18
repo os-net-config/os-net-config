@@ -356,6 +356,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # separately if the flag is set. It will be applicable
         # only for NIC Partitioning use cases.
         self.need_vf_config = False
+        self.cleanup = False
         self.initial_state = netinfo.show_running_config()
         self.__dump_key_config(self.initial_state,
                                msg="Initial network settings")
@@ -845,7 +846,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                            msg=f'Desired ip rules')
 
         for c_rule in curr_rules:
-            if c_rule not in add_rules:
+            if c_rule not in add_rules and self.cleanup:
                 clear_rules = True
                 break
         if clear_rules:
@@ -2195,8 +2196,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             mode).
         Note the noop mode is set via the constructor noop boolean
         """
+        self.cleanup = cleanup
         logger.info('applying network configs...')
-        if cleanup:
+        if self.cleanup:
             logger.info('Cleaning up all network configs...')
             self.cleanup_all_ifaces()
 
