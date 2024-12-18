@@ -85,9 +85,7 @@ class SRIOVAutoprobeException(ValueError):
 
 def udev_event_handler(action, device):
     event = {"action": action, "device": device.sys_path}
-    logger.info(
-        f"Received udev event {event['action']} for {event['device']}"
-    )
+    logger.info("%s: Received udev event %s", event["device"], event["action"])
     vf_queue.put(event)
 
 
@@ -107,11 +105,11 @@ def _get_pf_path(device):
 def _driver_unbind(dev):
     vf_pci_path = f"/sys/bus/pci/devices/{dev}/driver"
     if os.path.exists(vf_pci_path):
-        logger.info(f"{dev}: Unbinding driver")
+        logger.info("%s: Unbinding driver", dev)
         with open(MLNX_UNBIND_FILE_PATH, 'w') as f:
             f.write(dev)
     else:
-        logger.info(f"{dev}: No driver to unbind")
+        logger.info("%s: No driver to unbind", dev)
 
 
 def _wait_for_vf_creation(pf_name, numvfs):
@@ -126,7 +124,7 @@ def _wait_for_vf_creation(pf_name, numvfs):
             event = vf_queue.get(True, 5)
             vf_name = os.path.basename(event["device"])
             pf_path = _get_pf_path(event["device"])
-            logger.debug(f"{event['device']}: Got udev event: {event}")
+            logger.debug("%s: Got udev event - %s", event["device"], event)
             if pf_path:
                 pf_nic = os.listdir(pf_path)
                 # NOTE(dvd): For vDPA devices, the VF event we're interrested
@@ -144,26 +142,28 @@ def _wait_for_vf_creation(pf_name, numvfs):
                         'device': event['device'],
                         'pf': pf_name
                     }
-                    logger.info(
-                        f"{pf_name}: VF {vf_name} created"
-                    )
+                    logger.info("%s: Created VF %s", pf_name, vf_name)
                     vf_count += 1
                 elif vf_name in vf_to_pf:
                     logger.debug(
-                        f"{pf_name}: VF {vf_name} was already created"
+                        "%s: VF %s is already created", pf_name, vf_name
                     )
                 elif vdpa:
-                    logger.warning(f"{pf_name}: This PF is not in {pf_path}")
+                    logger.warning(
+                        "%s: This PF is not in %s", pf_name, pf_path
+                    )
                 else:
                     logger.warning(
-                        f"{pf_name}: Unable to parse event {event['device']}"
+                        "%s: Unable to parse event %s",
+                        pf_name,
+                        event["device"],
                     )
             elif not vdpa:
-                logger.warning(f"{event['device']}: Unable to find PF")
+                logger.warning("%s: Unable to find PF", event["device"])
         except queue.Empty:
-            logger.info(f"{pf_name}: Timeout in the creation of VFs")
+            logger.info("%s: Timeout in the creation of VFs", pf_name)
             return
-    logger.info(f"{pf_name}: Required VFs are created")
+    logger.info("%s: Required VFs are created", pf_name)
 
 
 def get_drivers_autoprobe(ifname):
@@ -176,7 +176,7 @@ def get_drivers_autoprobe(ifname):
     :raises: SRIOVAutoprobeException
     """
     autoprobe_path = common.get_dev_path(ifname, "sriov_drivers_autoprobe")
-    logger.debug(f"{ifname}: Getting drivers_autoprobe for interface")
+    logger.debug("%s: Getting drivers_autoprobe for interface", ifname)
     try:
         with open(autoprobe_path, 'r') as f:
             autoprobe = int(f.read())
@@ -184,7 +184,8 @@ def get_drivers_autoprobe(ifname):
         msg = f"{ifname}: Unable to read sriov_drivers_autoprobe: {exc}"
         raise SRIOVAutoprobeException(msg)
     logger.debug(
-        f"{ifname}: Interface has sriov_drivers_autoprobe={autoprobe}")
+        "%s: Interface has sriov_drivers_autoprobe=%s", ifname, autoprobe
+    )
     return autoprobe
 
 
@@ -200,7 +201,7 @@ def set_drivers_autoprobe(ifname, drivers_autoprobe):
     if autoprobe != curr_autoprobe:
         autoprobe_path = common.get_dev_path(ifname, "sriov_drivers_autoprobe")
         try:
-            logger.debug(f"Setting {autoprobe_path} to {autoprobe}")
+            logger.debug("Setting %s<=%s", autoprobe_path, autoprobe)
             with open(autoprobe_path, "w") as f:
                 f.write(str(autoprobe))
         except IOError as exc:
@@ -221,22 +222,22 @@ def get_numvfs(ifname):
     """
     sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
     cmd = ["/usr/bin/udevadm", "wait", "-t", "60", common.get_dev_path(ifname)]
-    logger.debug(f"{ifname}: Running command: {cmd}")
+    logger.debug("%s: Running %s", ifname, " ".join(cmd))
     try:
         processutils.execute(*cmd)
     except processutils.ProcessExecutionError:
         cmd = ["/usr/bin/udevadm", "settle", "-E", sriov_numvfs_path,
                "-t", "60"]
-        logger.debug(f"{ifname}: Running command: {' '.join(cmd)}")
+        logger.debug("%s: Running %s", ifname, " ".join(cmd))
         processutils.execute(*cmd)
-    logger.debug(f"{ifname}: Getting numvfs for interface")
+    logger.debug("%s: Getting numvfs", ifname)
     try:
         with open(sriov_numvfs_path, 'r') as f:
             curr_numvfs = int(f.read())
     except IOError as exc:
         msg = f"{ifname}: Unable to read numvfs: {exc}"
         raise SRIOVNumvfsException(msg)
-    logger.debug(f"{ifname}: Interface has {curr_numvfs} configured")
+    logger.debug("%s: numvfs = %d", ifname, curr_numvfs)
     return curr_numvfs
 
 
@@ -250,21 +251,21 @@ def reset_sriov_pfs():
         if item['device_type'] == 'pf' and \
             item.get('link_mode') == "legacy":
             ifname = item['name']
-            logger.info(f'Resetting the PF {ifname} for numvfs')
+            logger.info("%s: Resetting the PF for numvfs", ifname)
             sriov_numvfs_path = common.get_dev_path(ifname,
                                                     "sriov_numvfs")
             try:
-                logger.debug(f"Resetting {sriov_numvfs_path}")
                 with open(sriov_numvfs_path, "w") as f:
                     f.write("0")
             except IOError as exc:
-                logger.error(f'{ifname}: Unable to set zero numvfs.'
-                             f'Received {exc}')
+                logger.error(
+                    "%s: Unable to reset numvfs. Received %s", ifname, exc
+                )
 
 
 def wipe_sriov_udev_files():
     if os.path.exists(_UDEV_LEGACY_RULE_FILE):
-        logger.debug(f'Removing {_UDEV_LEGACY_RULE_FILE}')
+        logger.debug("Removing %s", _UDEV_LEGACY_RULE_FILE)
         os.remove(_UDEV_LEGACY_RULE_FILE)
         reload_udev_rules()
 
@@ -296,13 +297,16 @@ def set_numvfs(ifname, numvfs, autoprobe=True):
 
     if numvfs != curr_numvfs:
         if curr_numvfs != 0:
-            logger.warning(f"{ifname}: Numvfs already configured to "
-                           f"{curr_numvfs}")
+            logger.warning(
+                "%s: numvfs already configured to %d", ifname, curr_numvfs
+            )
             return curr_numvfs
 
         sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
         try:
-            logger.debug(f"Setting {sriov_numvfs_path} to {numvfs}")
+            logger.debug(
+                "%s: Setting %s <= %d", ifname, sriov_numvfs_path, numvfs
+            )
             with open(sriov_numvfs_path, "w") as f:
                 f.write("%d" % numvfs)
         except IOError as exc:
@@ -381,7 +385,7 @@ def is_partitioned_pf(dev_name: str) -> bool:
             name = config.get('device', {}).get('name')
             vf_name = config.get('name')
             if dev_name == name:
-                logger.warning(f"{name} has VF({vf_name}) used by host")
+                logger.info("%s: VF %s is used by host", name, vf_name)
                 return True
     return False
 
@@ -404,7 +408,7 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
     for item in sriov_map:
         if item['device_type'] == 'pf':
             if pf_configure_status(item):
-                logger.debug(f"PF {item['name']} is already configured")
+                logger.debug("%s: SR-IOV already configured", item["name"])
                 continue
             _pf_interface_up(item)
             if item.get('link_mode') == "legacy":
@@ -440,12 +444,13 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
                             configure_vdpa_vhost_device(vf_pci, vdpa_queues)
                         else:
                             logger.info(
-                                f"{item['name']}: vDPA device already created "
-                                f"for {vf_pci}"
+                                "%s: vDPA device already created for %s",
+                                item["name"],
+                                vf_pci,
                             )
                 if vdpa:
                     common.restorecon('/dev/vhost-*')
-                logger.info(f"{item['name']}: Adding udev rules")
+                logger.info("%s: Adding udev rules", item["name"])
                 # Adding a udev rule to make vf-representors unmanaged by
                 # NetworkManager
                 add_udev_rule_to_unmanage_vf_representors_by_nm()
@@ -512,11 +517,11 @@ def _wait_for_uplink_rep_creation(pf_name):
 
     for i in range(MAX_RETRIES):
         if common.get_file_data(uplink_rep_phys_switch_id_path):
-            logger.info(f"{pf_name} Uplink representor ready")
+            logger.info("%s: Uplink representor ready", pf_name)
             break
         time.sleep(1)
     else:
-        raise RuntimeError(f"{pf_name}: Timeout waiting uplink representor")
+        raise RuntimeError("%s: Timeout waiting uplink representor", pf_name)
 
 
 def _wait_for_lag_creation(lag_sriov_pf_list):
@@ -527,16 +532,20 @@ def _wait_for_lag_creation(lag_sriov_pf_list):
             for i in range(MAX_RETRIES):
                 lag_state = common.get_file_data(lag_path).strip()
                 if lag_state == "active":
-                    logger.info(f"VF-LAG is enabled for interface {sriov_pf}"
-                                f" after {i} retries")
+                    logger.info(
+                        "%s: VF-LAG is enabled after %d retries", sriov_pf, i
+                    )
                     break
                 time.sleep(1)
             else:
                 raise RuntimeError("VF-LAG is not created for interface"
                                    f" {sriov_pf} after {i} retries")
         else:
-            logger.warning(f"Lag path {lag_path} does not exist for this "
-                           "kernel, skipping..")
+            logger.warning(
+                "%s: Lag path %s does not exist for this kernel, skipping..",
+                sriov_pf,
+                lag_path,
+            )
 
 
 def create_rep_link_name_script():
@@ -547,7 +556,7 @@ def create_rep_link_name_script():
 
 
 def add_udev_rule_for_sriov_pf(pf_name):
-    logger.info(f"{pf_name}: adding udev rules for sriov")
+    logger.info("%s: adding udev rules for sriov", pf_name)
     pf_pci = get_pf_pci(pf_name)
     udev_data_line = 'SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", '\
                      f'KERNELS=="{pf_pci}", NAME="{pf_name}"'
@@ -555,7 +564,7 @@ def add_udev_rule_for_sriov_pf(pf_name):
 
 
 def add_udev_rule_for_legacy_sriov_pf(pf_name, numvfs):
-    logger.info(f"{pf_name}: adding udev rules for legacy sriov: {numvfs}")
+    logger.info("%s: adding udev rules for legacy sriov: %d", pf_name, numvfs)
     udev_line = f'KERNEL=="{pf_name}", '\
                 f'RUN+="/bin/os-net-config-sriov -n %k:{numvfs}"'
     pattern = f'KERNEL=="{pf_name}", RUN+="/bin/os-net-config-sriov -n'
@@ -563,16 +572,19 @@ def add_udev_rule_for_legacy_sriov_pf(pf_name, numvfs):
 
 
 def add_udev_rule_for_vf_representors(pf_name):
-    logger.info(f"{pf_name}: adding udev rules for vf representators")
+    logger.info("%s: adding udev rules for vf representators", pf_name)
     phys_switch_id_path = common.get_dev_path(pf_name,
                                               "_phys_switch_id")
     phys_switch_id = common.get_file_data(phys_switch_id_path).strip()
     pf_pci = get_pf_pci(pf_name)
     pf_fun_num_match = PF_FUNC_RE.search(pf_pci)
     if not pf_fun_num_match:
-        logger.error(f"{pf_name}: Failed to get function number "
-                     "and so failed to create a udev rule for renaming "
-                     "its vf-represent")
+        logger.error(
+            "%s: Failed to get function number "
+            "and so failed to create a udev rule for renaming "
+            "its vf-represent",
+            pf_name,
+        )
         return
 
     pf_fun_num = pf_fun_num_match.group(1)
@@ -588,19 +600,23 @@ def add_udev_rule_for_vf_representors(pf_name):
 
 
 def add_udev_rule_for_vdpa_representors(pf_name):
-    logger.info(f"{pf_name}: adding udev rules for vdpa representators")
+    logger.info("%s: adding udev rules for vdpa representators", pf_name)
     udev_lines = ""
     for vf, att in vf_to_pf.items():
         mac = common.interface_mac(vf)
         vadd = VF_PCI_RE.search(att.get('device'))
         if not vadd:
             logger.error(
-                f"{att.get('device')}/{vf}: Failed to get pf/vf numbers "
-                "and so failed to create a udev rule for renaming vdpa dev"
+                "%s: %s/%d: Failed to get "
+                "pf/vf numbers and so failed to create a udev rule for "
+                "renaming vdpa dev",
+                pf_name,
+                att.get("device"),
+                vf,
             )
             continue
         vdpa_rep = f"vdpa{vadd.group(1)}p{vadd.group(2)}vf{vadd.group(3)}"
-        logger.info(f"{vdpa_rep}: Adding udev representor rule.")
+        logger.info("%s: %s Adding udev representor rule.", pf_name, vdpa_rep)
         udev_lines += (
             'SUBSYSTEM=="net", ACTION=="add", '
             f'ATTR{{address}}=="{mac}", NAME="{vdpa_rep}"\n'
@@ -617,7 +633,7 @@ def add_udev_rule_to_unmanage_vf_representors_by_nm():
 
 
 def add_udev_rule(udev_data, udev_file, pattern=None):
-    logger.debug(f"adding udev rule to {udev_file}: {udev_data}")
+    logger.debug("adding udev rule to %s: %s", udev_file, udev_data)
     trigger_udev_rule = False
     udev_data = udev_data.strip()
     if not pattern:
@@ -653,7 +669,7 @@ def reload_udev_rules():
         processutils.execute('/usr/sbin/udevadm', 'control', '--reload-rules')
         logger.info("udev rules reloaded successfully")
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"Failed to reload udev rules: {exc}")
+        logger.error("Failed to reload udev rules: %s", exc)
         raise
 
 
@@ -663,7 +679,7 @@ def trigger_udev_rules():
                              '--attr-match=subsystem=net')
         logger.info("udev rules triggered successfully")
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"Failed to trigger udev rules: {exc}")
+        logger.error("Failed to trigger udev rules: %s", exc)
         raise
 
 
@@ -675,17 +691,25 @@ def configure_switchdev(pf_name):
             processutils.execute('/usr/sbin/devlink', 'dev', 'eswitch', 'set',
                                  f'pci/{pf_pci}', 'inline-mode', 'transport')
         except processutils.ProcessExecutionError as exc:
-            logger.error(f"{pf_name}: Failed to set inline-mode to transport "
-                         f"for {pf_pci}: {exc}")
+            logger.error(
+                "%s: Failed to set inline-mode to transport for %s: %s",
+                pf_name,
+                pf_pci,
+                exc,
+            )
             raise
     try:
         processutils.execute('/usr/sbin/devlink', 'dev', 'eswitch', 'set',
                              f'pci/{pf_pci}', 'mode', 'switchdev')
     except processutils.ProcessExecutionError as exc:
-        logger.error(f"{pf_name}: Failed to set mode to switchdev for "
-                     f"{pf_pci}: {exc}")
+        logger.error(
+            "%s: Failed to set mode to switchdev for %s: %s",
+            pf_name,
+            pf_pci,
+            exc,
+        )
         raise
-    logger.info(f"{pf_name}: Device pci/{pf_pci} set to switchdev mode.")
+    logger.info("%s: Device pci/%s set to switchdev mode.", pf_name, pf_pci)
 
     # WA to make sure that the uplink_rep is ready after moving to switchdev,
     # as moving to switchdev will remove the sriov_pf and create uplink
@@ -700,9 +724,11 @@ def configure_tc_offload(pf_name, switchdev_mode=False):
         try:
             processutils.execute('/usr/sbin/ethtool', '-K', pf_name,
                                  'hw-tc-offload', 'on')
-            logger.info(f"{pf_name}: Enabled \"hw-tc-offload\" for PF.")
+            logger.info("%s: Enabled hw-tc-offload for PF.", pf_name)
         except processutils.ProcessExecutionError as exc:
-            logger.error(f"{pf_name}: Failed to enable hw-tc-offload: {exc}")
+            logger.error(
+                "%s: Failed to enable hw-tc-offload: %s", pf_name, exc
+            )
             raise
     else:
         try:

@@ -656,8 +656,8 @@ class TestUtils(base.TestCase):
             utils.bind_dpdk_interfaces('eth1', 'vfio-pci', False)
         except common.OvsDpdkBindException:
             self.fail("Received OvsDpdkBindException unexpectedly")
-        msg = "Driver (vfio-pci) is already bound to the device (eth1)"
-        mocked_logger.assert_called_with(msg)
+        msg = ["%s: Driver %s is already bound", "eth1", "vfio-pci"]
+        mocked_logger.assert_called_with(*msg)
 
     def test_get_interface_driver(self):
         mocked_open = mock.mock_open(read_data='DRIVER=vfio-pci\n')

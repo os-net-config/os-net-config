@@ -161,20 +161,25 @@ def mapped_nics(nic_mapping=None):
                     except IOError:
                         continue
                     if nic_mapped == mac:
-                        logger.debug("%s matches device %s" %
-                                     (nic_mapped, nic))
+                        logger.debug("%s matches device %s", nic_mapped, nic)
                         nic_mapped = nic
                         break
                 else:
                     # The mac could not be found on this system
-                    logger.error('mac %s not found in available nics (%s)'
-                                 % (nic_mapped, ', '.join(available_nics)))
+                    logger.error(
+                        "mac %s not found in available nics %s",
+                        nic_mapped,
+                        ", ".join(available_nics),
+                    )
                     continue
 
             elif nic_mapped not in available_nics:
                 # nic doesn't exist on this system
-                logger.error('nic %s not found in available nics (%s)'
-                             % (nic_mapped, ', '.join(available_nics)))
+                logger.error(
+                    "nic %s not found in available nics %s",
+                    nic_mapped,
+                    ", ".join(available_nics),
+                )
                 continue
 
             # Duplicate mappings are not allowed
@@ -192,12 +197,13 @@ def mapped_nics(nic_mapping=None):
                        'NIC.' % (nic_mapped, nic_alias))
                 raise InvalidConfigException(msg)
             elif utils.is_real_nic(nic_alias):
-                logger.warning("Mapped nic %s overlaps with name of inactive "
-                               "NIC." % (nic_alias))
+                logger.warning(
+                    "Mapped nic %s overlaps with name of inactive NIC.",
+                    nic_alias,
+                )
 
             _MAPPED_NICS[nic_alias] = nic_mapped
-            logger.info("%s in mapping file mapped to: %s"
-                        % (nic_alias, nic_mapped))
+            logger.info("%s => %s", nic_alias, nic_mapped)
 
     # nics not in mapping file must be active in order to be mapped
     active_nics = utils.ordered_active_nics()
@@ -206,12 +212,15 @@ def mapped_nics(nic_mapping=None):
     for nic_mapped in set(active_nics).difference(set(_MAPPED_NICS.values())):
         nic_alias = "nic%i" % (active_nics.index(nic_mapped) + 1)
         if nic_alias in _MAPPED_NICS:
-            logger.warning("no mapping for interface %s because "
-                           "%s is mapped to %s"
-                           % (nic_mapped, nic_alias, _MAPPED_NICS[nic_alias]))
+            logger.warning(
+                "no mapping for interface %s because %s is mapped to %s",
+                nic_mapped,
+                nic_alias,
+                _MAPPED_NICS[nic_alias],
+            )
         else:
             _MAPPED_NICS[nic_alias] = nic_mapped
-            logger.info("%s mapped to: %s" % (nic_alias, nic_mapped))
+            logger.info("%s => %s", nic_alias, nic_mapped)
 
     if not _MAPPED_NICS:
         logger.warning('No active nics found.')
@@ -732,16 +741,25 @@ class OvsBridge(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Trust is not set, defaulting to on",
+                iface.device,
+                iface.vfid
+            )
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Spoofcheck is not set, defaulting to off",
+                iface.device,
+                iface.vfid
+            )
             iface.spoofcheck = "off"
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Promisc is not set, defaulting to on",
+                iface.device,
+                iface.vfid
+            )
             iface.promisc = "on"
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1113,16 +1131,25 @@ class LinuxBond(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Trust is not set, defaulting to on",
+                iface.device,
+                iface.vfid,
+            )
             iface.trust = 'on'
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Spoofcheck is not set, defaulting to off",
+                iface.device,
+                iface.vfid,
+            )
             iface.spoofcheck = 'off'
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Promisc is not set, defaulting to off",
+                iface.device,
+                iface.vfid,
+            )
             iface.promisc = 'off'
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1201,16 +1228,25 @@ class OvsBond(_BaseOpts):
     @staticmethod
     def update_vf_config(iface):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Trust is not set, defaulting to on",
+                iface.device,
+                iface.vfid,
+            )
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Spoofcheck is not set, defaulting to off",
+                iface.device,
+                iface.vfid,
+            )
             iface.spoofcheck = "off"
         if iface.promisc is None:
-            logger.info("Promisc is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Promisc is not set, defaulting to on",
+                iface.device,
+                iface.vfid,
+            )
             iface.promisc = "on"
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
@@ -1429,18 +1465,32 @@ class OvsDpdkPort(_BaseOpts):
     @staticmethod
     def update_vf_config(iface, driver=None):
         if iface.trust is None:
-            logger.info("Trust is not set for VF %s:%d, defaulting to on"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Trust is not set, defaulting to on",
+                iface.device,
+                iface.vfid,
+            )
             iface.trust = "on"
         if iface.spoofcheck is None:
-            logger.info("Spoofcheck is not set for VF %s:%d, defaulting to off"
-                        % (iface.device, iface.vfid))
+            logger.info(
+                "%s-%d: Spoofcheck is not set, defaulting to off",
+                iface.device,
+                iface.vfid,
+            )
             iface.spoofcheck = "off"
         if iface.promisc is not None:
-            logger.warning("Promisc can't be changed for ovs_dpdk_port")
+            logger.warning(
+                "%s-%d: Promisc can't be changed for ovs_dpdk_port",
+                iface.device,
+                iface.vfid,
+            )
             iface.promisc = None
-        logger.info(f'{iface.device}-{iface.vfid}: Overriding the default '
-                    f'driver for DPDK with {driver}')
+        logger.info(
+            "%s-%d: Overriding the default driver for DPDK with %s",
+            iface.device,
+            iface.vfid,
+            driver,
+        )
         iface.driver = driver
         utils.update_sriov_vf_map(iface.device, iface.vfid, iface.name,
                                   vlan_id=iface.vlan_id, qos=iface.qos,
