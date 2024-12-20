@@ -51,3 +51,6 @@ ChangeLog
 
 # Visual Studio Code
 .vscode
+
+# Leftovers from other commands like tox -e pep8,tht
+.cache
