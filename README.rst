@@ -2,17 +2,19 @@
 os-net-config
 =============
 
+A declarative network configuration tool for hosts.
+
 Team and repository tags
 ------------------------
 
-.. image:: https://governance.openstack.org/tc/badges/os-net-config.svg
-    :target: https://governance.openstack.org/tc/reference/tags/index.html
+.. image:: https://governance.openstack.org/tc/badges/openapi.svg
+    :target: https://governance.openstack.org/tc/reference/projects/
 
 Overview
 --------
 
 ``os-net-config`` is a host network configuration tool which supports multiple
-backend configuration providers.
+backend configuration providers (One of: ifcfg, eni, nmstate, iproute).
 
 * Documentation: https://docs.openstack.org/os-net-config/latest
 * Source: https://github.com/os-net-config/os-net-config
@@ -32,7 +34,15 @@ project consists of:
   at /etc/os-net-config/config.yaml. This can be customized via the
   --config-file CLI option.
 
+* The provider can be customized via the --provider PROVIDER option.
+
 * A python library which provides configuration via an object model.
+
+* A set of related services like os-net-config-sriov, os-net-config-sriov-bind,
+  os-net-config-dcb.
+
+* Configuration examples could be found at
+  https://github.com/os-net-config/os-net-config/tree/master/etc/os-net-config/samples
 
 Contributing
 ------------
