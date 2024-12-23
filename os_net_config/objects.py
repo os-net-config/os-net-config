@@ -310,7 +310,7 @@ class Dcb(object):
         noop = common.get_noop()
         self.device = device
         self.dscp2prio = dscp2prio
-        self.pci_addr = utils.get_pci_address(device, noop)
+        self.pci_addr = common.get_pci_address(device)
         self.driver = utils.get_driver(device, noop)
 
     @staticmethod
@@ -1587,6 +1587,7 @@ class SriovVF(_BaseOpts):
         mapped_nic_names = mapped_nics(nic_mapping)
         if device in mapped_nic_names:
             device = mapped_nic_names[device]
+        pci_address = common.get_pci_address(f"sriov:{device}:{vfid}")
         # Empty strings are set for the name field.
         # The provider shall identify the VF name from the PF device name
         # (device) and the VF id.
@@ -1605,10 +1606,6 @@ class SriovVF(_BaseOpts):
         self.spoofcheck = spoofcheck
         self.trust = trust
         self.state = state
-        noop = common.get_noop()
-        pci_address = utils.get_pci_address(name, noop)
-        if pci_address is None:
-            pci_address = utils.get_stored_pci_address(name, noop)
         self.macaddr = macaddr
         self.promisc = promisc
         self.pci_address = pci_address
