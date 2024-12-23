@@ -84,6 +84,10 @@ class OvsDpdkBindException(ValueError):
     pass
 
 
+class SriovVfNotFoundException(ValueError):
+    pass
+
+
 def set_noop(value):
     global noop
     noop = value
@@ -143,10 +147,8 @@ def get_dev_path(ifname, path=None):
     return os.path.join(SYS_CLASS_NET, ifname, path)
 
 
-def get_pci_dev_path(pci_address, path=None):
-    if not path:
-        path = ""
-    elif path.startswith("_"):
+def get_pci_dev_path(pci_address, path=""):
+    if path.startswith("_"):
         path = path[1:]
     return os.path.join(_SYS_BUS_PCI_DEV, pci_address, path)
 
@@ -322,6 +324,61 @@ def is_vf(pci_address):
     vf_path_check = _SYS_BUS_PCI_DEV + '/%s/physfn' % pci_address
     is_sriov_vf = os.path.isdir(vf_path_check)
     return is_sriov_vf
+
+
+def get_pci_address(name):
+    """Fetch the PCI address of the interface
+
+    Fetch the PCI address of the device from the /sys/class/net
+    subsystem when the interface is bound with the ethernet drivers.
+    If the device is bound with vfio-pci, the pci address is fetched
+    from the dpdk map.
+    :param name: name of the interface. For vfs the name could
+        be written in the format f"sriov:{pf_name}:{vfid}"
+    :returns: Return the PCI address
+    """
+    vfid = None
+    device = name.split(":")
+    ifname = device[0]
+    if len(device) == 3 and ifname == "sriov":
+        ifname = device[1]
+        vfid = device[2]
+
+    if vfid:
+        dev_path = get_dev_path(ifname, f'virtfn{vfid}')
+    else:
+        dev_path = get_dev_path(ifname, '_device')
+    try:
+        pci_addr = os.readlink(dev_path)
+        pci_addr = os.path.basename(pci_addr)
+    except OSError as exc:
+        # for VFs the PCI address could always be identified from sysfs
+        # using the PF device and the VF id even if the VF is bound with
+        # DPDK driver. So there is no ned to run through the DPDK map
+        # for retrieving the corresponding pci address
+        if vfid:
+            msg = f"{ifname}:{vfid} Unable to get pci address"
+            raise SriovVfNotFoundException(msg)
+        logger.info(
+            "%s: Unable to get pci address from sysfs. Err: %s", ifname, exc
+        )
+        pci_addr = get_dpdk_pci_address(ifname)
+
+    logger.info("%s: pci address is %s", ifname, pci_addr)
+    return pci_addr
+
+
+def get_dpdk_pci_address(ifname):
+    # In case of DPDK devices, the pci address could be fetched
+    # before performing the driverctl override.
+    # basename $(readlink /sys/class/net/<ifname>/device)
+    # After setting the override, the pci address could be read back
+    # from the dpdk map.
+    logger.info("%s: Fetch pci address from dpdk map", ifname)
+    dpdk_map = get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        if dpdk_nic['name'] == ifname:
+            return dpdk_nic['pci_address']
 
 
 def is_vf_by_name(interface_name, check_mapping_file=False):
