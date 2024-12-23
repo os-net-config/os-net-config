@@ -1296,11 +1296,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param vpp_interface: The VppInterface object to add
         """
-        vpp_interface.pci_dev = utils.get_pci_address(vpp_interface.name,
-                                                      self.noop)
-        if not vpp_interface.pci_dev:
-            vpp_interface.pci_dev = utils.get_stored_pci_address(
-                vpp_interface.name, self.noop)
+        vpp_interface.pci_dev = common.get_pci_address(vpp_interface.name)
         vpp_interface.hwaddr = common.interface_mac(vpp_interface.name)
         if not self.noop:
             self.ifdown(vpp_interface.name)
