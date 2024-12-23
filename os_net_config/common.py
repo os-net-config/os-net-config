@@ -272,7 +272,7 @@ def _get_dpdk_mac_address(name):
 
 def interface_mac(name):
     try:  # If the iface is part of a Linux bond, the real MAC is only here.
-        with open(get_dev_path(name, 'bonding_slave/perm_hwaddr'),
+        with open(get_dev_path(name, '_bonding_slave/perm_hwaddr'),
                   'r') as f:
             return f.read().rstrip()
     except IOError:
