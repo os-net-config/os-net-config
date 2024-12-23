@@ -733,7 +733,7 @@ class TestIfcfgNetConfig(base.TestCase):
     def get_route6_config(self, name='em1'):
         return self.provider.route6_data.get(name, '')
 
-    def stub_get_stored_pci_address(self, ifname, noop):
+    def stub_get_dpdk_pci_address(self, ifname):
         if 'eth0' in ifname:
             return "0000:00:07.0"
         if 'eth1' in ifname:
@@ -1149,8 +1149,8 @@ class TestIfcfgNetConfig(base.TestCase):
     def test_add_contrail_vrouter_dpdk_interface(self):
         addresses = [objects.Address('10.0.0.30/24')]
         interface1 = objects.Interface('em3')
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
         cvi = objects.ContrailVrouterDpdk('vhost0', addresses=addresses,
                                           members=[interface1])
         self.provider.noop = True
@@ -1163,8 +1163,8 @@ class TestIfcfgNetConfig(base.TestCase):
     def test_add_contrail_vrouter_dpdk_interface_cust_driver(self):
         addresses = [objects.Address('10.0.0.30/24')]
         interface1 = objects.Interface('em3')
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
         cvi = objects.ContrailVrouterDpdk('vhost0', addresses=addresses,
                                           members=[interface1], driver='vfio')
         self.provider.noop = True
@@ -1179,8 +1179,8 @@ class TestIfcfgNetConfig(base.TestCase):
         self.stubbed_mapped_nics = nic_mapping
         addresses = [objects.Address('10.0.0.30/24')]
         interface1 = objects.Interface('nic1')
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
         cvi = objects.ContrailVrouterDpdk('vhost0', addresses=addresses,
                                           members=[interface1])
         self.provider.noop = True
@@ -1194,8 +1194,8 @@ class TestIfcfgNetConfig(base.TestCase):
         addresses = [objects.Address('10.0.0.30/24')]
         interface1 = objects.Interface('em3')
         interface2 = objects.Interface('em1')
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
         cvi = objects.ContrailVrouterDpdk('vhost0', addresses=addresses,
                                           members=[interface1, interface2],
                                           bond_mode="2",
@@ -1214,8 +1214,8 @@ class TestIfcfgNetConfig(base.TestCase):
         addresses = [objects.Address('10.0.0.30/24')]
         interface1 = objects.Interface('nic1')
         interface2 = objects.Interface('nic2')
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
         cvi = objects.ContrailVrouterDpdk('vhost0', addresses=addresses,
                                           members=[interface1, interface2],
                                           bond_mode="2",
@@ -1562,13 +1562,13 @@ DOMAIN="openstack.local subdomain.openstack.local"
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
 
-        def test_get_pci_address(ifname, noop):
+        def test_get_pci_address(ifname):
             return '0000:79:10.2'
 
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
 
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out('os_net_config.common.get_pci_address',
                       test_get_pci_address)
 
         vf = objects.SriovVF(device='nic3', vfid=7, addresses=addresses)
@@ -1615,13 +1615,13 @@ NETMASK=255.255.255.0
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
 
-        def test_get_pci_address(ifname, noop):
+        def test_get_pci_address(ifname):
             return '0000:80:10.1'
 
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
 
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out('os_net_config.common.get_pci_address',
                       test_get_pci_address)
 
         vf = objects.SriovVF(device='nic3', vfid=7, addresses=addresses,
@@ -1672,13 +1672,13 @@ NETMASK=255.255.255.0
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
 
-        def test_get_pci_address(ifname, noop):
+        def test_get_pci_address(ifname):
             return '0000:82:00.2'
 
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
 
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out('os_net_config.common.get_pci_address',
                       test_get_pci_address)
 
         vf = objects.SriovVF(device='nic3', vfid=7, addresses=addresses,
@@ -1760,8 +1760,8 @@ BOOTPROTO=none
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_port(dpdk_port)
         self.provider.add_ovs_user_bridge(bridge)
@@ -1809,8 +1809,8 @@ OVS_EXTRA="set Interface $DEVICE options:dpdk-devargs=0000:00:09.0"
             self.assertEqual(driver, 'mlx5_core')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_port(dpdk_port)
         self.provider.add_ovs_user_bridge(bridge)
@@ -1865,8 +1865,8 @@ BOOTPROTO=none
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_port(dpdk_port)
         self.provider.add_ovs_user_bridge(bridge)
@@ -1914,8 +1914,8 @@ OVS_EXTRA="set Interface $DEVICE options:dpdk-devargs=0000:00:09.0 \
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_port(dpdk_port)
         self.provider.add_ovs_user_bridge(bridge)
@@ -1980,8 +1980,8 @@ LINKSTATUS=down
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_bond(bond)
         self.provider.add_ovs_user_bridge(bridge)
@@ -2028,8 +2028,8 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
             self.assertEqual(driver, 'mlx5_core')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_bond(bond)
         self.provider.add_ovs_user_bridge(bridge)
@@ -2090,8 +2090,8 @@ BOOTPROTO=none
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_bond(bond)
         self.provider.add_ovs_user_bridge(bridge)
@@ -2132,8 +2132,8 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_bond(bond)
         self.provider.add_ovs_user_bridge(bridge)
@@ -2175,8 +2175,8 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_bond(bond)
         self.provider.add_ovs_user_bridge(bridge)
@@ -2220,8 +2220,8 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
             self.assertEqual(driver, 'vfio-pci')
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
 
         self.provider.add_ovs_dpdk_bond(bond)
         self.provider.add_ovs_user_bridge(bridge)
