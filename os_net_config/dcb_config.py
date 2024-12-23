@@ -17,6 +17,7 @@
 import argparse
 import logging
 import os
+import re
 import sys
 import yaml
 
@@ -369,12 +370,16 @@ class DcbApplyConfig():
             # In case of mellanox nic, set the mstconfig and do fwreset
             # If the DCBX mode is already set to FW (0), ignore
             # performing mstconfig and mstfwreset.
-            if 'mlx' in cfg['driver'] and dcbx_mode != 0:
+            if (
+                'mlx' in cfg['driver'] and
+                not is_dcbx_mstconfig_enabled(cfg['device'], cfg['pci_addr'])
+            ):
                 mstconfig(cfg['device'], cfg['pci_addr'])
                 mstfwreset(cfg['device'], cfg['pci_addr'])
 
             # Set the mode to Firmware
-            dcb_config.set_dcbx(mode=0)
+            if dcbx_mode != 0:
+                dcb_config.set_dcbx(mode=0)
             curr_apptable = dcb_config.get_ieee_app_table()
             add_app_table = DcbAppTable()
             user_dscp2prio = cfg['dscp2prio']
@@ -426,6 +431,82 @@ def mstfwreset(device, pci_addr):
     except processutils.ProcessExecutionError:
         logger.error(f"mstfwreset failed for {device}")
         raise
+
+
+def is_dcbx_mstconfig_enabled(device, pci_addr):
+    """Check if DCBX mode is enabled for a Mellanox NIC using mstconfig.
+
+    This function verifies the required DCBX settings on the Mellanox NIC by
+    querying the configuration using the mstconfig tool.
+
+    Args:
+        device (str): Interface name of the NIC.
+        pci_addr (str): PCI address of the NIC.
+
+    Returns:
+        bool: True if configuration matches expected values, False otherwise.
+    """
+    expected_values = {
+        "LLDP_NB_DCBX_P1": "True",
+        "LLDP_NB_TX_MODE_P1": "ALL",
+        "LLDP_NB_RX_MODE_P1": "ALL",
+        "LLDP_NB_DCBX_P2": "True",
+        "LLDP_NB_TX_MODE_P2": "ALL",
+        "LLDP_NB_RX_MODE_P2": "ALL",
+    }
+
+    try:
+        logger.info(
+            "%s: Querying DCBX configuration with mstconfig", device
+        )
+
+        # Execute the mstconfig command and capture the output
+        output, _ = processutils.execute(
+            'mstconfig', '-d', pci_addr, 'query', *expected_values.keys()
+        )
+
+    except processutils.ProcessExecutionError as e:
+        logger.error(
+            "%s: Failed to query DCBX configuration: %s", device, e
+        )
+        return False
+
+    # Process each key in expected_values and check if it's in the output
+    for key, expected in expected_values.items():
+        for line in output.splitlines():
+            line = line.strip()
+            if key in line:
+                match = re.search(rf"{key}\s+(\S+)", line)
+                if match:
+                    actual = match.group(1).strip()
+
+                    # Remove any parentheses and the content inside them
+                    actual = re.sub(r'\(.*\)', '', actual).strip()
+
+                    # Check if the actual value matches the expected value
+                    if actual != expected:
+                        logger.info(
+                            "%s: %s does not match"
+                            "Expected: %s, Found: %s",
+                            device, key, expected, actual
+                        )
+                        return False
+                    else:
+                        logger.debug(
+                            "%s: %s = %s is configured", device, key, actual
+                        )
+                        break
+
+        else:
+            logger.warning(
+                "%s: %s is not configured", device, key
+            )
+            return False
+
+    logger.info(
+        "%s: Device is already configured.", device
+    )
+    return True
 
 
 def cmd_to_name(cmd):
