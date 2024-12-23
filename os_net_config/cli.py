@@ -340,7 +340,7 @@ def main(argv=sys.argv, main_logger=None):
         for iface_json in iface_array:
             try:
                 obj = objects.object_from_json(iface_json)
-            except utils.SriovVfNotFoundException:
+            except common.SriovVfNotFoundException:
                 continue
 
             if _is_sriovpf_obj_found(obj):
@@ -389,7 +389,7 @@ def main(argv=sys.argv, main_logger=None):
             # SriovVfNotFoundException shall be raised if not available.
             try:
                 obj = objects.object_from_json(iface_json)
-            except utils.SriovVfNotFoundException:
+            except common.SriovVfNotFoundException:
                 if not opts.noop:
                     raise
 
