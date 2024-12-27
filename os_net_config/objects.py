@@ -299,11 +299,10 @@ class Dcb(object):
     """Base class for DCB configuration"""
 
     def __init__(self, device, dscp2prio=[]):
-        noop = common.get_noop()
         self.device = device
         self.dscp2prio = dscp2prio
         self.pci_addr = common.get_pci_address(device)
-        self.driver = utils.get_driver(device, noop)
+        self.driver = common.get_pci_device_driver(self.pci_addr)
 
     @staticmethod
     def from_json(json):
@@ -1544,9 +1543,9 @@ class SriovVF(_BaseOpts):
         if pci_address is None:
             msg = f"{device}:{vfid}: Unable to get pci address"
             raise os_net_config.ConfigurationError(msg)
-        # Empty strings are set for the name field.
-        # The provider shall identify the VF name from the PF device name
-        # (device) and the VF id.
+        # The VF device name could be obtained only after binding the default
+        # driver. The provider shall identify the VF name from the PF device
+        # name (device) and the VF id.
         name = utils.get_vf_devname(device, vfid)
         super(SriovVF, self).__init__(name, use_dhcp, use_dhcpv6, addresses,
                                       routes, rules, mtu, primary, nic_mapping,
