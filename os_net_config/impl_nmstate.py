@@ -2134,6 +2134,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 "by nmstate provider yet."
             )
             raise os_net_config.ConfigurationError(msg)
+        if common.is_pf_attached_to_guest(sriov_pf.name):
+            logger.info(
+                "%s: Attached to guest, skip configuring", sriov_pf.name
+            )
+            return
 
         data = self._add_common(sriov_pf)
         data[Interface.TYPE] = InterfaceType.ETHERNET
