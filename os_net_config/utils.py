@@ -389,7 +389,8 @@ def get_totalvfs(iface_name):
 
 def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                         link_mode='legacy', vdpa=False, steering_mode=None,
-                        lag_candidate=None, drivers_autoprobe=True):
+                        lag_candidate=None, drivers_autoprobe=True,
+                        pci_address=None, mac_address=None):
     if not noop:
         cur_numvfs = sriov_config.get_numvfs(ifname)
         if cur_numvfs > 0 and cur_numvfs != numvfs:
@@ -408,6 +409,10 @@ def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                     item['steering_mode'] = steering_mode
                 if lag_candidate is not None:
                     item['lag_candidate'] = lag_candidate
+                if pci_address:
+                    item['pci_address'] = pci_address
+                if mac_address:
+                    item['mac_address'] = mac_address
                 break
         else:
             new_item = {}
@@ -423,6 +428,10 @@ def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                 new_item['steering_mode'] = steering_mode
             if lag_candidate is not None:
                 new_item['lag_candidate'] = lag_candidate
+            if pci_address:
+                new_item['pci_address'] = pci_address
+            if mac_address:
+                new_item['mac_address'] = mac_address
             sriov_map.append(new_item)
 
         common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)

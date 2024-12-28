@@ -114,9 +114,9 @@ class TestUtils(base.TestCase):
         pci_path = os.path.join(common._SYS_BUS_PCI_DEV, pci_addr)
         drv_link = os.path.join(common._SYS_BUS_PCI_DEV, f"{pci_addr}/driver")
         dev_link = os.path.join(common.SYS_CLASS_NET, f"{nic}/device")
-        os.makedirs(net_path, exist_ok=True)
-        os.makedirs(pci_path, exist_ok=True)
-        os.makedirs(drv_dir, exist_ok=True)
+        os.makedirs(net_path)
+        os.makedirs(pci_path)
+        os.makedirs(drv_dir)
         os.symlink(drv_dir, drv_link)
         os.symlink(pci_path, dev_link)
 
@@ -152,13 +152,17 @@ class TestUtils(base.TestCase):
             return 0
         self.stub_out('os_net_config.sriov_config.get_numvfs',
                       get_numvfs_stub)
-        utils.update_sriov_pf_map('eth1', 10, False)
+        utils.update_sriov_pf_map("eth1", 10, False,
+                                  pci_address="0000:8a:07.1",
+                                  mac_address="AA:BB:CC:DD:EE:FF")
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         sriov_pf_map = yaml.safe_load(contents) if contents else []
         self.assertEqual(1, len(sriov_pf_map))
         test_sriov_pf_map = [{'device_type': 'pf', 'link_mode': 'legacy',
                               'drivers_autoprobe': True,
-                              'name': 'eth1', 'numvfs': 10, 'vdpa': False}]
+                              'name': 'eth1', 'numvfs': 10, 'vdpa': False,
+                              "pci_address": "0000:8a:07.1",
+                              "mac_address": "AA:BB:CC:DD:EE:FF"}]
         self.assertListEqual(test_sriov_pf_map, sriov_pf_map)
 
     def test_update_sriov_pf_map_with_same_numvfs(self):
