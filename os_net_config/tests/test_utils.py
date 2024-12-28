@@ -148,13 +148,31 @@ class TestUtils(base.TestCase):
 
         shutil.rmtree(tmpdir)
 
+    def test_is_pf_attached_to_guest(self):
+        def stub_get_sriov_pci_address(iface):
+            return "0000:8a:00.1"
+        self.stub_out('os_net_config.common.get_sriov_pci_address',
+                      stub_get_sriov_pci_address)
+
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "i40e")
+        self.assertEqual(common.is_pf_attached_to_guest("eth1"), False)
+
+    def test_is_pf_detached_to_guest(self):
+        def stub_get_sriov_pci_address(iface):
+            return "0000:8a:00.1"
+        self.stub_out('os_net_config.common.get_sriov_pci_address',
+                      stub_get_sriov_pci_address)
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "vfio-pci")
+        self.assertEqual(common.is_pf_attached_to_guest("eth1"), True)
+
     def test_update_sriov_pf_map_new(self):
         def get_numvfs_stub(pf_name):
             return 0
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "i40e")
         self.stub_out('os_net_config.sriov_config.get_numvfs',
                       get_numvfs_stub)
         utils.update_sriov_pf_map("eth1", 10, False,
-                                  pci_address="0000:8a:07.1",
+                                  pci_address="0000:8a:00.1",
                                   mac_address="AA:BB:CC:DD:EE:FF")
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         sriov_pf_map = yaml.safe_load(contents) if contents else []
@@ -162,15 +180,31 @@ class TestUtils(base.TestCase):
         test_sriov_pf_map = [{'device_type': 'pf', 'link_mode': 'legacy',
                               'drivers_autoprobe': True,
                               'name': 'eth1', 'numvfs': 10, 'vdpa': False,
-                              "pci_address": "0000:8a:07.1",
+                              "pci_address": "0000:8a:00.1",
                               "mac_address": "AA:BB:CC:DD:EE:FF"}]
         self.assertListEqual(test_sriov_pf_map, sriov_pf_map)
 
-    def test_update_sriov_pf_map_with_same_numvfs(self):
+    def test_update_sriov_pf_map_with_same_numvfs_pf_not_attached(self):
         def get_numvfs_stub(pf_name):
             return 10
         self.stub_out('os_net_config.sriov_config.get_numvfs',
                       get_numvfs_stub)
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "i40e")
+        utils.update_sriov_pf_map('eth1', 10, False)
+        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
+        sriov_pf_map = yaml.safe_load(contents) if contents else []
+        self.assertEqual(1, len(sriov_pf_map))
+        test_sriov_pf_map = [{'device_type': 'pf', 'link_mode': 'legacy',
+                              'drivers_autoprobe': True,
+                              'name': 'eth1', 'numvfs': 10, 'vdpa': False}]
+        self.assertListEqual(test_sriov_pf_map, sriov_pf_map)
+
+    def test_update_sriov_pf_map_with_same_numvfs_pf_attached(self):
+        def get_numvfs_stub(pf_name):
+            return 10
+        self.stub_out('os_net_config.sriov_config.get_numvfs',
+                      get_numvfs_stub)
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "vfio-pci")
         utils.update_sriov_pf_map('eth1', 10, False)
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         sriov_pf_map = yaml.safe_load(contents) if contents else []
@@ -343,6 +377,31 @@ class TestUtils(base.TestCase):
                      'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
                      'drivers_autoprobe': True,
                      'vdpa': False, 'lag_candidate': False}]
+        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
+
+        pf_map = yaml.safe_load(contents) if contents else []
+        self.assertEqual(1, len(pf_map))
+        self.assertListEqual(pf_final, pf_map)
+
+    def test_update_sriov_pf_map_exist_with_pci_mac(
+            self):
+        def get_numvfs_stub(pf_name):
+            return 10
+        self.stub_out('os_net_config.sriov_config.get_numvfs',
+                      get_numvfs_stub)
+        pf_initial = [{'device_type': 'pf', 'link_mode': 'legacy',
+                       'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
+                       'drivers_autoprobe': True, 'vdpa': False}]
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, pf_initial)
+
+        utils.update_sriov_pf_map('eth1', 10, False,
+                                  pci_address='0000:8a:07.1',
+                                  mac_address='aa:bb:cc:dd:ee:ff')
+        pf_final = [{'device_type': 'pf', 'link_mode': 'legacy',
+                     'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
+                     'drivers_autoprobe': True, 'vdpa': False,
+                     'pci_address': '0000:8a:07.1',
+                     'mac_address': 'aa:bb:cc:dd:ee:ff'}]
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
 
         pf_map = yaml.safe_load(contents) if contents else []
@@ -776,8 +835,34 @@ class TestUtils(base.TestCase):
         self.assertEqual('p3p1', nics[8])  # DPDK bound nic
         self.assertEqual('z1', nics[9])
 
-        shutil.rmtree(tmpdir)
-        shutil.rmtree(tmp_pci_dir)
+    def test_ordered_active_nics_with_sriov_mapping(self):
+
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+
+        def test_is_available_nic(interface_name, check_active):
+            return True
+        self.stub_out('os_net_config.utils._is_available_nic',
+                      test_is_available_nic)
+
+        def stub_get_sriov_pfs():
+            return ["eth1", "p3p1"]
+        self.stub_out('os_net_config.common.get_sriov_pfs',
+                      stub_get_sriov_pfs)
+
+        utils._update_dpdk_map('eth2', '0000:03:00.0', '01:02:03:04:05:06',
+                               'vfio-pci')
+
+        for nic in ['a1', 'em1', 'em2', 'eth1', 'z1',
+                    'enp8s0', 'enp10s0', 'enp1s0f0']:
+            with open(os.path.join(tmpdir, nic), 'w') as f:
+                f.write(nic)
+
+        nics = utils.ordered_active_nics()
+        expected_order = ["em1", "em2", "eth1", "eth2", "a1", "enp1s0f0",
+                          "enp8s0", "enp10s0", "p3p1", "z1"]
+
+        self.assertEqual(expected_order, nics)
 
     def test_ordered_active_nics_with_dpdk_mapping_of_vf(self):
         tmpdir = tempfile.mkdtemp()
