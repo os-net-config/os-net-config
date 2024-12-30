@@ -21,8 +21,10 @@
 
 import logging
 import netaddr
+from oslo_concurrency import processutils
 from oslo_utils import strutils
 
+import os_net_config
 from os_net_config import common
 from os_net_config import utils
 
@@ -1589,9 +1591,29 @@ class SriovVF(_BaseOpts):
         if device in mapped_nic_names:
             device = mapped_nic_names[device]
         pci_address = common.get_pci_address(f"sriov:{device}:{vfid}")
-        # Empty strings are set for the name field.
-        # The provider shall identify the VF name from the PF device name
-        # (device) and the VF id.
+        if pci_address is None:
+            msg = f"{device}:{vfid}: Unable to get pci address"
+            raise os_net_config.ConfigurationError(msg)
+
+        # Identify the default driver for the VF. When autoprobe is disabled,
+        # the VFs will not be bound with the appropriate netdev drivers.
+        # When VFs are used for host networking (NIC Partitioning), then the
+        # VF shall be bound with the default net driver, so that the VF's
+        # name and other details could be fetched and configured. If the VF
+        # is attached to a DPDK port, then the below override would be
+        # overridden again later.
+        # When autoprobe is enabled, the current driver and the default net
+        # driver will be the same, and hence no override happens.
+        # During update or os-net-config re-run the device could be already
+        # bound with vfio-pci and hence the overriding with default driver is
+        # avoided.
+        def_driver = common.get_default_vf_driver(device, vfid)
+        cur_driver = common.get_pci_device_driver(pci_address)
+        if cur_driver is None:
+            common.set_driverctl_override(pci_address, def_driver)
+        # The VF device name could be obtained only after binding the default
+        # driver. The provider shall identify the VF name from the PF device
+        # name (device) and the VF id.
         name = utils.get_vf_devname(device, vfid)
         super(SriovVF, self).__init__(name, use_dhcp, use_dhcpv6, addresses,
                                       routes, rules, mtu, primary, nic_mapping,
@@ -1610,7 +1632,7 @@ class SriovVF(_BaseOpts):
         self.macaddr = macaddr
         self.promisc = promisc
         self.pci_address = pci_address
-        self.driver = None
+        self.driver = cur_driver if cur_driver else def_driver
         self.ethtool_opts = ethtool_opts
         utils.update_sriov_vf_map(device, self.vfid, name,
                                   vlan_id=self.vlan_id,
