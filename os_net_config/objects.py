@@ -1543,6 +1543,18 @@ class SriovVF(_BaseOpts):
         if pci_address is None:
             msg = f"{device}:{vfid}: Unable to get pci address"
             raise os_net_config.ConfigurationError(msg)
+
+        # Identify the default driver for the VF. When autoprobe is disabled,
+        # the VFs will not be bound with the appropriate netdev drivers.
+        # When VFs are used for host networking (NIC Partitioning), then the
+        # VF shall be bound with the default net driver, so that the VF's
+        # name and other details could be fetched and configured. If the VF
+        # is attached to a DPDK port, then the below override would be overridden
+        # again later. 
+        # When autoprobe is enabled, the current driver and the default net driver
+        # will be the same, and hence no override happens.
+        driver = common.get_default_vf_driver(device, vfid)
+        common.set_driverctl_override(pci_address, driver)
         # The VF device name could be obtained only after binding the default
         # driver. The provider shall identify the VF name from the PF device
         # name (device) and the VF id.
@@ -1564,7 +1576,7 @@ class SriovVF(_BaseOpts):
         self.macaddr = macaddr
         self.promisc = promisc
         self.pci_address = pci_address
-        self.driver = None
+        self.driver = driver
         self.ethtool_opts = ethtool_opts
         utils.update_sriov_vf_map(device, self.vfid, name,
                                   vlan_id=self.vlan_id,
