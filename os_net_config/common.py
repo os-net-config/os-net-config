@@ -27,6 +27,8 @@ import sys
 import traceback
 import yaml
 
+import os_net_config
+
 # File to contain the DPDK mapped nics, as nic name will not be available after
 # binding driver, which is required for correct nic numbering.
 # Format of the file (list mapped nic's details):
@@ -143,10 +145,8 @@ def get_dev_path(ifname, path=None):
     return os.path.join(SYS_CLASS_NET, ifname, path)
 
 
-def get_pci_dev_path(pci_address, path=None):
-    if not path:
-        path = ""
-    elif path.startswith("_"):
+def get_pci_dev_path(pci_address, path=""):
+    if path.startswith("_"):
         path = path[1:]
     return os.path.join(_SYS_BUS_PCI_DEV, pci_address, path)
 
@@ -262,6 +262,15 @@ def get_dpdk_map():
     return dpdk_map
 
 
+def get_sriov_pfs():
+    pfs = []
+    sriov_map = get_sriov_map()
+    for item in sriov_map:
+        if item['device_type'] == 'pf':
+            pfs.append(item['name'])
+    return pfs
+
+
 def _get_dpdk_mac_address(name):
     contents = get_file_data(DPDK_MAPPING_FILE)
     dpdk_map = yaml.safe_load(contents) if contents else []
@@ -287,23 +296,33 @@ def interface_mac(name):
         dpdk_mac_address = _get_dpdk_mac_address(name)
         if dpdk_mac_address:
             return dpdk_mac_address
-
+        sriov_mac_address = _get_sriov_mac_address(name)
+        if sriov_mac_address:
+            return sriov_mac_address
         logger.error("Unable to read mac address: %s" % name)
         raise
 
 
-def get_interface_driver_by_pci_address(pci_address):
-    try:
-        uevent = get_pci_dev_path(pci_address, 'uevent')
-        with open(uevent, 'r') as f:
-            out = f.read().strip()
-            for line in out.split('\n'):
-                if 'DRIVER' in line:
-                    driver = line.split('=')
-                    if len(driver) == 2:
-                        return driver[1]
-    except IOError:
+def get_pci_device_driver(pci_addr):
+    """Fetch the driver attached to the device
+
+    :param pci_addr: PCI address of the the device
+    :returns: driver attached to the PCI device
+    """
+    if get_noop():
+        logger.info("%s: Fetching the PCI device driver", pci_addr)
         return
+    driver_path = get_pci_dev_path(pci_addr, 'driver')
+    try:
+        driver = os.readlink(driver_path)
+        driver = os.path.basename(driver)
+        logger.info("%s: Bound with %s", pci_addr, driver)
+        return driver
+    except OSError as exp:
+        logger.info(
+            "%s: Not bound with any driver. Err %s", pci_addr, exp
+        )
+        return None
 
 
 def is_mellanox_interface(ifname):
@@ -324,6 +343,90 @@ def is_vf(pci_address):
     return is_sriov_vf
 
 
+def get_pci_address(name):
+    """Fetch the PCI address of the interface
+
+    Fetch the PCI address of the device from the /sys/class/net
+    subsystem when the interface is bound with the ethernet drivers.
+    If the device is bound with vfio-pci, the pci address is fetched
+    from the dpdk map.
+    :param name: name of the interface. For vfs the name could
+        be written in the format f"{pf_name}:{vfid}"
+    :returns: Return the PCI address
+    """
+    vfid = None
+    device = name.split(":")
+    ifname = device[0]
+    if len(device) == 2:
+        vfid = device[1]
+    if get_noop():
+        logger.info("%s: Fetch the PCI address", ifname)
+        return
+
+    if vfid:
+        dev_path = get_dev_path(ifname, f'virtfn{vfid}')
+    else:
+        dev_path = get_dev_path(ifname, '_device')
+    try:
+        pci_addr = os.readlink(dev_path)
+        pci_addr = os.path.basename(pci_addr)
+    except OSError as exc:
+        if vfid:
+            msg = f"{ifname}-{vfid} Unable to get pci address"
+            raise os_net_config.ConfigurationError(msg)
+        logger.info("%s: Unable to get pci address %s", ifname, exc)
+        pci_addr = get_dpdk_pci_address(ifname)
+
+    logger.info("%s: pci address is %s", ifname, pci_addr)
+    return pci_addr
+
+
+def get_dpdk_pci_address(ifname):
+    noop = get_noop()
+    # In case of DPDK devices, the pci address could be fetched
+    # before performing the driverctl override.
+    # basename $(readlink /sys/class/net/<ifname>/device)
+    # After setting the override, the pci address could be read back
+    # from the dpdk map.
+    if noop:
+        logger.info("%s: Fetch the PCI address", ifname)
+        return
+    dpdk_map = get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        if dpdk_nic['name'] == ifname:
+            return dpdk_nic['pci_address']
+
+
+def get_sriov_pci_address(name):
+    noop = get_noop()
+    if noop:
+        logger.info("%s: Fetch the PCI address", name)
+        return
+    sriov_map = get_sriov_map(pf_name=name)
+    if sriov_map:
+        return sriov_map[0].get('pci_address', None)
+
+
+def _get_sriov_mac_address(iface_name):
+    """Fetch the Mac address from the sriov_map."""
+    sriov_map = get_sriov_map()
+    for item in sriov_map:
+        if (item['name'] == iface_name and
+                item['device_type'] == 'pf'):
+            return item.get('mac_address', None)
+    return None
+
+
+def is_pf_attached_to_guest(iface_name):
+    driver = None
+    pci_addr = get_sriov_pci_address(iface_name)
+    if pci_addr:
+        driver = get_pci_device_driver(pci_addr)
+    if driver == 'vfio-pci':
+        return True
+    return False
+
+
 def is_vf_by_name(interface_name, check_mapping_file=False):
     vf_path_check = get_dev_path(interface_name, 'physfn')
     is_sriov_vf = os.path.isdir(vf_path_check)
@@ -336,12 +439,31 @@ def is_vf_by_name(interface_name, check_mapping_file=False):
     return is_sriov_vf
 
 
+def get_default_vf_driver(pf_name, vfid):
+    modalias_path = get_dev_path(pf_name, f"virtfn{vfid}/modalias")
+    try:
+        with open(modalias_path) as f:
+            alias = f.read().strip()
+        cmd = ["modprobe", "-R", alias]
+        out, err = processutils.execute(*cmd)
+        kernel_driver = out.strip()
+        logger.info(
+            "%s-%d: default vf driver is %s", pf_name, vfid, kernel_driver
+        )
+        return kernel_driver
+    except (OSError, processutils.ProcessExecutionError) as e:
+        logger.error(
+            "%s-%d: failed to get default vf driver: %s", pf_name, vfid, e
+        )
+        return None
+
+
 def set_driverctl_override(pci_address, driver):
     if driver is None:
         logger.info(f"Driver override is not required for device"
                     "{pci_address}")
         return False
-    iface_driver = get_interface_driver_by_pci_address(pci_address)
+    iface_driver = get_pci_device_driver(pci_address)
     if iface_driver == driver:
         logger.info(f"Driver {driver} is already bound to the device"
                     "{pci_address}")

@@ -17,6 +17,7 @@
 from libnmstate.schema import Ethernet
 from libnmstate.schema import Ethtool
 import os.path
+import random
 import tempfile
 import yaml
 
@@ -190,10 +191,39 @@ _V6_NMCFG_MULTIPLE = _V6_NMCFG + """    - ip: 2001:abc:b::1
 """
 
 
+def stub_get_pci_address(ifname):
+    pci_map = {"eth1": "0000:07:00.1",
+               "eth2": "0000:08:00.1",
+               "eth1:2": "0000:07:02.1",
+               "eth1:3": "0000:07:03.1",
+               "eth1:4": "0000:07:04.1",
+               "eth2:2": "0000:08:02.1",
+               "eth2:3": "0000:08:03.1",
+               "eth2:4": "0000:08:04.1"}
+    return pci_map.get(ifname, None)
+
+
+def stub_get_dpdk_pci_address(ifname):
+    pci_map = {"eth1": "0000:07:00.1",
+               "eth2": "0000:08:00.1"}
+    return pci_map.get(ifname, None)
+
+
+def generate_random_mac(name):
+    # Generate 6 random bytes
+    mac = [random.randint(0, 255) for _ in range(6)]
+    mac[0] &= 0xFE
+    mac_address = ':'.join(f'{byte:02x}' for byte in mac)
+    return mac_address
+
+
 class TestNmstateNetConfig(base.TestCase):
     def setUp(self):
         super(TestNmstateNetConfig, self).setUp()
         common.set_noop(True)
+
+        self.stub_out("os_net_config.common.interface_mac",
+                      generate_random_mac)
 
         impl_nmstate._VF_BIND_DRV_SCRIPT = (
             'dpdk_vfs="{dpdk_vfs}"\n'
@@ -231,7 +261,8 @@ class TestNmstateNetConfig(base.TestCase):
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
                                      drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
+                                     steering_mode=None, lag_candidate=None,
+                                     pci_address=None, mac_address=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
                       update_sriov_pf_map_stub)
@@ -1541,6 +1572,9 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
+        self.stub_out("os_net_config.common.get_pci_address",
+                      stub_get_pci_address)
+
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
@@ -1670,10 +1704,7 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def stub_get_pci_address(ifname, noop):
-            if 'eth1_2' in ifname:
-                return "0000:00:07.1"
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out('os_net_config.common.get_pci_address',
                       stub_get_pci_address)
 
         pf2 = objects.SriovPF(name='nic2', numvfs=10)
@@ -1756,9 +1787,12 @@ class TestNmstateNetConfig(base.TestCase):
                          self.get_bridge_config('br-dpdk2'))
 
     def test_dpdkbond_regular(self):
+        common.set_noop(False)
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      stub_get_dpdk_pci_address)
         ovs_config = """
         type: ovs_user_bridge
         name: br-bond
@@ -1788,14 +1822,6 @@ class TestNmstateNetConfig(base.TestCase):
             return
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
 
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
@@ -1831,7 +1857,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk2_config = """
         dpdk:
-          devargs: "0000:00:07.1"
+          devargs: "0000:07:00.1"
         ipv4:
           dhcp: False
           enabled: False
@@ -1849,7 +1875,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk3_config = """
         dpdk:
-          devargs: "0000:00:07.2"
+          devargs: "0000:08:00.1"
         ipv4:
           dhcp: False
           enabled: False
@@ -1873,9 +1899,12 @@ class TestNmstateNetConfig(base.TestCase):
                          self.get_bridge_config('br-bond'))
 
     def test_dpdkbond_custom(self):
+        common.set_noop(False)
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      stub_get_dpdk_pci_address)
         ovs_config = """
         type: ovs_user_bridge
         name: br-bond
@@ -1909,14 +1938,6 @@ class TestNmstateNetConfig(base.TestCase):
             return
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
 
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         dpdk_bond = ovs_obj.members[0]
@@ -1952,7 +1973,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk2_config = """
         dpdk:
-          devargs: "0000:00:07.1"
+          devargs: "0000:07:00.1"
           n_rxq_desc: 2048
           n_txq_desc: 2048
           rx-queue: 2
@@ -1974,7 +1995,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk3_config = """
         dpdk:
-          devargs: "0000:00:07.2"
+          devargs: "0000:08:00.1"
           n_rxq_desc: 2048
           n_txq_desc: 2048
           rx-queue: 2
@@ -2002,6 +2023,7 @@ class TestNmstateNetConfig(base.TestCase):
                          self.get_bridge_config('br-bond'))
 
     def test_dpdkbond_ovs_extra(self):
+        common.set_noop(False)
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
@@ -2045,14 +2067,8 @@ class TestNmstateNetConfig(base.TestCase):
             return
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
-
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      stub_get_dpdk_pci_address)
 
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         self.provider.add_ovs_user_bridge(ovs_obj)
@@ -2091,7 +2107,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk2_config = """
         dpdk:
-          devargs: "0000:00:07.1"
+          devargs: "0000:07:00.1"
           n_rxq_desc: 2048
           n_txq_desc: 2048
           rx-queue: 1
@@ -2113,7 +2129,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk3_config = """
         dpdk:
-          devargs: "0000:00:07.2"
+          devargs: "0000:08:00.1"
           n_rxq_desc: 2048
           n_txq_desc: 2048
           rx-queue: 1
@@ -2141,8 +2157,12 @@ class TestNmstateNetConfig(base.TestCase):
                          self.get_bridge_config('br-bond'))
 
     def test_dpdkbond_ovs_extra_grouped(self):
+        common.set_noop(False)
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
+
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      stub_get_dpdk_pci_address)
 
         ovs_config = """
         type: ovs_user_bridge
@@ -2184,14 +2204,6 @@ class TestNmstateNetConfig(base.TestCase):
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
 
-        def stub_get_stored_pci_address(ifname, noop):
-            if 'eth1' in ifname:
-                return "0000:00:07.1"
-            if 'eth2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      stub_get_stored_pci_address)
-
         ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
         self.provider.add_ovs_user_bridge(ovs_obj)
         dpdk_bond = ovs_obj.members[0]
@@ -2229,7 +2241,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk2_config = """
         dpdk:
-          devargs: "0000:00:07.1"
+          devargs: "0000:07:00.1"
           n_rxq_desc: 2048
           n_txq_desc: 2048
           rx-queue: 1
@@ -2251,7 +2263,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         exp_dpdk3_config = """
         dpdk:
-          devargs: "0000:00:07.2"
+          devargs: "0000:08:00.1"
           n_rxq_desc: 2048
           n_txq_desc: 2048
           rx-queue: 1
@@ -2282,12 +2294,7 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def stub_get_pci_address(ifname, noop):
-            if 'eth1_2' in ifname:
-                return "0000:00:07.1"
-            if 'eth2_2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out("os_net_config.common.get_pci_address",
                       stub_get_pci_address)
 
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
@@ -2429,12 +2436,7 @@ class TestNmstateNetConfig(base.TestCase):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
 
-        def stub_get_pci_address(ifname, noop):
-            if 'eth1_2' in ifname:
-                return "0000:00:07.1"
-            if 'eth2_2' in ifname:
-                return "0000:00:07.2"
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out("os_net_config.common.get_pci_address",
                       stub_get_pci_address)
 
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
@@ -2579,6 +2581,8 @@ class TestNmstateNetConfig(base.TestCase):
     def test_sriov_pf_with_nicpart_linux_bond(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
+        self.stub_out("os_net_config.common.get_pci_address",
+                      stub_get_pci_address)
 
         pf1 = objects.SriovPF(name='nic3', numvfs=10)
         self.provider.add_sriov_pf(pf1)
