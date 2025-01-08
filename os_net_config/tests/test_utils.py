@@ -27,7 +27,6 @@ from os_net_config import objects
 from os_net_config import sriov_config
 from os_net_config.tests import base
 from os_net_config import utils
-from oslo_concurrency import processutils
 
 
 _PCI_OUTPUT = '''driver: e1000e
@@ -103,6 +102,24 @@ class TestUtils(base.TestCase):
         if os.path.isfile(sriov_config._UDEV_LEGACY_RULE_FILE):
             os.remove(sriov_config._UDEV_LEGACY_RULE_FILE)
 
+    def prepare_sysfs(self, nic, pci_addr, driver):
+        common.set_noop(False)
+        net_dir = tempfile.mkdtemp()
+        pci_dir = tempfile.mkdtemp()
+        tmp_dir = tempfile.mkdtemp()
+        drv_dir = os.path.join(tmp_dir, driver)
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', net_dir)
+        self.stub_out('os_net_config.common._SYS_BUS_PCI_DEV', pci_dir)
+        net_path = os.path.join(common.SYS_CLASS_NET, nic)
+        pci_path = os.path.join(common._SYS_BUS_PCI_DEV, pci_addr)
+        drv_link = os.path.join(common._SYS_BUS_PCI_DEV, f"{pci_addr}/driver")
+        dev_link = os.path.join(common.SYS_CLASS_NET, f"{nic}/device")
+        os.makedirs(net_path)
+        os.makedirs(pci_path)
+        os.makedirs(drv_dir)
+        os.symlink(drv_dir, drv_link)
+        os.symlink(pci_path, dev_link)
+
     def test_ordered_active_nics(self):
 
         tmpdir = tempfile.mkdtemp()
@@ -135,13 +152,17 @@ class TestUtils(base.TestCase):
             return 0
         self.stub_out('os_net_config.sriov_config.get_numvfs',
                       get_numvfs_stub)
-        utils.update_sriov_pf_map('eth1', 10, False)
+        utils.update_sriov_pf_map("eth1", 10, False,
+                                  pci_address="0000:8a:07.1",
+                                  mac_address="AA:BB:CC:DD:EE:FF")
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         sriov_pf_map = yaml.safe_load(contents) if contents else []
         self.assertEqual(1, len(sriov_pf_map))
         test_sriov_pf_map = [{'device_type': 'pf', 'link_mode': 'legacy',
                               'drivers_autoprobe': True,
-                              'name': 'eth1', 'numvfs': 10, 'vdpa': False}]
+                              'name': 'eth1', 'numvfs': 10, 'vdpa': False,
+                              "pci_address": "0000:8a:07.1",
+                              "mac_address": "AA:BB:CC:DD:EE:FF"}]
         self.assertListEqual(test_sriov_pf_map, sriov_pf_map)
 
     def test_update_sriov_pf_map_with_same_numvfs(self):
@@ -446,7 +467,7 @@ class TestUtils(base.TestCase):
         tmpdir = tempfile.mkdtemp()
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
 
-        self.assertRaises(utils.SriovVfNotFoundException,
+        self.assertRaises(common.SriovVfNotFoundException,
                           utils.get_vf_devname, "eth1", 1)
         shutil.rmtree(tmpdir)
 
@@ -477,7 +498,7 @@ class TestUtils(base.TestCase):
         vf_path = os.path.join(common.SYS_CLASS_NET, 'eth1/device/virtfn1')
         os.makedirs(vf_path)
 
-        self.assertRaises(utils.SriovVfNotFoundException,
+        self.assertRaises(common.SriovVfNotFoundException,
                           utils.get_vf_devname, "eth1", 1)
         shutil.rmtree(tmpdir)
 
@@ -493,46 +514,41 @@ class TestUtils(base.TestCase):
         shutil.rmtree(tmpdir)
 
     def test_get_pci_address_success(self):
-        def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                out = _PCI_OUTPUT
-                return out, None
-        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
-        pci = utils.get_pci_address('nic2', False)
-        self.assertEqual('0000:00:19.0', pci)
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "i40e")
+        pci = common.get_pci_address("eth1")
+        self.assertEqual("0000:8a:00.1", pci)
 
-    def test_get_pci_address_exception(self):
-        def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                raise processutils.ProcessExecutionError
-        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
-        pci = utils.get_pci_address('nic2', False)
+    def test_get_pci_address_fail(self):
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "i40e")
+        pci = common.get_pci_address("eth2")
         self.assertEqual(None, pci)
 
     def test_get_pci_address_error(self):
-        def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                return None, 'Error'
-        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
-        pci = utils.get_pci_address('nic2', False)
+        common.set_noop(False)
+
+        pci = common.get_pci_address('nic2')
         self.assertEqual(None, pci)
 
-    def test_get_stored_pci_address_success(self):
+    def test_get_dpdk_pci_address_success(self):
+        common.set_noop(False)
+
         def test_get_dpdk_map():
-            return [{'name': 'eth1', 'pci_address': '0000:00:09.0',
-                     'mac_address': '01:02:03:04:05:06',
-                     'driver': 'vfio-pci'}]
+            return [{"name": "eth1", "pci_address": "0000:00:09.0",
+                     "mac_address": "01:02:03:04:05:06",
+                     "driver": "vfio-pci"}]
 
-        self.stub_out('os_net_config.common.get_dpdk_map', test_get_dpdk_map)
-        pci = utils.get_stored_pci_address('eth1', False)
-        self.assertEqual('0000:00:09.0', pci)
+        self.stub_out("os_net_config.common.get_dpdk_map", test_get_dpdk_map)
+        pci = common.get_dpdk_pci_address("eth1")
+        self.assertEqual("0000:00:09.0", pci)
 
-    def test_get_stored_pci_address_empty(self):
+    def test_get_dpdk_pci_address_empty(self):
+        common.set_noop(False)
+
         def test_get_dpdk_map():
             return []
 
         self.stub_out('os_net_config.common.get_dpdk_map', test_get_dpdk_map)
-        pci = utils.get_stored_pci_address('eth1', False)
+        pci = common.get_dpdk_pci_address("eth1")
         self.assertEqual(None, pci)
 
     def test_get_vendor_id_success(self):
@@ -563,17 +579,20 @@ class TestUtils(base.TestCase):
 
     def test_bind_dpdk_interfaces(self):
         def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                out = _PCI_OUTPUT
-                return out, None
             if 'driverctl' in name:
                 return None, None
 
         def test_get_dpdk_mac_address(name):
             return '01:02:03:04:05:06'
+
+        def test_get_dpdk_pci_address(name):
+            return '0000:85:00.1'
+        self.prepare_sysfs("nic2", "0000:8a:00.1", "i40e")
         self.stub_out('oslo_concurrency.processutils.execute', test_execute)
         self.stub_out('os_net_config.common._get_dpdk_mac_address',
                       test_get_dpdk_mac_address)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      test_get_dpdk_pci_address)
         try:
             utils.bind_dpdk_interfaces('nic2', 'vfio-pci', False)
         except common.OvsDpdkBindException:
@@ -581,9 +600,6 @@ class TestUtils(base.TestCase):
 
     def test_bind_dpdk_interfaces_fail(self):
         def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                out = _PCI_OUTPUT
-                return out, None
             if 'driverctl' in name:
                 return None, 'Error'
 
@@ -598,9 +614,9 @@ class TestUtils(base.TestCase):
                           False)
 
     def test_bind_dpdk_interfaces_skip_valid_device(self):
+        common.set_noop(False)
+
         def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                return None, 'Error'
             if 'driverctl' in name:
                 return None, None
 
@@ -612,9 +628,18 @@ class TestUtils(base.TestCase):
                      'mac_address': '01:02:03:04:05:06',
                      'driver': 'vfio-pci'}]
 
+        pci_dir = tempfile.mkdtemp()
+        tmp_dir = tempfile.mkdtemp()
+        drv_dir = os.path.join(tmp_dir, "i40e")
+        self.stub_out('os_net_config.common._SYS_BUS_PCI_DEV', pci_dir)
+        pci_path = os.path.join(common._SYS_BUS_PCI_DEV, "0000:00:09.0")
+        drv_link = os.path.join(common._SYS_BUS_PCI_DEV, "0000:00:09.0/driver")
+        os.makedirs(pci_path)
+        os.makedirs(drv_dir)
+        os.symlink(drv_dir, drv_link)
         self.stub_out('os_net_config.common.get_dpdk_map', test_get_dpdk_map)
         self.stub_out('oslo_concurrency.processutils.execute', test_execute)
-        self.stub_out('os_net_config.utils_get_dpdk_mac_address',
+        self.stub_out('os_net_config.common._get_dpdk_mac_address',
                       test_get_dpdk_mac_address)
         try:
             utils.bind_dpdk_interfaces('eth1', 'vfio-pci', False)
@@ -623,8 +648,6 @@ class TestUtils(base.TestCase):
 
     def test_bind_dpdk_interfaces_fail_invalid_device(self):
         def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                return None, 'Error'
             if 'driverctl' in name:
                 return None, None
 
@@ -652,6 +675,7 @@ class TestUtils(base.TestCase):
         self.stub_out('os_net_config.utils.open', mocked_open)
         mocked_logger = mock.Mock()
         self.stub_out('os_net_config.utils.logger.info', mocked_logger)
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "vfio-pci")
         try:
             utils.bind_dpdk_interfaces('eth1', 'vfio-pci', False)
         except common.OvsDpdkBindException:
@@ -792,17 +816,11 @@ class TestUtils(base.TestCase):
         self.assertRaises(IOError, common.interface_mac, 'ens20f2p3')
 
     def test_get_dpdk_devargs_mlnx(self):
-        def test_execute(name, dummy1, dummy2=None, dummy3=None):
-            if 'ethtool' in name:
-                out = _PCI_OUTPUT
-                return out, None
-
-        def test_get_stored_pci_address(ifname, noop):
+        def test_get_pci_address(ifname):
             return "0000:00:07.0"
 
-        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      test_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_pci_address',
+                      test_get_pci_address)
         tmpdir = tempfile.mkdtemp()
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
         nic = 'p4p1'
@@ -817,18 +835,18 @@ class TestUtils(base.TestCase):
         with open(os.path.join(nic_path, 'device', 'vendor'), 'w') as f:
             f.write('0x15b3')
         self.assertEqual(utils.get_dpdk_devargs(nic, False),
-                         '0000:00:19.0')
+                         '0000:00:07.0')
         # Testing VFs of Mellanox Connect-X cards
         os.makedirs(os.path.join(nic_path, 'device', 'physfn'))
         self.assertEqual(utils.get_dpdk_devargs(nic, False),
-                         '0000:00:19.0')
+                         '0000:00:07.0')
 
         # Check if devargs is derived, when the operstate is down
         os.rmdir(os.path.join(nic_path, 'device', 'physfn'))
         with open(os.path.join(nic_path, 'operstate'), 'w') as f:
             f.write('down')
         self.assertEqual(utils.get_dpdk_devargs(nic, False),
-                         '0000:00:19.0')
+                         '0000:00:07.0')
 
         # now testing the Mellanox CX3
         with open(os.path.join(nic_path, 'device', 'device'), 'w') as f:

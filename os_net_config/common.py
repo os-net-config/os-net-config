@@ -84,6 +84,10 @@ class OvsDpdkBindException(ValueError):
     pass
 
 
+class SriovVfNotFoundException(ValueError):
+    pass
+
+
 def set_noop(value):
     global noop
     noop = value
@@ -143,10 +147,8 @@ def get_dev_path(ifname, path=None):
     return os.path.join(SYS_CLASS_NET, ifname, path)
 
 
-def get_pci_dev_path(pci_address, path=None):
-    if not path:
-        path = ""
-    elif path.startswith("_"):
+def get_pci_dev_path(pci_address, path=""):
+    if path.startswith("_"):
         path = path[1:]
     return os.path.join(_SYS_BUS_PCI_DEV, pci_address, path)
 
@@ -262,6 +264,15 @@ def get_dpdk_map():
     return dpdk_map
 
 
+def get_sriov_pfs():
+    pfs = []
+    sriov_map = get_sriov_map()
+    for item in sriov_map:
+        if item['device_type'] == 'pf':
+            pfs.append(item['name'])
+    return pfs
+
+
 def _get_dpdk_mac_address(name):
     contents = get_file_data(DPDK_MAPPING_FILE)
     dpdk_map = yaml.safe_load(contents) if contents else []
@@ -287,8 +298,10 @@ def interface_mac(name):
         dpdk_mac_address = _get_dpdk_mac_address(name)
         if dpdk_mac_address:
             return dpdk_mac_address
-
-        logger.error("%s: Unable to read mac address", name)
+        sriov_mac_address = _get_sriov_mac_address(name)
+        if sriov_mac_address:
+            return sriov_mac_address
+        logger.error("Unable to read mac address: %s" % name)
         raise
 
 
@@ -322,6 +335,80 @@ def is_vf(pci_address):
     vf_path_check = _SYS_BUS_PCI_DEV + '/%s/physfn' % pci_address
     is_sriov_vf = os.path.isdir(vf_path_check)
     return is_sriov_vf
+
+
+def get_pci_address(name):
+    """Fetch the PCI address of the interface
+
+    Fetch the PCI address of the device from the /sys/class/net
+    subsystem when the interface is bound with the ethernet drivers.
+    If the device is bound with vfio-pci, the pci address is fetched
+    from the dpdk map.
+    :param name: name of the interface. For vfs the name could
+        be written in the format f"{pf_name}:{vfid}"
+    :returns: Return the PCI address
+    """
+    vfid = None
+    device = name.split(":")
+    ifname = device[0]
+    if len(device) == 2:
+        vfid = device[1]
+    if get_noop():
+        logger.info("%s: Fetch the PCI address", ifname)
+        return
+
+    if vfid:
+        dev_path = get_dev_path(ifname, f'virtfn{vfid}')
+    else:
+        dev_path = get_dev_path(ifname, '_device')
+    try:
+        pci_addr = os.readlink(dev_path)
+        pci_addr = os.path.basename(pci_addr)
+    except OSError as exc:
+        if vfid:
+            msg = f"{ifname}:{vfid} Unable to get pci address"
+            raise SriovVfNotFoundException(msg)
+        logger.info("%s: Unable to get pci address %s", ifname, exc)
+        pci_addr = get_dpdk_pci_address(ifname)
+
+    logger.info("%s: pci address is %s", ifname, pci_addr)
+    return pci_addr
+
+
+def get_dpdk_pci_address(ifname):
+    noop = get_noop()
+    # In case of DPDK devices, the pci address could be fetched
+    # before performing the driverctl override.
+    # basename $(readlink /sys/class/net/<ifname>/device)
+    # After setting the override, the pci address could be read back
+    # from the dpdk map.
+    if noop:
+        logger.info("%s: Fetch the PCI address", ifname)
+        return
+    dpdk_map = get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        if dpdk_nic['name'] == ifname:
+            return dpdk_nic['pci_address']
+
+
+def get_sriov_pci_address(name):
+    noop = get_noop()
+    if noop:
+        logger.info("%s: Fetch the PCI address", name)
+        return
+    sriov_map = get_sriov_map(pf_name=name)
+    if sriov_map:
+        return sriov_map[0].get('pci_address', None)
+
+
+def _get_sriov_mac_address(iface_name):
+    """Fetch the Mac address from the sriov_map."""
+    sriov_map = get_sriov_map()
+    for item in sriov_map:
+        if (item['name'] == iface_name and
+                item['device_type'] == 'pf'):
+            return item.get('mac_address', None)
+    return None
 
 
 def is_vf_by_name(interface_name, check_mapping_file=False):
