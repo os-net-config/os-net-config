@@ -17,6 +17,7 @@
 from libnmstate.schema import Ethernet
 from libnmstate.schema import Ethtool
 import os.path
+import random
 import tempfile
 import yaml
 
@@ -208,10 +209,21 @@ def stub_get_dpdk_pci_address(ifname):
     return pci_map.get(ifname, None)
 
 
+def generate_random_mac(name):
+    # Generate 6 random bytes
+    mac = [random.randint(0, 255) for _ in range(6)]
+    mac[0] &= 0xFE
+    mac_address = ':'.join(f'{byte:02x}' for byte in mac)
+    return mac_address
+
+
 class TestNmstateNetConfig(base.TestCase):
     def setUp(self):
         super(TestNmstateNetConfig, self).setUp()
         common.set_noop(True)
+
+        self.stub_out("os_net_config.common.interface_mac",
+                      generate_random_mac)
 
         impl_nmstate._VF_BIND_DRV_SCRIPT = (
             'dpdk_vfs="{dpdk_vfs}"\n'
@@ -249,7 +261,8 @@ class TestNmstateNetConfig(base.TestCase):
         def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
                                      drivers_autoprobe=True,
-                                     steering_mode=None, lag_candidate=None):
+                                     steering_mode=None, lag_candidate=None,
+                                     pci_address=None, mac_address=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
                       update_sriov_pf_map_stub)

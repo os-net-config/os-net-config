@@ -682,6 +682,14 @@ NETMASK=255.255.255.0
 """
 
 
+def generate_random_mac(name):
+    # Generate 6 random bytes
+    mac = [random.randint(0, 255) for _ in range(6)]
+    mac[0] &= 0xFE
+    mac_address = ':'.join(f'{byte:02x}' for byte in mac)
+    return mac_address
+
+
 class TestIfcfgNetConfig(base.TestCase):
     def setUp(self):
         super(TestIfcfgNetConfig, self).setUp()
@@ -695,14 +703,17 @@ class TestIfcfgNetConfig(base.TestCase):
             return True
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
+        self.stub_out('os_net_config.common.interface_mac',
+                      generate_random_mac)
 
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
+        def update_sriov_pf_map_stub(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
+                                     steering_mode=None, lag_candidate=None,
                                      drivers_autoprobe=True,
-                                     steering_mode="smfs"):
+                                     pci_address=None, mac_address=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
-                      test_update_sriov_pf_map)
+                      update_sriov_pf_map_stub)
 
     def tearDown(self):
         super(TestIfcfgNetConfig, self).tearDown()
@@ -2266,6 +2277,8 @@ class TestIfcfgNetConfigApply(base.TestCase):
         self.ovs_appctl_cmds = []
         self.stop_dhclient_interfaces = []
         self.ip_reconfigure_commands = []
+        self.stub_out('os_net_config.common.interface_mac',
+                      generate_random_mac)
 
         def test_ifcfg_path(name):
             return self.temp_ifcfg_file.name

@@ -24,6 +24,14 @@ from os_net_config import objects
 from os_net_config.tests import base
 
 
+def generate_random_mac(name):
+    # Generate 6 random bytes
+    mac = [random.randint(0, 255) for _ in range(6)]
+    mac[0] &= 0xFE
+    mac_address = ':'.join(f'{byte:02x}' for byte in mac)
+    return mac_address
+
+
 class TestRoute(base.TestCase):
     def setUp(self):
         super(TestRoute, self).setUp()
@@ -1984,11 +1992,14 @@ class TestSriovPF(base.TestCase):
     def setUp(self):
         super(TestSriovPF, self).setUp()
         common.set_noop(True)
+        self.stub_out('os_net_config.common.interface_mac',
+                      generate_random_mac)
 
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
+        def test_update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
-                                     drivers_autoprobe=True,
-                                     steering_mode="smfs"):
+                                     steering_mode=None, lag_candidate=None,
+                                     drivers_autoprobe=True, pci_address=None,
+                                     mac_address=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
                       test_update_sriov_pf_map)
