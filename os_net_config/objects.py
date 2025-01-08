@@ -1115,7 +1115,9 @@ class LinuxBond(_BaseOpts):
                                           steering_mode=member.steering_mode,
                                           link_mode=member.link_mode,
                                           vdpa=member.vdpa,
-                                          lag_candidate=True)
+                                          lag_candidate=True,
+                                          pci_address=member.pci_address,
+                                          mac_address=member.mac_address)
             if isinstance(member, SriovVF):
                 LinuxBond.update_vf_config(member)
             member.linux_bond_name = name
@@ -1699,13 +1701,17 @@ class SriovPF(_BaseOpts):
         self.ethtool_opts = ethtool_opts
         self.vdpa = vdpa
         self.steering_mode = steering_mode
+        self.pci_address = common.get_pci_address(self.name)
+        self.mac_address = common.interface_mac(self.name)
         noop = common.get_noop()
         utils.update_sriov_pf_map(self.name, self.numvfs, noop,
                                   promisc=self.promisc,
                                   link_mode=self.link_mode,
                                   vdpa=self.vdpa,
                                   drivers_autoprobe=self.drivers_autoprobe,
-                                  steering_mode=self.steering_mode)
+                                  steering_mode=self.steering_mode,
+                                  pci_address=self.pci_address,
+                                  mac_address=self.mac_address)
 
     @staticmethod
     def get_on_off(config):
