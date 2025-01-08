@@ -237,14 +237,14 @@ def bind_dpdk_interfaces(ifname, driver, noop):
             "%s: Interface is bound to DPDK driver %s", ifname, driver
         )
         return
-    iface_driver = get_interface_driver(ifname)
-    if iface_driver == driver:
-        logger.info("%s: Driver %s is already bound", ifname, driver)
-        return
     pci_address = common.get_pci_address(ifname)
     if pci_address:
         # modbprobe of the driver has to be done before binding.
         # for reboots, puppet will add the modprobe to /etc/rc.modules
+        iface_driver = common.get_pci_device_driver(pci_address)
+        if iface_driver == driver:
+            logger.info("%s: Driver %s is already bound", ifname, driver)
+            return
         if 'vfio-pci' in driver:
             try:
                 processutils.execute('modprobe', 'vfio-pci')
@@ -276,44 +276,12 @@ def bind_dpdk_interfaces(ifname, driver, noop):
         raise common.OvsDpdkBindException(msg)
 
 
-def get_driver(ifname, noop):
-    if not noop:
-        try:
-            out, err = processutils.execute('ethtool', '-i', ifname)
-            if not err:
-                for item in out.split('\n'):
-                    if 'driver' in item:
-                        return item.split(' ')[1]
-        except processutils.ProcessExecutionError:
-            # If ifname is already bound, then ethtool will not be able to
-            # list the device, in which case, binding is already done, proceed
-            # with scripts generation.
-            return
-
-    else:
-        logger.info("%s: Fetch the driver of the interface", ifname)
-
-
 def translate_ifname_to_pci_address(ifname, noop):
     pci_address = common.get_pci_address(ifname)
     if pci_address and not noop:
         mac_address = common.interface_mac(ifname)
         _update_dpdk_map(ifname, pci_address, mac_address, driver=None)
     return pci_address
-
-
-def get_interface_driver(ifname):
-    try:
-        uevent = common.get_dev_path(ifname, 'device/uevent')
-        with open(uevent, 'r') as f:
-            out = f.read().strip()
-            for line in out.split('\n'):
-                if 'DRIVER' in line:
-                    driver = line.split('=')
-                    if len(driver) == 2:
-                        return driver[1]
-    except IOError:
-        return
 
 
 def get_dpdk_devargs(ifname, noop):

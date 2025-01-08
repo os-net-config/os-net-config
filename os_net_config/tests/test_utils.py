@@ -117,7 +117,8 @@ class TestUtils(base.TestCase):
         os.makedirs(net_path)
         os.makedirs(pci_path)
         os.makedirs(drv_dir)
-        os.symlink(drv_dir, drv_link)
+        if driver:
+            os.symlink(drv_dir, drv_link)
         os.symlink(pci_path, dev_link)
 
     def test_ordered_active_nics(self):
@@ -667,8 +668,6 @@ class TestUtils(base.TestCase):
                           False)
 
     def test_bind_dpdk_interfaces_same_driver(self):
-        mocked_open = mock.mock_open(read_data='DRIVER=vfio-pci\n')
-        self.stub_out('os_net_config.utils.open', mocked_open)
         mocked_logger = mock.Mock()
         self.stub_out('os_net_config.utils.logger.info', mocked_logger)
         self.prepare_sysfs("eth1", "0000:8a:00.1", "vfio-pci")
@@ -679,23 +678,15 @@ class TestUtils(base.TestCase):
         msg = ["%s: Driver %s is already bound", "eth1", "vfio-pci"]
         mocked_logger.assert_called_with(*msg)
 
-    def test_get_interface_driver(self):
-        mocked_open = mock.mock_open(read_data='DRIVER=vfio-pci\n')
-        self.stub_out('os_net_config.utils.open', mocked_open)
-        driver = utils.get_interface_driver('eth1')
+    def test_get_pci_device_driver(self):
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "vfio-pci")
+        driver = common.get_pci_device_driver("0000:8a:00.1")
         self.assertEqual(driver, 'vfio-pci')
 
-    def test_get_interface_driver_fail_none(self):
-        mocked_open = mock.mock_open(read_data='')
-        self.stub_out('os_net_config.utils.open', mocked_open)
-        driver = utils.get_interface_driver('eth1')
-        self.assertFalse(driver)
-
     def test_get_interface_driver_fail_empty(self):
-        mocked_open = mock.mock_open(read_data='DRIVER\n')
-        self.stub_out('os_net_config.utils.open', mocked_open)
-        driver = utils.get_interface_driver('eth1')
-        self.assertFalse(driver)
+        self.prepare_sysfs("eth2", "0000:8a:00.2", "")
+        driver = common.get_pci_device_driver('0000:8a:00.2')
+        self.assertEqual(driver, None)
 
     def test__update_dpdk_map_new(self):
         utils._update_dpdk_map('eth1', '0000:03:00.0', '01:02:03:04:05:06',
