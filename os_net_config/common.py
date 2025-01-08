@@ -264,6 +264,11 @@ def get_dpdk_map():
     return dpdk_map
 
 
+def get_sriov_pfs():
+    sriov_map = get_sriov_map()
+    return [pf for pf in sriov_map if pf["device_type"] == "pf"]
+
+
 def _get_dpdk_mac_address(name):
     contents = get_file_data(DPDK_MAPPING_FILE)
     dpdk_map = yaml.safe_load(contents) if contents else []
@@ -289,8 +294,10 @@ def interface_mac(name):
         dpdk_mac_address = _get_dpdk_mac_address(name)
         if dpdk_mac_address:
             return dpdk_mac_address
-
-        logger.error("%s: Unable to read mac address", name)
+        sriov_mac_address = _get_sriov_mac_address(name)
+        if sriov_mac_address:
+            return sriov_mac_address
+        logger.error("Unable to read mac address: %s" % name)
         raise
 
 
@@ -379,6 +386,19 @@ def get_dpdk_pci_address(ifname):
     for dpdk_nic in dpdk_map:
         if dpdk_nic['name'] == ifname:
             return dpdk_nic['pci_address']
+
+
+def get_sriov_pci_address(name):
+    sriov_map = get_sriov_map(pf_name=name)
+    if sriov_map:
+        return sriov_map[0].get('pci_address', None)
+
+
+def _get_sriov_mac_address(iface_name):
+    """Fetch the Mac address from the sriov_map."""
+    sriov_map = get_sriov_map(pf_name=iface_name)
+    if sriov_map:
+        return sriov_map[0].get('mac_adddress', None)
 
 
 def is_vf_by_name(interface_name, check_mapping_file=False):

@@ -32,6 +32,14 @@ SAMPLE_BASE = os.path.join(REALPATH, '../../', 'etc',
                            'os-net-config', 'samples')
 
 
+def generate_random_mac(name):
+    # Generate 6 random bytes
+    mac = [random.randint(0, 255) for _ in range(6)]
+    mac[0] &= 0xFE
+    mac_address = ':'.join(f'{byte:02x}' for byte in mac)
+    return mac_address
+
+
 class TestCli(base.TestCase):
 
     def setUp(self):
@@ -41,16 +49,20 @@ class TestCli(base.TestCase):
         common._LOG_FILE = '/tmp/' + rand + 'os_net_config.log'
         sys.stdout = StringIO()
         sys.stderr = StringIO()
+        self.stub_out('os_net_config.common.interface_mac',
+                      generate_random_mac)
 
         def stub_is_ovs_installed():
             return True
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
 
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     drivers_autoprobe=True,
+        def test_update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
+                                     steering_mode=None,
+                                     lag_candidate=None,
+                                     drivers_autoprobe=True,
+                                     pci_address=None, mac_address=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
                       test_update_sriov_pf_map)
