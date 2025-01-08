@@ -77,10 +77,6 @@ class ContrailVrouterException(ValueError):
     pass
 
 
-class SriovVfNotFoundException(ValueError):
-    pass
-
-
 def write_config(filename, data):
     with open(filename, 'w') as f:
         f.write(str(data))
@@ -221,7 +217,7 @@ def diff(filename, data):
 
 def update_dpdk_map(ifname, driver):
     noop = common.get_noop()
-    pci_address = get_pci_address(ifname, noop)
+    pci_address = common.get_pci_address(ifname)
     # pci address could be fetched before setting the override.
     # Update the dpdk map with the PCI address, so that the succesive
     # runs of os-net-config could fetch the pci address from the dpdk map
@@ -230,135 +226,62 @@ def update_dpdk_map(ifname, driver):
         _update_dpdk_map(ifname, pci_address, mac_address, driver)
 
 
-def get_dpdk_pci_address(ifname):
-    noop = common.get_noop()
-    # In case of DPDK devices, the pci address could be fetched using
-    # ethtool before setting the driverctl override.
-    # After setting the override, the pci address could be read back
-    # from the dpdk map.
-    pci_address = get_pci_address(ifname, noop)
-    if not pci_address:
-        pci_address = get_stored_pci_address(ifname, noop)
-    return pci_address
-
-
 def bind_dpdk_interfaces(ifname, driver, noop):
     if common.is_mellanox_interface(ifname) and 'vfio-pci' in driver:
         msg = ("For Mellanox NIC %s, the default driver vfio-pci "
                "needs to be overridden" % ifname)
         raise common.OvsDpdkBindException(msg)
 
-    iface_driver = get_interface_driver(ifname)
-    if iface_driver == driver:
-        logger.info("%s: Driver %s is already bound", ifname, driver)
+    if noop:
+        logger.info(
+            "%s: Interface is bound to DPDK driver %s", ifname, driver
+        )
         return
-    pci_address = get_pci_address(ifname, noop)
-    if not noop:
-        if pci_address:
-            # modbprobe of the driver has to be done before binding.
-            # for reboots, puppet will add the modprobe to /etc/rc.modules
-            if 'vfio-pci' in driver:
-                try:
-                    processutils.execute('modprobe', 'vfio-pci')
-                except processutils.ProcessExecutionError:
-                    msg = "Failed to modprobe vfio-pci module"
-                    raise common.OvsDpdkBindException(msg)
-
-            mac_address = common.interface_mac(ifname)
-            vendor_id = common.get_vendor_id(ifname)
-            err = common.set_driverctl_override(pci_address, driver)
-            if not err:
-                _update_dpdk_map(ifname, pci_address, mac_address, driver)
-                # Not like other nics, beacause mellanox nics keep the
-                # interface after binding it to dpdk, so we are adding
-                # ethtool command with 10 attempts after binding the driver
-                # just to make sure that the interface is initialized
-                # successfully in order not to fail in each of this cases:
-                # - get_dpdk_devargs() in case of OvsDpdkPort and
-                #   OvsDpdkBond.
-                # - bind_dpdk_interface() in case of OvsDpdkBond.
-                if vendor_id == common.MLNX_VENDOR_ID:
-                    processutils.execute('ethtool', '-i', ifname, attempts=10)
-        else:
-            # Check if the pci address is already fetched and stored.
-            # If the pci address could not be fetched from dpdk_mapping.yaml
-            # raise OvsDpdkBindException, since the interface is neither
-            # available nor bound with dpdk.
-            if not get_stored_pci_address(ifname, noop):
-                msg = "Interface %s cannot be found" % ifname
+    pci_address = common.get_pci_address(ifname)
+    if pci_address:
+        # modbprobe of the driver has to be done before binding.
+        # for reboots, puppet will add the modprobe to /etc/rc.modules
+        iface_driver = common.get_pci_device_driver(pci_address)
+        if iface_driver == driver:
+            logger.info("%s: Driver %s is already bound", ifname, driver)
+            return
+        if 'vfio-pci' in driver:
+            try:
+                processutils.execute('modprobe', 'vfio-pci')
+            except processutils.ProcessExecutionError:
+                msg = "Failed to modprobe vfio-pci module"
                 raise common.OvsDpdkBindException(msg)
+
+        mac_address = common.interface_mac(ifname)
+        vendor_id = common.get_vendor_id(ifname)
+        err = common.set_driverctl_override(pci_address, driver)
+        if not err:
+            _update_dpdk_map(ifname, pci_address, mac_address, driver)
+            # Not like other nics, beacause mellanox nics keep the
+            # interface after binding it to dpdk, so we are adding
+            # ethtool command with 10 attempts after binding the driver
+            # just to make sure that the interface is initialized
+            # successfully in order not to fail in each of this cases:
+            # - get_dpdk_devargs() in case of OvsDpdkPort and
+            #   OvsDpdkBond.
+            # - bind_dpdk_interface() in case of OvsDpdkBond.
+            if vendor_id == common.MLNX_VENDOR_ID:
+                processutils.execute('ethtool', '-i', ifname, attempts=10)
     else:
-        logger.info("%s: Interface bound to DPDK driver %s", ifname, driver)
-
-
-def get_pci_address(ifname, noop):
-    # TODO(skramaja): Validate if the given interface supports dpdk
-    if not noop:
-        try:
-            out, err = processutils.execute('ethtool', '-i', ifname)
-            if not err:
-                for item in out.split('\n'):
-                    if 'bus-info' in item:
-                        return item.split(' ')[1]
-        except processutils.ProcessExecutionError:
-            # If ifname is already bound, then ethtool will not be able to
-            # list the device, in which case, binding is already done, proceed
-            # with scripts generation.
-            return
-
-    else:
-        logger.info("%s: Fetch the PCI address of the interface", ifname)
-
-
-def get_stored_pci_address(ifname, noop):
-    if not noop:
-        dpdk_map = common.get_dpdk_map()
-        for dpdk_nic in dpdk_map:
-            if dpdk_nic['name'] == ifname:
-                return dpdk_nic['pci_address']
-    else:
-        logger.info("%s: Fetch the PCI address of the interface", ifname)
-
-
-def get_driver(ifname, noop):
-    if not noop:
-        try:
-            out, err = processutils.execute('ethtool', '-i', ifname)
-            if not err:
-                for item in out.split('\n'):
-                    if 'driver' in item:
-                        return item.split(' ')[1]
-        except processutils.ProcessExecutionError:
-            # If ifname is already bound, then ethtool will not be able to
-            # list the device, in which case, binding is already done, proceed
-            # with scripts generation.
-            return
-
-    else:
-        logger.info("%s: Fetch the driver of the interface", ifname)
+        # Check if the pci address is already fetched and stored.
+        # If the pci address could not be fetched from dpdk_mapping.yaml
+        # raise OvsDpdkBindException, since the interface is neither
+        # available nor bound with dpdk.
+        msg = "Interface %s cannot be found" % ifname
+        raise common.OvsDpdkBindException(msg)
 
 
 def translate_ifname_to_pci_address(ifname, noop):
-    pci_address = get_stored_pci_address(ifname, noop)
-    if pci_address is None and not noop:
-        pci_address = get_pci_address(ifname, noop=noop)
+    pci_address = common.get_pci_address(ifname)
+    if pci_address and not noop:
         mac_address = common.interface_mac(ifname)
         _update_dpdk_map(ifname, pci_address, mac_address, driver=None)
     return pci_address
-
-
-def get_interface_driver(ifname):
-    try:
-        uevent = common.get_dev_path(ifname, 'device/uevent')
-        with open(uevent, 'r') as f:
-            out = f.read().strip()
-            for line in out.split('\n'):
-                if 'DRIVER' in line:
-                    driver = line.split('=')
-                    if len(driver) == 2:
-                        return driver[1]
-    except IOError:
-        return
 
 
 def get_dpdk_devargs(ifname, noop):
@@ -377,11 +300,11 @@ def get_dpdk_devargs(ifname, noop):
                 # Get the PCI address of the devices other than CX-3.
                 # It includes the VFs as well. For all Other Mellanox devices
                 # the PCI address are not stored in dpdk_mapping.yaml file,
-                # so we need to get their pci address with ethtool.
-                dpdk_devargs = get_pci_address(ifname, noop)
+                # so we need to get their pci address from sysfs.
+                dpdk_devargs = common.get_pci_address(ifname)
         else:
             logger.info("%s: Getting stored PCI address as devarg", ifname)
-            dpdk_devargs = get_stored_pci_address(ifname, noop)
+            dpdk_devargs = common.get_pci_address(ifname)
         logger.debug("%s: Devargs found: %s", ifname, dpdk_devargs)
         return dpdk_devargs
 
@@ -623,10 +546,10 @@ def get_vf_devname(pf_name, vfid):
             return vf_name
         else:
             msg = "NIC %s with VF id: %d could not be found" % (pf_name, vfid)
-            raise SriovVfNotFoundException(msg)
+            raise common.SriovVfNotFoundException(msg)
     if len(vf_nic) != 1:
         msg = "VF name could not be identified in %s" % vf_path
-        raise SriovVfNotFoundException(msg)
+        raise common.SriovVfNotFoundException(msg)
     # The VF's actual device name shall be the only directory seen in the path
     # /sys/class/net/<pf_name>/device/virtfn<vfid>/net
     return vf_nic[0]
