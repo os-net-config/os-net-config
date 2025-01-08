@@ -301,18 +301,26 @@ def interface_mac(name):
         raise
 
 
-def get_interface_driver_by_pci_address(pci_address):
-    try:
-        uevent = get_pci_dev_path(pci_address, 'uevent')
-        with open(uevent, 'r') as f:
-            out = f.read().strip()
-            for line in out.split('\n'):
-                if 'DRIVER' in line:
-                    driver = line.split('=')
-                    if len(driver) == 2:
-                        return driver[1]
-    except IOError:
+def get_pci_device_driver(pci_addr):
+    """Fetch the driver attached to the device
+
+    :param pci_addr: PCI address of the the device
+    :returns: driver attached to the PCI device
+    """
+    if get_noop():
+        logger.info("%s: Fetching the PCI device driver", pci_addr)
         return
+    driver_path = get_pci_dev_path(pci_addr, 'driver')
+    try:
+        driver = os.readlink(driver_path)
+        driver = os.path.basename(driver)
+        logger.info("%s: Bound with %s", pci_addr, driver)
+        return driver
+    except OSError as exp:
+        logger.info(
+            "%s: Not bound with any driver. Err %s", pci_addr, exp
+        )
+        return None
 
 
 def is_mellanox_interface(ifname):
@@ -417,7 +425,7 @@ def set_driverctl_override(pci_address, driver):
     if driver is None:
         logger.info("%s: Driver override is not required.", pci_address)
         return False
-    iface_driver = get_interface_driver_by_pci_address(pci_address)
+    iface_driver = get_pci_device_driver(pci_address)
     if iface_driver == driver:
         logger.info("%s: %s is already bound", pci_address, driver)
         return False

@@ -307,11 +307,10 @@ class Dcb(object):
     """Base class for DCB configuration"""
 
     def __init__(self, device, dscp2prio=[]):
-        noop = common.get_noop()
         self.device = device
         self.dscp2prio = dscp2prio
         self.pci_addr = common.get_pci_address(device)
-        self.driver = utils.get_driver(device, noop)
+        self.driver = common.get_pci_device_driver(self.pci_addr)
 
     @staticmethod
     def from_json(json):
