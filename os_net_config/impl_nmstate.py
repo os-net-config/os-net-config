@@ -45,7 +45,6 @@ from os_net_config import common
 from os_net_config import objects
 from os_net_config import utils
 
-
 logger = logging.getLogger(__name__)
 
 # Import the raw NetConfig object so we can call its methods
@@ -2012,7 +2011,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if isinstance(ovs_dpdk_port.members[0], objects.SriovVF):
             # in case of VFs the DPDK driver will be bound using
             # dispatcher script
-            pci_address = utils.get_dpdk_pci_address(ifname)
+            pci_address = ovs_dpdk_port.members[0].pci_address
             utils.update_dpdk_map(ifname,
                                   ovs_dpdk_port.driver)
         else:
@@ -2134,6 +2133,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 "by nmstate provider yet."
             )
             raise os_net_config.ConfigurationError(msg)
+        if common.is_pf_attached_to_guest(sriov_pf.name):
+            logger.info(
+                "%s: Attached to guest, skip configuring", sriov_pf.name
+            )
+            return
 
         data = self._add_common(sriov_pf)
         data[Interface.TYPE] = InterfaceType.ETHERNET

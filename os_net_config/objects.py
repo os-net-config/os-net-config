@@ -23,6 +23,7 @@ import logging
 import netaddr
 from oslo_utils import strutils
 
+import os_net_config
 from os_net_config import common
 from os_net_config import utils
 
@@ -307,11 +308,10 @@ class Dcb(object):
     """Base class for DCB configuration"""
 
     def __init__(self, device, dscp2prio=[]):
-        noop = common.get_noop()
         self.device = device
         self.dscp2prio = dscp2prio
-        self.pci_addr = utils.get_pci_address(device, noop)
-        self.driver = utils.get_driver(device, noop)
+        self.pci_addr = common.get_pci_address(device)
+        self.driver = common.get_pci_device_driver(self.pci_addr)
 
     @staticmethod
     def from_json(json):
@@ -1115,7 +1115,9 @@ class LinuxBond(_BaseOpts):
                                           steering_mode=member.steering_mode,
                                           link_mode=member.link_mode,
                                           vdpa=member.vdpa,
-                                          lag_candidate=True)
+                                          lag_candidate=True,
+                                          pci_address=member.pci_address,
+                                          mac_address=member.mac_address)
             if isinstance(member, SriovVF):
                 LinuxBond.update_vf_config(member)
             member.linux_bond_name = name
@@ -1587,9 +1589,13 @@ class SriovVF(_BaseOpts):
         mapped_nic_names = mapped_nics(nic_mapping)
         if device in mapped_nic_names:
             device = mapped_nic_names[device]
-        # Empty strings are set for the name field.
-        # The provider shall identify the VF name from the PF device name
-        # (device) and the VF id.
+        pci_address = common.get_pci_address(f"{device}:{vfid}")
+        if pci_address is None:
+            msg = f"{device}:{vfid}: Unable to get pci address"
+            raise os_net_config.ConfigurationError(msg)
+        # The VF device name could be obtained only after binding the default
+        # driver. The provider shall identify the VF name from the PF device
+        # name (device) and the VF id.
         name = utils.get_vf_devname(device, vfid)
         super(SriovVF, self).__init__(name, use_dhcp, use_dhcpv6, addresses,
                                       routes, rules, mtu, primary, nic_mapping,
@@ -1605,10 +1611,6 @@ class SriovVF(_BaseOpts):
         self.spoofcheck = spoofcheck
         self.trust = trust
         self.state = state
-        noop = common.get_noop()
-        pci_address = utils.get_pci_address(name, noop)
-        if pci_address is None:
-            pci_address = utils.get_stored_pci_address(name, noop)
         self.macaddr = macaddr
         self.promisc = promisc
         self.pci_address = pci_address
@@ -1702,13 +1704,17 @@ class SriovPF(_BaseOpts):
         self.ethtool_opts = ethtool_opts
         self.vdpa = vdpa
         self.steering_mode = steering_mode
+        self.pci_address = common.get_pci_address(self.name)
+        self.mac_address = common.interface_mac(self.name)
         noop = common.get_noop()
         utils.update_sriov_pf_map(self.name, self.numvfs, noop,
                                   promisc=self.promisc,
                                   link_mode=self.link_mode,
                                   vdpa=self.vdpa,
                                   drivers_autoprobe=self.drivers_autoprobe,
-                                  steering_mode=self.steering_mode)
+                                  steering_mode=self.steering_mode,
+                                  pci_address=self.pci_address,
+                                  mac_address=self.mac_address)
 
     @staticmethod
     def get_on_off(config):

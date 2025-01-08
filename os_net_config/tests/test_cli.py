@@ -32,6 +32,14 @@ SAMPLE_BASE = os.path.join(REALPATH, '../../', 'etc',
                            'os-net-config', 'samples')
 
 
+def generate_random_mac(name):
+    # Generate 6 random bytes
+    mac = [random.randint(0, 255) for _ in range(6)]
+    mac[0] &= 0xFE
+    mac_address = ':'.join(f'{byte:02x}' for byte in mac)
+    return mac_address
+
+
 class TestCli(base.TestCase):
 
     def setUp(self):
@@ -41,16 +49,20 @@ class TestCli(base.TestCase):
         common._LOG_FILE = '/tmp/' + rand + 'os_net_config.log'
         sys.stdout = StringIO()
         sys.stderr = StringIO()
+        self.stub_out('os_net_config.common.interface_mac',
+                      generate_random_mac)
 
         def stub_is_ovs_installed():
             return True
         self.stub_out('os_net_config.utils.is_ovs_installed',
                       stub_is_ovs_installed)
 
-        def test_update_sriov_pf_map(name, numvfs, noop, promisc=None,
-                                     drivers_autoprobe=True,
+        def test_update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                                      link_mode='legacy', vdpa=False,
-                                     steering_mode="smfs"):
+                                     steering_mode=None,
+                                     lag_candidate=None,
+                                     drivers_autoprobe=True,
+                                     pci_address=None, mac_address=None):
             return
         self.stub_out('os_net_config.utils.update_sriov_pf_map',
                       test_update_sriov_pf_map)
@@ -75,17 +87,15 @@ class TestCli(base.TestCase):
         stderr = sys.stderr.getvalue()
         return (stdout, stderr)
 
-    def stub_get_stored_pci_address(self, ifname, noop):
-        if 'eth0' in ifname:
-            return "0000:00:07.0"
-        if 'eth1' in ifname:
-            return "0000:00:08.0"
-        if 'eth2' in ifname:
-            return "0000:00:09.0"
-        if 'em3' in ifname:
-            return "0000:00:03.0"
-        if 'em1' in ifname:
-            return "0000:00:01.0"
+    def stub_get_pci_address(self, ifname):
+        address_map = {
+            "eth0": "0000:00:07.0",
+            "eth1": "0000:00:08.0",
+            "eth2": "0000:00:09.0",
+            "em3": "0000:00:03.0",
+            "em1": "0000:00:01.0"
+        }
+        return address_map.get(ifname, None)
 
     def test_bond_noop_output(self):
         bond_yaml = os.path.join(SAMPLE_BASE, 'bond.yaml')
@@ -221,7 +231,7 @@ class TestCli(base.TestCase):
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
 
-        def test_get_pci_address(ifname, noop):
+        def test_get_pci_address(ifname):
             return '0000:79:10.2'
 
         def test_interface_mac(name):
@@ -229,7 +239,7 @@ class TestCli(base.TestCase):
 
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out('os_net_config.common.get_pci_address',
                       test_get_pci_address)
         self.stub_out('os_net_config.common.interface_mac',
                       test_interface_mac)
@@ -263,12 +273,12 @@ class TestCli(base.TestCase):
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
 
-        def test_get_pci_address(ifname, noop):
+        def test_get_pci_address(ifname):
             return '0000:79:10.2'
 
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
-        self.stub_out('os_net_config.utils.get_pci_address',
+        self.stub_out('os_net_config.common.get_pci_address',
                       test_get_pci_address)
         pf_yaml = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.yaml')
         pf_json = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.json')
@@ -429,6 +439,7 @@ class TestCli(base.TestCase):
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_dpdk_noop_output(self):
+        common.set_noop(False)
         timestamp_rex = re.compile(
             (r'contrail_vrouter_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
              r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
@@ -436,8 +447,8 @@ class TestCli(base.TestCase):
         )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter_dpdk.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter_dpdk.json')
-        self.stub_out('os_net_config.utils.get_stored_pci_address',
-                      self.stub_get_stored_pci_address)
+        self.stub_out('os_net_config.common.get_pci_address',
+                      self.stub_get_pci_address)
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
                                            '--debug '
