@@ -32,6 +32,7 @@ class TestSriovConfig(base.TestCase):
     def setUp(self):
         super(TestSriovConfig, self).setUp()
         rand = str(int(random.random() * 100000))
+        common.set_noop(False)
 
         def execute_noop(*args, **kw):
             pass

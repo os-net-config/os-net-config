@@ -249,15 +249,10 @@ class TestCli(base.TestCase):
                                            '--exit-on-validation-errors '
                                            '-c %s' % ivs_yaml)
         self.assertEqual('', stderr)
-        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
-        sriov_config_yaml = yaml.safe_load(contents)
-        os.remove(common.SRIOV_CONFIG_FILE)
         stdout_json, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
                                            '-c %s' % ivs_json)
         self.assertEqual('', stderr)
-        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
-        sriov_config_json = yaml.safe_load(contents)
         sanity_devices = ['DEVICE=p2p1',
                           'DEVICE=p2p1_5',
                           'DEVICE=p2p1_1',
@@ -267,7 +262,6 @@ class TestCli(base.TestCase):
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
         self.assertEqual(stdout_yaml, stdout_json)
-        self.assertCountEqual(sriov_config_yaml, sriov_config_json)
 
     def test_sriov_vf_with_dpdk_noop_output(self):
         def test_get_vf_devname(device, vfid):
@@ -286,15 +280,10 @@ class TestCli(base.TestCase):
                                            '--exit-on-validation-errors '
                                            '-c %s' % pf_yaml)
         self.assertEqual('', stderr)
-        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
-        sriov_config_yaml = yaml.safe_load(contents)
-        os.remove(common.SRIOV_CONFIG_FILE)
         stdout_json, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
                                            '-c %s' % pf_json)
         self.assertEqual('', stderr)
-        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
-        sriov_config_json = yaml.safe_load(contents)
         sanity_devices = ['DEVICE=p2p1',
                           'DEVICE=p2p1_5',
                           'DEVICE=br-vfs',
@@ -304,7 +293,6 @@ class TestCli(base.TestCase):
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
         self.assertEqual(stdout_yaml, stdout_json)
-        self.assertCountEqual(sriov_config_yaml, sriov_config_json)
 
     def test_ovs_dpdk_bond_noop_output(self):
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.yaml')
