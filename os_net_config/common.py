@@ -84,6 +84,16 @@ class OvsDpdkBindException(ValueError):
     pass
 
 
+def set_noop(value):
+    global noop
+    noop = value
+
+
+def get_noop():
+    global noop
+    return noop
+
+
 def log_exceptions(type, value, tb):
     logger.exception(''.join(traceback.format_exception(
         type, value, tb)))

@@ -298,10 +298,11 @@ class Dcb(object):
     """Base class for DCB configuration"""
 
     def __init__(self, device, dscp2prio=[]):
+        noop = common.get_noop()
         self.device = device
         self.dscp2prio = dscp2prio
-        self.pci_addr = utils.get_pci_address(device, False)
-        self.driver = utils.get_driver(device, False)
+        self.pci_addr = utils.get_pci_address(device, noop)
+        self.driver = utils.get_driver(device, noop)
 
     @staticmethod
     def from_json(json):
@@ -537,8 +538,9 @@ class Interface(_BaseOpts):
                 device = name
             dcb_config_json['device'] = device
             dcb_config = Dcb.from_json(dcb_config_json)
+            noop = common.get_noop()
             common.update_dcb_map(device=device, pci_addr=dcb_config.pci_addr,
-                                  driver=dcb_config.driver, noop=False,
+                                  driver=dcb_config.driver, noop=noop,
                                   dscp2prio=dcb_config.dscp2prio)
 
         return Interface(name, *opts, ethtool_opts=ethtool_opts,
@@ -1087,9 +1089,10 @@ class LinuxBond(_BaseOpts):
         self.members = members
         self.bonding_options = bonding_options
         self.ethtool_opts = ethtool_opts
+        noop = common.get_noop()
         for member in self.members:
             if isinstance(member, SriovPF):
-                utils.update_sriov_pf_map(member.name, member.numvfs, False,
+                utils.update_sriov_pf_map(member.name, member.numvfs, noop,
                                           promisc=member.promisc,
                                           steering_mode=member.steering_mode,
                                           link_mode=member.link_mode,
@@ -1550,9 +1553,10 @@ class SriovVF(_BaseOpts):
         self.spoofcheck = spoofcheck
         self.trust = trust
         self.state = state
-        pci_address = utils.get_pci_address(name, False)
+        noop = common.get_noop()
+        pci_address = utils.get_pci_address(name, noop)
         if pci_address is None:
-            pci_address = utils.get_stored_pci_address(name, False)
+            pci_address = utils.get_stored_pci_address(name, noop)
         self.macaddr = macaddr
         self.promisc = promisc
         self.pci_address = pci_address
@@ -1646,7 +1650,8 @@ class SriovPF(_BaseOpts):
         self.ethtool_opts = ethtool_opts
         self.vdpa = vdpa
         self.steering_mode = steering_mode
-        utils.update_sriov_pf_map(self.name, self.numvfs, False,
+        noop = common.get_noop()
+        utils.update_sriov_pf_map(self.name, self.numvfs, noop,
                                   promisc=self.promisc,
                                   link_mode=self.link_mode,
                                   vdpa=self.vdpa,
@@ -1705,8 +1710,9 @@ class SriovPF(_BaseOpts):
                 device = name
             dcb_config_json['device'] = device
             dcb_config = Dcb.from_json(dcb_config_json)
+            noop = common.get_noop()
             common.update_dcb_map(device=device, pci_addr=dcb_config.pci_addr,
-                                  driver=dcb_config.driver, noop=False,
+                                  driver=dcb_config.driver, noop=noop,
                                   dscp2prio=dcb_config.dscp2prio)
 
         opts = _BaseOpts.base_opts_from_json(json)

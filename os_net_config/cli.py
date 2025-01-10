@@ -178,6 +178,9 @@ def load_provider(name, noop, root_dir):
 
 def main(argv=sys.argv, main_logger=None):
     opts = parse_opts(argv)
+
+    common.set_noop(opts.noop)
+
     if not main_logger:
         main_logger = common.configure_logger(log_file=not opts.noop)
     common.logger_level(main_logger, opts.verbose, opts.debug)
