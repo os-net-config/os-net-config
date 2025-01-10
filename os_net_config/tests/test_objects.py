@@ -429,7 +429,7 @@ class TestBridge(base.TestCase):
 
     def setUp(self):
         super(TestBridge, self).setUp()
-        common.set_noop(True)
+        common.set_noop(False)
         rand = str(int(random.random() * 100000))
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
 
@@ -1214,7 +1214,7 @@ class TestLinuxBond(base.TestCase):
 
     def setUp(self):
         super(TestLinuxBond, self).setUp()
-        common.set_noop(True)
+        common.set_noop(False)
         rand = str(int(random.random() * 100000))
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
 
