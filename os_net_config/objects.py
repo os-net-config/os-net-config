@@ -1757,6 +1757,39 @@ class OvsDpdkBond(_BaseOpts):
             self.primary_interface_name = bond_members[0].name
 
     @staticmethod
+    def update_port_dcb_config(members, dcb_config_json, mapped_nic_names):
+        for ovsdpdkport in members:
+            ovsdpdkport_json = ovsdpdkport.members
+
+            if ovsdpdkport_json:
+                if len(ovsdpdkport_json) == 1:
+                    ovsdpdkport_member = ovsdpdkport_json[0]
+                    if isinstance(ovsdpdkport_member, Interface):
+                        devname = ovsdpdkport_member.name
+                        if devname in mapped_nic_names:
+                            device = mapped_nic_names[devname]
+                        else:
+                            device = devname
+                    else:
+                        msg = ('DCB applies to ovs dpdk port Interface only. '
+                               'Invalid object type encountered.')
+                        raise InvalidConfigException(msg)
+
+                    dcb_config_json['device'] = device
+                    dcb_config = Dcb.from_json(dcb_config_json)
+                    common.update_dcb_map(device=device,
+                                          pci_addr=dcb_config.pci_addr,
+                                          driver=dcb_config.driver, noop=False,
+                                          dscp2prio=dcb_config.dscp2prio)
+                else:
+                    msg = ('OVS DPDK Port should have only one member. '
+                           f'Found {len(ovsdpdkport_json)} members.')
+                    raise InvalidConfigException(msg)
+            else:
+                msg = 'DPDK Port should have one member as Interface'
+                raise InvalidConfigException(msg)
+
+    @staticmethod
     def from_json(json):
         name = _get_required_field(json, 'name', 'OvsDpdkBond')
         (use_dhcp, use_dhcpv6, addresses, routes, rules, mtu, nic_mapping,
@@ -1789,6 +1822,14 @@ class OvsDpdkBond(_BaseOpts):
             else:
                 msg = 'Members must be a list.'
                 raise InvalidConfigException(msg)
+
+        dcb_config_json = json.get('dcb')
+        if dcb_config_json:
+            nic_mapping = json.get('nic_mapping', None)
+            mapped_nic_names = mapped_nics(nic_mapping)
+            OvsDpdkBond.update_port_dcb_config(members,
+                                               dcb_config_json,
+                                               mapped_nic_names)
 
         return OvsDpdkBond(name, use_dhcp=use_dhcp, use_dhcpv6=use_dhcpv6,
                            addresses=addresses, routes=routes, rules=rules,
