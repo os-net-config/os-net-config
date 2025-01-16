@@ -37,6 +37,7 @@ from libnmstate.schema import RouteRule as NMRouteRule
 from libnmstate.schema import VLAN
 import logging
 import netaddr
+import os
 import re
 import yaml
 
@@ -98,6 +99,7 @@ IPV6_DEFAULT_GATEWAY_DESTINATION = "::/0"
 
 POST_ACTIVATION = 'post-activation'
 DISPATCH = 'dispatch'
+CONFIG_RULES_FILE = '/var/lib/os-net-config/nmstate_files/rules.yaml'
 
 
 def route_table_config_path():
@@ -845,6 +847,26 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 logger.info("Prepare to remove route - %s", c_route)
         return add_routes, del_routes
 
+    def _is_managed_iprules(self, c_rule):
+        """check if ip rule is manage by os-net.
+
+        :param c_rule: current defined rule
+        """
+
+        if os.path.exists(CONFIG_RULES_FILE):
+            mng_iprules = yaml.safe_load(
+                common.get_file_data(CONFIG_RULES_FILE))
+            filtered_c_rule = {
+                key: value for key, value in c_rule.items()
+                if key not in ['family', 'priority']
+            }
+            for iprule in mng_iprules['route-rules']['config']:
+                if filtered_c_rule == iprule:
+                    return True
+            return False
+        else:
+            return False
+
     def generate_rules(self):
         """Generate the rule configurations required. Add/Remove rules
 
@@ -865,9 +887,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 break
         if clear_rules:
             for c_rule in curr_rules:
-                c_rule[NMRouteRule.STATE] = NMRouteRule.STATE_ABSENT
-                del_rules.append(c_rule)
-                logger.info("Prepare to remove rule - %s", c_rule)
+                if self._is_managed_iprules(c_rule):
+                    c_rule[NMRouteRule.STATE] = NMRouteRule.STATE_ABSENT
+                    del_rules.append(c_rule)
+                    logger.info("Prepare to remove rule - %s", c_rule)
         return add_rules, del_rules
 
     def interface_mac(self, iface):
@@ -2376,9 +2399,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     self.nmstate_apply(apply_data, verify=True)
 
             if add_rules:
-                apply_data = self.set_rules(add_rules)
+                rules_applied = self.set_rules(add_rules)
                 if activate:
-                    self.nmstate_apply(apply_data, verify=True)
+                    self.nmstate_apply(rules_applied, verify=True)
 
             apply_data = self.set_dns()
             if activate:
@@ -2392,6 +2415,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     logger.error(str(e))
                 self.rollback_to_initial_settings()
                 raise os_net_config.ConfigurationError(message)
+
+            try:
+                if rules_applied:
+                    common.write_yaml_config(CONFIG_RULES_FILE, rules_applied)
+            except NameError:
+                no_rules = self.set_rules(rule_data=[])
+                common.write_yaml_config(CONFIG_RULES_FILE, no_rules)
 
         self.interface_data = {}
         self.bridge_data = {}
