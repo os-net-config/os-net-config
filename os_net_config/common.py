@@ -406,7 +406,7 @@ def _get_sriov_mac_address(iface_name):
     """Fetch the Mac address from the sriov_map."""
     sriov_map = get_sriov_map(pf_name=iface_name)
     if sriov_map:
-        return sriov_map[0].get('mac_adddress', None)
+        return sriov_map[0].get('mac_address', None)
 
 
 def is_vf_by_name(interface_name, check_mapping_file=False):
