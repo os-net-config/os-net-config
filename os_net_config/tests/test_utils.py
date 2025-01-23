@@ -788,6 +788,92 @@ class TestUtils(base.TestCase):
         shutil.rmtree(tmpdir)
         shutil.rmtree(tmp_pci_dir)
 
+    def test_ordered_active_nics_with_dpdk_and_sriov(self):
+
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        tmp_pci_dir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common._SYS_BUS_PCI_DEV', tmp_pci_dir)
+        physfn_path = common._SYS_BUS_PCI_DEV + '/0000:05:01.1/physfn'
+        os.makedirs(physfn_path)
+
+        sriov_map = """
+        - device_type: pf
+          drivers_autoprobe: true
+          link_mode: legacy
+          mac_address: 6c:fe:54:3f:8a:01
+          name: ens1f1
+          numvfs: 5
+          pci_address: '0000:19:00.1'
+          promisc: 'on'
+          vdpa: false
+        - device_type: pf
+          drivers_autoprobe: true
+          link_mode: legacy
+          mac_address: 6c:fe:54:3f:8a:02
+          name: ens1f2
+          numvfs: 5
+          pci_address: '0000:19:00.2'
+          promisc: 'on'
+          vdpa: false
+        - device:
+            name: ens1f1
+            vfid: 0
+          device_type: vf
+          max_tx_rate: 0
+          min_tx_rate: 0
+          name: ens1f1v0
+          pci_address: '0000:19:06.0'
+          promisc: 'off'
+          spoofcheck: 'off'
+          trust: 'on'
+          vlan_id: 72
+        - device:
+              name: ens1f2
+              vfid: 0
+          device_type: vf
+          max_tx_rate: 0
+          min_tx_rate: 0
+          name: ens1f2v0
+          pci_address: 0000:19:0a.0
+          promisc: 'off'
+          spoofcheck: 'off'
+          trust: 'on'
+          vlan_id: 72"""
+        utils.write_config(common.SRIOV_CONFIG_FILE, sriov_map)
+
+        def test_is_available_nic(interface_name, check_active):
+            return True
+        self.stub_out('os_net_config.utils._is_available_nic',
+                      test_is_available_nic)
+
+        for nic in ['a1', 'em1', 'em2', 'eth2', 'z1',
+                    'enp8s0', 'enp10s0', 'enp1s0f0']:
+            with open(os.path.join(tmpdir, nic), 'w') as f:
+                f.write(nic)
+
+        utils._update_dpdk_map('eth1', '0000:03:00.0', '01:02:03:04:05:06',
+                               'vfio-pci')
+        utils._update_dpdk_map('p3p1', '0000:04:00.0', '01:02:03:04:05:07',
+                               'igb_uio')
+        utils._update_dpdk_map('p3p0_0', '0000:05:01.1', 'AA:02:03:04:05:FF',
+                               'vfio-pci')
+
+        nics = utils.ordered_active_nics()
+
+        self.assertEqual('em1', nics[0])
+        self.assertEqual('em2', nics[1])
+        self.assertEqual('eth1', nics[2])  # DPDK bound nic
+        self.assertEqual('eth2', nics[3])
+        self.assertEqual('a1', nics[4])
+        self.assertEqual('enp1s0f0', nics[5])
+        self.assertEqual('enp8s0', nics[6])
+        self.assertEqual('enp10s0', nics[7])
+        self.assertEqual('ens1f1', nics[8])
+        self.assertEqual('ens1f2', nics[9])
+        self.assertEqual('p3p1', nics[10])  # DPDK bound nic
+        self.assertEqual('z1', nics[11])
+
     def test_ordered_active_nics_with_dpdk_mapping_of_vf(self):
         tmpdir = tempfile.mkdtemp()
         self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)

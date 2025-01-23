@@ -199,14 +199,14 @@ def _ordered_nics(check_active):
         )
     pfs = common.get_sriov_pfs()
     for pf in pfs:
-        if _is_embedded_nic(pf):
-            logger.info("%s: an embedded nic configured as PF", nic)
-            if pf not in embedded_nics:
-                embedded_nics.append(nic)
+        if _is_embedded_nic(pf["name"]):
+            logger.info("%s: an embedded nic configured as PF", pf["name"])
+            if pf["name"] not in embedded_nics:
+                embedded_nics.append(pf["name"])
         else:
-            logger.info("%s: SR-IOV configured nic", nic)
-            if pf not in nics:
-                nics.append(pf)
+            logger.info("%s: SR-IOV configured nic", pf["name"])
+            if pf["name"] not in nics:
+                nics.append(pf["name"])
 
     # NOTE: we could just natural sort all active devices,
     # but this ensures em, eno, and eth are ordered first
