@@ -815,6 +815,80 @@ class TestUtils(base.TestCase):
     def test_interface_mac_raises(self):
         self.assertRaises(IOError, common.interface_mac, 'ens20f2p3')
 
+    def test_interface_mac_dpdk_and_sriov(self):
+
+        tmpdir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common.SYS_CLASS_NET', tmpdir)
+        tmp_pci_dir = tempfile.mkdtemp()
+        self.stub_out('os_net_config.common._SYS_BUS_PCI_DEV', tmp_pci_dir)
+        physfn_path = common._SYS_BUS_PCI_DEV + '/0000:05:01.1/physfn'
+        os.makedirs(physfn_path)
+
+        sriov_map = """
+        - device_type: pf
+          drivers_autoprobe: true
+          link_mode: legacy
+          mac_address: 6c:fe:54:3f:8a:01
+          name: ens1f1
+          numvfs: 5
+          pci_address: '0000:19:00.1'
+          promisc: 'on'
+          vdpa: false
+        - device_type: pf
+          drivers_autoprobe: true
+          link_mode: legacy
+          mac_address: 6c:fe:54:3f:8a:02
+          name: ens1f2
+          numvfs: 5
+          pci_address: '0000:19:00.2'
+          promisc: 'on'
+          vdpa: false
+        - device:
+            name: ens1f1
+            vfid: 0
+          device_type: vf
+          max_tx_rate: 0
+          min_tx_rate: 0
+          name: ens1f1v0
+          pci_address: '0000:19:06.0'
+          promisc: 'off'
+          spoofcheck: 'off'
+          trust: 'on'
+          vlan_id: 72
+        - device:
+              name: ens1f2
+              vfid: 0
+          device_type: vf
+          max_tx_rate: 0
+          min_tx_rate: 0
+          name: ens1f2v0
+          pci_address: 0000:19:0a.0
+          promisc: 'off'
+          spoofcheck: 'off'
+          trust: 'on'
+          vlan_id: 72"""
+        utils.write_config(common.SRIOV_CONFIG_FILE, sriov_map)
+
+        def test_is_available_nic(interface_name, check_active):
+            return True
+        self.stub_out('os_net_config.utils._is_available_nic',
+                      test_is_available_nic)
+
+        for nic in ['a1', 'em1', 'em2', 'eth2', 'z1',
+                    'enp8s0', 'enp10s0', 'enp1s0f0']:
+            with open(os.path.join(tmpdir, nic), 'w') as f:
+                f.write(nic)
+
+        utils._update_dpdk_map('eth1', '0000:03:00.0', '01:02:03:04:05:06',
+                               'vfio-pci')
+        utils._update_dpdk_map('p3p1', '0000:04:00.0', '01:02:03:04:05:07',
+                               'igb_uio')
+        utils._update_dpdk_map('p3p0_0', '0000:05:01.1', 'AA:02:03:04:05:FF',
+                               'vfio-pci')
+        self.assertEqual("01:02:03:04:05:07", common.interface_mac("p3p1"))
+        self.assertEqual("6c:fe:54:3f:8a:02", common.interface_mac("ens1f2"))
+        self.assertEqual("AA:02:03:04:05:FF", common.interface_mac("p3p0_0"))
+
     def test_get_dpdk_devargs_mlnx(self):
         def test_get_pci_address(ifname):
             return "0000:00:07.0"
