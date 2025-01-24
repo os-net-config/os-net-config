@@ -2015,6 +2015,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
             pci_address = ovs_dpdk_port.members[0].pci_address
             utils.update_dpdk_map(ifname,
                                   ovs_dpdk_port.driver)
+            # In NIC partitioning scenario with dpdk ports, the VF
+            # configuration is skipped since add_sriov_vf() will not be
+            # called for dpdk ports. Adding the VF config here.
+            self.__add_sriov_vf_config(ovs_dpdk_port.members[0])
         else:
             # Bind the DPDK driver for interface objects
             utils.bind_dpdk_interfaces(ifname, ovs_dpdk_port.driver,
@@ -2161,12 +2165,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         if sriov_pf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
+
         if sriov_pf.link_mode == 'legacy':
             data[Ethtool.CONFIG_SUBTREE] = {}
             data[Ethtool.CONFIG_SUBTREE][Ethtool.Feature.CONFIG_SUBTREE] = {
                 'hw-tc-offload': False}
-        if sriov_pf.promisc:
-            data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
 
         if sriov_pf.ethtool_opts:
             self.add_ethtool_config(sriov_pf.name, data,
@@ -2177,6 +2180,21 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.vf_drv_override[sriov_pf.name] = {}
         self.need_pf_config = True
         self.__dump_config(data, msg=f"{sriov_pf.name}: Prepared config")
+
+    def __add_sriov_vf_config(self, sriov_vf):
+        # sriov_vf_data is a list of vf configuration data of size numvfs.
+        # The vfid is used as index.
+        if sriov_vf.device not in self.sriov_vf_data:
+            msg = f"{sriov_vf.device}: PF is not configured yet"
+            raise os_net_config.ConfigurationError(msg)
+
+        vf_config = self.get_vf_config(sriov_vf)
+        logger.debug(
+            "%s-%d: vf config %s", sriov_vf.device, sriov_vf.vfid, vf_config
+        )
+
+        self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
+        self.need_vf_config = True
 
     def add_sriov_vf(self, sriov_vf):
         """Add a SriovVF object to the net config object
@@ -2196,21 +2214,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
         self.interface_data[sriov_vf.name] = data
 
-        # sriov_vf_data is a list of vf configuration data of size numvfs.
-        # The vfid is used as index.
-        if sriov_vf.device not in self.sriov_vf_data:
-            msg = f"{sriov_vf.device}: PF is not configured yet"
-            raise os_net_config.ConfigurationError(msg)
-
-        vf_config = self.get_vf_config(sriov_vf)
-        logger.debug(
-            "%s-%d: vf config %s", sriov_vf.device, sriov_vf.vfid, vf_config
-        )
-        self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
         if sriov_vf.ethtool_opts:
             self.add_ethtool_config(sriov_vf.name, data,
                                     sriov_vf.ethtool_opts)
-        self.need_vf_config = True
+        self.__add_sriov_vf_config(sriov_vf)
         self.__dump_config(
             data, msg=(f"{sriov_vf.device}-{sriov_vf.vfid}: Prepared config")
         )
