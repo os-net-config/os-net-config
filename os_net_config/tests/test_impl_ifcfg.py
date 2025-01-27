@@ -2273,6 +2273,7 @@ class TestIfcfgNetConfigApply(base.TestCase):
         self.temp_rule_file = tempfile.NamedTemporaryFile()
         self.temp_bridge_file = tempfile.NamedTemporaryFile()
         self.temp_cleanup_file = tempfile.NamedTemporaryFile(delete=False)
+        self.temp_cleanup_nm_file = tempfile.NamedTemporaryFile(delete=False)
         self.ifup_interface_names = []
         self.ovs_appctl_cmds = []
         self.stop_dhclient_interfaces = []
@@ -2324,6 +2325,11 @@ class TestIfcfgNetConfigApply(base.TestCase):
         self.stub_out('os_net_config.impl_ifcfg.cleanup_pattern',
                       test_cleanup_pattern)
 
+        def test_nm_cleanup_pattern():
+            return self.temp_cleanup_nm_file.name
+        self.stub_out('os_net_config.impl_ifcfg.nm_cleanup_pattern',
+                      test_nm_cleanup_pattern)
+
         def test_stop_dhclient_process(interface):
             self.stop_dhclient_interfaces.append(interface)
         self.stub_out('os_net_config.impl_ifcfg.stop_dhclient_process',
@@ -2354,6 +2360,9 @@ class TestIfcfgNetConfigApply(base.TestCase):
         self.temp_bridge_file.close()
         if os.path.exists(self.temp_cleanup_file.name):
             self.temp_cleanup_file.close()
+        if os.path.exists(self.temp_cleanup_nm_file.name):
+            self.temp_cleanup_nm_file.close()
+
         super(TestIfcfgNetConfigApply, self).tearDown()
 
     def test_route_table_apply(self):
@@ -2841,6 +2850,7 @@ class TestIfcfgNetConfigApply(base.TestCase):
     def test_cleanup(self):
         self.provider.apply(cleanup=True)
         self.assertTrue(not os.path.exists(self.temp_cleanup_file.name))
+        self.assertTrue(not os.path.exists(self.temp_cleanup_nm_file.name))
 
     def test_cleanup_not_loopback(self):
         tmp_lo_file = '%s-lo' % self.temp_cleanup_file.name
