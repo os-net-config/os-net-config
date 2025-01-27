@@ -19,6 +19,7 @@ import itertools
 import logging
 import netaddr
 import os
+from pathlib import Path
 import re
 import shutil
 
@@ -97,6 +98,10 @@ def route_table_config_path():
 
 def cleanup_pattern():
     return "/etc/sysconfig/network-scripts/ifcfg-*"
+
+
+def nm_cleanup_pattern():
+    return "/etc/NetworkManager/system-connections/*.nmconnection"
 
 
 def dhclient_path():
@@ -1984,6 +1989,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         )
                         self.ifdown(interface_name)
                         self.remove_config(ifcfg_file)
+            for nmconn_file in glob.iglob(nm_cleanup_pattern()):
+                interface_name = Path(nmconn_file).stem
+                cmd = ['nmcli', 'connection', 'delete', interface_name]
+                msg = f"{interface_name}: Removing nm connection"
+                self.execute(msg, *cmd)
+                self.remove_config(nmconn_file)
 
         if activate:
             for interface in apply_interfaces:
