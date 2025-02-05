@@ -209,16 +209,16 @@ class TestDerivedTypes(base.TestCase):
                 "default": True, "route_options": "metric 10"}
         self.assertTrue(v.is_valid(data))
 
-        # Validation fails unless only os-net-config or neutron schema.
-        # os-net-config :: ip_netmask  + next_hop
-        # neutron       :: destination + nexthop
         data = {"next_hop": "172.19.0.1", "destination": "172.19.0.0/24"}
-        self.assertFalse(v.is_valid(data))
+        self.assertTrue(v.is_valid(data))
         data = {"nexthop": "172.19.0.1", "ip_netmask": "172.19.0.0/24"}
-        self.assertFalse(v.is_valid(data))
+        self.assertTrue(v.is_valid(data))
+
+        # negative test cases - destination and ip_netmask together
         data = {"nexthop": "172.19.0.1", "destination": "172.19.0.0/24",
                 "ip_netmask": "172.19.0.0/24"}
         self.assertFalse(v.is_valid(data))
+        # negative test cases - next_hop and nexthop together
         data = {"next_hop": "172.19.0.1", "nexthop": "172.19.0.1",
                 "destination": "172.19.0.0/24"}
         self.assertFalse(v.is_valid(data))
