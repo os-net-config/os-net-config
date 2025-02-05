@@ -372,50 +372,59 @@ def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                         link_mode='legacy', vdpa=False, steering_mode=None,
                         lag_candidate=None, drivers_autoprobe=True,
                         pci_address=None, mac_address=None):
-    if not noop:
+    if noop:
+        return
+    if common.is_pf_attached_to_guest(ifname):
+        logger.info("%s: Attached to guest, skip reading numvfs", ifname)
+    else:
+        # when the PF is attached to the guest, it will be bound
+        # with vfio-pci. and the numvfs could not be read and
+        # hence avoid reading the numvfs
         cur_numvfs = sriov_config.get_numvfs(ifname)
         if cur_numvfs > 0 and cur_numvfs != numvfs:
             msg = ("Can't change the numvfs for %s" % ifname)
             raise sriov_config.SRIOVNumvfsException(msg)
-        sriov_map = common.get_sriov_map()
-        for item in sriov_map:
-            if item['device_type'] == 'pf' and item['name'] == ifname:
-                item['numvfs'] = numvfs
-                item['drivers_autoprobe'] = drivers_autoprobe
-                item['vdpa'] = vdpa
-                if promisc is not None:
-                    item['promisc'] = promisc
-                item['link_mode'] = link_mode
-                if steering_mode is not None:
-                    item['steering_mode'] = steering_mode
-                if lag_candidate is not None:
-                    item['lag_candidate'] = lag_candidate
-                if pci_address:
-                    item['pci_address'] = pci_address
-                if mac_address:
-                    item['mac_address'] = mac_address
-                break
-        else:
-            new_item = {}
-            new_item['device_type'] = 'pf'
-            new_item['name'] = ifname
-            new_item['numvfs'] = numvfs
-            new_item['drivers_autoprobe'] = drivers_autoprobe
-            new_item['vdpa'] = vdpa
-            if promisc is not None:
-                new_item['promisc'] = promisc
-            new_item['link_mode'] = link_mode
-            if steering_mode is not None:
-                new_item['steering_mode'] = steering_mode
-            if lag_candidate is not None:
-                new_item['lag_candidate'] = lag_candidate
-            if pci_address:
-                new_item['pci_address'] = pci_address
-            if mac_address:
-                new_item['mac_address'] = mac_address
-            sriov_map.append(new_item)
 
-        common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
+    # Allow configuring the sriov map even if the PF is attached to the guest
+    sriov_map = common.get_sriov_map()
+    for item in sriov_map:
+        if item['device_type'] == 'pf' and item['name'] == ifname:
+            item['numvfs'] = numvfs
+            item['drivers_autoprobe'] = drivers_autoprobe
+            item['vdpa'] = vdpa
+            if promisc is not None:
+                item['promisc'] = promisc
+            item['link_mode'] = link_mode
+            if steering_mode is not None:
+                item['steering_mode'] = steering_mode
+            if lag_candidate is not None:
+                item['lag_candidate'] = lag_candidate
+            if pci_address:
+                item['pci_address'] = pci_address
+            if mac_address:
+                item['mac_address'] = mac_address
+            break
+    else:
+        new_item = {}
+        new_item['device_type'] = 'pf'
+        new_item['name'] = ifname
+        new_item['numvfs'] = numvfs
+        new_item['drivers_autoprobe'] = drivers_autoprobe
+        new_item['vdpa'] = vdpa
+        if promisc is not None:
+            new_item['promisc'] = promisc
+        new_item['link_mode'] = link_mode
+        if steering_mode is not None:
+            new_item['steering_mode'] = steering_mode
+        if lag_candidate is not None:
+            new_item['lag_candidate'] = lag_candidate
+        if pci_address:
+            new_item['pci_address'] = pci_address
+        if mac_address:
+            new_item['mac_address'] = mac_address
+        sriov_map.append(new_item)
+
+    common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
 
 
 def _set_vf_fields(vf_name, vlan_id, qos, spoofcheck, trust, state, macaddr,

@@ -409,6 +409,16 @@ def _get_sriov_mac_address(iface_name):
         return sriov_map[0].get('mac_address', None)
 
 
+def is_pf_attached_to_guest(iface_name):
+    driver = None
+    pci_addr = get_sriov_pci_address(iface_name)
+    if pci_addr:
+        driver = get_pci_device_driver(pci_addr)
+    if driver == 'vfio-pci':
+        return True
+    return False
+
+
 def is_vf_by_name(interface_name, check_mapping_file=False):
     vf_path_check = get_dev_path(interface_name, 'physfn')
     is_sriov_vf = os.path.isdir(vf_path_check)

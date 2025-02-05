@@ -407,6 +407,11 @@ def configure_sriov_pf(execution_from_cli=False, restart_openvswitch=False):
 
     for item in sriov_map:
         if item['device_type'] == 'pf':
+            if common.is_pf_attached_to_guest(item['name']):
+                logger.info(
+                    "%s: Attached to guest, skip configuring", item["name"]
+                )
+                continue
             if pf_configure_status(item):
                 logger.debug("%s: SR-IOV already configured", item["name"])
                 continue
@@ -942,6 +947,12 @@ def main(argv=sys.argv):
     if opts.numvfs:
         if re.match(r"^\w+:\d+$", opts.numvfs):
             device_name, numvfs = opts.numvfs.split(':')
+            if common.is_pf_attached_to_guest(device_name):
+                logger.info(
+                    "%s: Attached to guest, skipping PF config",
+                    device_name
+                )
+                return 0
             pfs = common.get_sriov_map(device_name)
             if pfs:
                 autoprobe = pfs[0].get('drivers_autoprobe', True)
