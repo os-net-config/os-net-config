@@ -168,12 +168,15 @@ definitions:
 
     route:
         type: object
-        oneOf:
-        - properties:
+        properties:
             next_hop:
-              oneOf:
-                - $ref: "#/definitions/ip_address_string_or_param"
-                - $ref: "#/definitions/self_interface"
+                oneOf:
+                    - $ref: "#/definitions/ip_address_string_or_param"
+                    - $ref: "#/definitions/self_interface"
+            nexthop:
+                oneOf:
+                    - $ref: "#/definitions/ip_address_string_or_param"
+                    - $ref: "#/definitions/self_interface"
             ip_netmask:
                 $ref: "#/definitions/ip_cidr_string_or_param"
             default:
@@ -186,27 +189,23 @@ definitions:
                     - $ref: "#/definitions/int_or_param"
             metric:
                 $ref: "#/definitions/int_or_param"
-          requires:
-            - next_hop
-          additionalProperties: False
-        - properties:
-            nexthop:
-                $ref: "#/definitions/ip_address_string_or_param"
             destination:
                 $ref: "#/definitions/ip_cidr_string_or_param"
-            default:
-                $ref: "#/definitions/bool_or_param"
-            route_options:
-                $ref: "#/definitions/string_or_param"
-            table:
-                anyOf:
-                    - $ref: "#/definitions/string_or_param"
-                    - $ref: "#/definitions/int_or_param"
-            metric:
-                $ref: "#/definitions/int_or_param"
-          requires:
-            - nexthop
-          additionalProperties: False
+        allOf:
+            - anyOf:
+                - required:
+                    - default
+                - oneOf:
+                    - required:
+                        - destination
+                    - required:
+                        - ip_netmask
+            - oneOf:
+                - required:
+                    - next_hop
+                - required:
+                    - nexthop
+        additionalProperties: False
     list_of_route:
         type: array
         items:
