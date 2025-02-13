@@ -476,3 +476,92 @@ class TestCli(base.TestCase):
         stdout_yaml = timestamp_rex.sub('', stdout_yaml)
         stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
+
+    def test_config_provider_success(self):
+        """Test config_provider function with successful configuration"""
+
+        class MockProvider(os_net_config.NetConfig):
+            def __init__(self, noop=False, root_dir=''):
+                super(MockProvider, self).__init__(noop, root_dir)
+                self.added_objects = []
+
+            def add_object(self, obj):
+                self.added_objects.append(obj)
+
+            def apply(self, cleanup=False, activate=True,
+                      config_rules_dns=True):
+                return {'/tmp/test_config': 'test content'}
+
+        def mock_load_provider(provider_name, noop, root_dir):
+            return MockProvider(noop, root_dir)
+
+        self.stub_out('os_net_config.cli.load_provider', mock_load_provider)
+
+        # Test successful configuration
+        iface_config = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.config_provider(
+            "iifcfg", "network_config", iface_config,
+            "", False, False, False
+        )
+
+        self.assertEqual(2, ret_code)
+
+    def test_config_provider_failure(self):
+        """Test config_provider function with provider loading failure"""
+
+        def mock_load_provider_fail(provider_name, noop, root_dir):
+            raise ImportError("Failed to load provider")
+
+        self.stub_out(
+            'os_net_config.cli.load_provider', mock_load_provider_fail
+        )
+
+        # Test provider loading failure
+        iface_config = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.config_provider(
+            "ifcfg", "network_config", iface_config,
+            "", False, False, False
+        )
+
+        self.assertEqual(1, ret_code)
+
+    def test_unconfig_provider_success(self):
+        """Test unconfig_provider function with successful cleanup"""
+
+        class MockProvider(os_net_config.NetConfig):
+            def __init__(self, noop=False, root_dir=''):
+                super(MockProvider, self).__init__(noop, root_dir)
+                self.deleted_objects = []
+
+            def del_object(self, obj):
+                self.deleted_objects.append(obj)
+
+            def destroy(self):
+                pass
+
+        def mock_load_provider(provider_name, noop, root_dir):
+            return MockProvider(noop, root_dir)
+
+        self.stub_out('os_net_config.cli.load_provider', mock_load_provider)
+
+        # Test successful cleanup
+        iface_array = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
+
+        self.assertEqual(0, ret_code)
+
+    def test_unconfig_provider_failure(self):
+        """Test unconfig_provider function with provider loading failure"""
+
+        def mock_load_provider_fail(provider_name, noop, root_dir):
+            raise ImportError("Failed to load purge provider")
+
+        self.stub_out(
+            'os_net_config.cli.load_provider', mock_load_provider_fail
+        )
+
+        # Test provider loading failure
+        iface_array = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
+
+        self.assertEqual(1, ret_code)
