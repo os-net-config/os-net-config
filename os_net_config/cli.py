@@ -516,11 +516,22 @@ def config_provider(provider_name,
             config_name,
             e
         )
-        return 1
 
-    if configure_sriov:
-        files_changed.update(pf_files_changed)
-    if noop:
+    if utils.is_dcb_config_required():
+        # Apply the DCB Config
+        try:
+            from os_net_config import dcb_config
+        except ImportError as e:
+            logger.error("cannot apply DCB configuration: %s", e)
+            return 1
+
+        utils.configure_dcb_config_service()
+        dcb_apply = dcb_config.DcbApplyConfig()
+        dcb_apply.apply()
+
+    if opts.noop:
+        if configure_sriov:
+            files_changed.update(pf_files_changed)
         for location, data in files_changed.items():
             print("File:", location)
             print()
