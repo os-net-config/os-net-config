@@ -256,6 +256,14 @@ def update_dpdk_map(ifname, driver):
         _update_dpdk_map(ifname, pci_address, mac_address, driver)
 
 
+def unbind_dpdk_interfaces(pci_address):
+    iface_driver = common.get_pci_device_driver(pci_address)
+    if iface_driver == "vfio-pci":
+        common.unset_driverctl_override(pci_address)
+    else:
+        logger.info("%s: not bound with vfio-pci", pci_address)
+
+
 def bind_dpdk_interfaces(ifname, driver, noop):
     if common.is_mellanox_interface(ifname) and 'vfio-pci' in driver:
         msg = ("For Mellanox NIC %s, the default driver vfio-pci "
@@ -304,6 +312,46 @@ def bind_dpdk_interfaces(ifname, driver, noop):
         # available nor bound with dpdk.
         msg = "Interface %s cannot be found" % ifname
         raise common.OvsDpdkBindException(msg)
+
+
+def remove_dpdk_interface(iface):
+    dpdk_map = common.get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        if dpdk_nic["name"] == iface:
+            err = detach_dpdk_interfaces(dpdk_nic["pci_address"])
+            if not err:
+                err = unbind_dpdk_interfaces(dpdk_nic["pci_address"])
+            if err:
+                logger.error(
+                    "%s: Failed to unbind/detach dpdk interface",
+                    dpdk_nic["name"],
+                )
+            break
+    else:
+        logger.error("%s: could not find in dpdk_mapping.yaml", iface)
+
+
+def restore_dpdk_interfaces():
+    dpdk_map = common.get_dpdk_map()
+    noop = common.get_noop()
+    for dpdk_nic in dpdk_map:
+        if not common.is_pci_dev_available(dpdk_nic["pci_address"]):
+            continue
+        if common.is_vf(dpdk_nic["pci_address"]):
+            continue
+        driver = common.get_pci_device_driver(dpdk_nic["pci_address"])
+        if driver == dpdk_nic["driver"]:
+            continue
+        bind_dpdk_interfaces(dpdk_nic["pci_address"], dpdk_nic["driver"], noop)
+
+
+def detach_dpdk_interfaces(pci_address):
+    cmd = ["ovs-appctl", "netdev-dpdk/detach", pci_address]
+    try:
+        out, err = processutils.execute(*cmd)
+    except processutils.ProcessExecutionError as exc:
+        logger.error("%s: Failed to detach. Err: %s", pci_address, exc)
+        return -1
 
 
 def translate_ifname_to_pci_address(ifname, noop):
