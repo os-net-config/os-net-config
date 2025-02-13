@@ -26,6 +26,26 @@ from os_net_config import sriov_config
 from oslo_concurrency import processutils
 
 logger = logging.getLogger(__name__)
+
+# The new provider will be installed on reboot
+_MIGRATION_SERVICE_FILE = "/etc/systemd/system/os-net-config-migrate.service"
+_MIGRATION_SERVICE_FILE_CONTENT = """[Unit]
+Description=Configure the networks
+After=systemd-udev-settle.service NetworkManager.service \
+openvswitch.service network.target \
+NetworkManager-dispatcher.service network.service
+
+Requires=NetworkManager-dispatcher.service NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart={args}
+
+[Install]
+WantedBy=multi-user.target
+
+"""
+
 # sriov_config service shall be created and enabled so that the various
 # SR-IOV PF and VF configurations shall be done during reboot as well using
 # sriov_config.py installed in path /usr/bin/os-net-config-sriov
@@ -548,6 +568,39 @@ def _configure_sriov_config_service():
     with open(_SRIOV_CONFIG_SERVICE_FILE, 'w') as f:
         f.write(_SRIOV_CONFIG_DEVICE_CONTENT)
     processutils.execute('systemctl', 'enable', 'sriov_config')
+
+
+def configure_migration_service(argv):
+    """Generate the sriov_config.service
+
+     sriov_config service shall configure the numvfs for the SriovPF nics
+     during reboot of the nodes.
+    """
+    if common.get_noop():
+        return
+    args = argv.replace("purge-provider", "rollback")
+    content = _MIGRATION_SERVICE_FILE_CONTENT.format(args=args)
+    with open(_MIGRATION_SERVICE_FILE, "w") as f:
+        f.write(content)
+    processutils.execute("systemctl", "enable", "os-net-config-migrate")
+
+
+def disable_migration_service():
+    if common.get_noop():
+        return
+    processutils.execute("systemctl", "disable", "os-net-config-migrate")
+
+
+def disable_sriov_config_service():
+    if common.get_noop():
+        return
+    processutils.execute("systemctl", "disable", "sriov_config")
+
+
+def reboot_machine():
+    cmd = ["shutdown", "-r", "-t", "0"]
+    if not common.get_noop():
+        processutils.execute(*cmd)
 
 
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):
