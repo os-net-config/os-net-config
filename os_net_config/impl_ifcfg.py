@@ -164,6 +164,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self.renamed_interfaces = {}
         self.bond_primary_ifaces = {}
         self.remove_iface = []
+        self.remove_dpdk_devs = []
         self.remove_sriov_pfs = []
         logger.info('Ifcfg net config provider created.')
 
@@ -987,7 +988,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param bridge: The OvsUserBridge object to be deleted.
         """
         logger.info("%s: Deleting ovs user bridge", bridge.name)
-        self._del_common(bridge)
+        self.remove_dpdk_devs.append(bridge.name)
 
     def add_linux_bridge(self, bridge):
         """Add a LinuxBridge object to the net config object.
@@ -1196,7 +1197,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ovs_dpdk_port: The OvsDpdkPort object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk port", ovs_dpdk_port.name)
-        self._del_common(ovs_dpdk_port)
+        self.remove_dpdk_devs.append(ovs_dpdk_port.name)
 
     def add_ovs_dpdk_bond(self, ovs_dpdk_bond):
         """Add an OvsDPDKBond object to the net config object.
@@ -1240,7 +1241,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ovs_dpdk_bond: The OvsBond object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk bond", ovs_dpdk_bond.name)
-        self._del_common(ovs_dpdk_bond)
+        self.remove_dpdk_devs.append(ovs_dpdk_bond.name)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -1496,9 +1497,14 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         Clears the network configuration which is previously configured via
         the same provider.
         """
+        for iface in self.remove_dpdk_devs:
+            logger.info("%s: Purging ", iface)
+            self.purge(iface)
         for iface in self.remove_iface:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
+        utils.remove_dpdk_interfaces()
+
         if self.remove_sriov_pfs:
             sriov_config.reset_sriov_pfs()
         for sriov_dev in self.remove_sriov_pfs:
@@ -2388,7 +2394,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         logger.info('Rolling back to ifcfg provider')
         self._restore_ifcfg_files()
         self.restore_map_files()
-
+        utils.restore_dpdk_interfaces()
         self._bringup_all_devices()
         logger.info('Reverted back to ifcfg provider succesfully')
 
