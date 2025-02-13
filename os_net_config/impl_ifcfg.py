@@ -163,8 +163,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self.member_names = {}
         self.renamed_interfaces = {}
         self.bond_primary_ifaces = {}
-        self.remove_iface = []
-        self.remove_sriov_pfs = []
+        self.del_device = {
+            "iface": [],
+            "sriov_pf": [],
+        }
         logger.info('Ifcfg net config provider created.')
 
     def parse_ifcfg(self, ifcfg_data):
@@ -484,7 +486,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         return children
 
     def _del_common(self, base_opt):
-        self.remove_iface.append(base_opt.name)
+        self.del_device["iface"].append(base_opt.name)
 
     def _add_common(self, base_opt):
 
@@ -1268,7 +1270,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param sriov_pf: The SriovPF object to be deleted
         """
         logger.info("%s: Deleting sriov pf", sriov_pf.name)
-        self.remove_sriov_pfs.append(sriov_pf.name)
+        self.del_device["sriov_pf"].append(sriov_pf.name)
 
     def add_sriov_vf(self, sriov_vf):
         """Add a SriovVF object to the net config object
@@ -1502,12 +1504,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         Clears the network configuration which is previously configured via
         the same provider.
         """
-        for iface in self.remove_iface:
+        for iface in self.del_device["iface"]:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
-        if self.remove_sriov_pfs:
+        if self.del_device["sriov_pf"]:
             sriov_config.reset_sriov_pfs()
-        for sriov_dev in self.remove_sriov_pfs:
+        for sriov_dev in self.del_device["sriov_pf"]:
             logger.info("%s: Purging SR-IOV device", sriov_dev)
             self.purge(sriov_dev)
 
@@ -2350,10 +2352,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self._restore_ifcfg_files()
         self._bringup_all_devices()
         logger.info('Reverted back to ifcfg provider succesfully')
-
-    def clean_migration(self):
-        logger.info("Clean migration files")
-        sriov_config.wipe_sriov_udev_files()
 
     def _restore_ifcfg_files(self):
         logger.info('Restoring the ifcfg files')

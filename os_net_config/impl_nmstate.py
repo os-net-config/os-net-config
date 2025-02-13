@@ -358,7 +358,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         #  {pf1: {vfid1: driver, vfid2: driver},
         #   pf2: {vfid1: driver, vfid2: driver}}
         self.vf_drv_override = {}
-        self.migration_enabled = False
         # Boolean flag to indicate that the PF ports are added
         # and needs configuration. The PF ports will be configured
         # separately if the flag is set.
@@ -373,17 +372,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self.initial_state, msg='Initial network settings'
         )
         logger.info('nmstate net config provider created.')
-
-    def reload_nm(self):
-        """Reload NetworkManager connections
-
-        Perform a reload of all the NM connections so that the
-        updates (if any) to the ifcfg-* files related to
-        NM_CONTROLLED shall be re-applied.
-        """
-        cmd = ['nmcli', 'connection', 'reload']
-        msg = "Reloading nmcli connections"
-        self.execute(msg, *cmd)
 
     def rollback_to_initial_settings(self):
         """Rollback to the initial settings
@@ -1097,12 +1085,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.__dump_key_config(absent_state_config, msg=f"{name}: Cleaning")
         netapplier.apply(absent_state_config, verify_change=True)
 
-    def enable_migration(self):
-        """Enable migration from other providers to nmstate"""
-        self.reload_nm()
-        self.migration_enabled = True
-        logger.info("nmstate: Migration is enabled.")
-
     def _add_common(self, base_opt):
         """Add common atrributes of the interface
 
@@ -1481,8 +1463,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self.add_vlan(vlan_port)
             return
 
-        if self.migration_enabled:
-            self._clean_iface(interface.name, InterfaceType.ETHERNET)
         logger.info("%s: adding interface", interface.name)
         data = self._add_common(interface)
 
@@ -1517,11 +1497,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param vlan: The vlan object to add.
         """
-        if self.migration_enabled:
-            if vlan.bridge_name:
-                self._clean_iface(vlan.name, InterfaceType.OVS_INTERFACE)
-            else:
-                self._clean_iface(vlan.name, InterfaceType.VLAN)
         logger.info("%s: adding vlan", vlan.name)
 
         data = self._add_common(vlan)
@@ -1813,9 +1788,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         # Create the internal ovs interface. Some of the settings of the
         # bridge like MTU, ip address are to be applied on this interface
-        if self.migration_enabled:
-            self._clean_iface(bridge.name, OVSBridge.TYPE)
-
         ovs_port_name = bridge.name
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
@@ -2016,9 +1988,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ovs_patch_port: The OvsPatchPort object to add.
         """
-        if self.migration_enabled:
-            self._clean_iface(ovs_patch_port.name, OVSInterface.TYPE)
-
         logger.info("%s: adding ovs patch port", ovs_patch_port.name)
         data = self._add_common(ovs_patch_port)
         data[Interface.TYPE] = OVSInterface.TYPE
@@ -2035,9 +2004,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ovs_interface: The OvsInterface object to add.
         """
-        if self.migration_enabled:
-            self._clean_iface(ovs_interface.name, OVSInterface.TYPE)
-
         logger.info("%s: adding ovs interface", ovs_interface.name)
         data = self._add_common(ovs_interface)
         data[Interface.TYPE] = OVSInterface.TYPE
@@ -2053,9 +2019,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ovs_dpdk_port: The OvsDpdkPort object to add.
         """
-        if self.migration_enabled:
-            self._clean_iface(ovs_dpdk_port.name, OVSInterface.TYPE)
-
         logger.info("%s: adding ovs dpdk port", ovs_dpdk_port.name)
 
         # DPDK Port will have only one member of type Interface, validation
@@ -2110,9 +2073,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param bridge: The LinuxBridge object to add.
         """
-        if self.migration_enabled:
-            self._clean_iface(bridge.name, InterfaceType.LINUX_BRIDGE)
-
         logger.info("%s: adding linux bridge", bridge.name)
         data = self._add_common(bridge)
         self.linuxbridge_data[bridge.name] = data
@@ -2152,9 +2112,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param bond: The LinuxBond object to add.
         """
-        if self.migration_enabled:
-            self._clean_iface(bond.name, InterfaceType.BOND)
-
         logger.info("%s: adding linux bond", bond.name)
         data = self._add_common(bond)
 
@@ -2185,9 +2142,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :raises ConfigurationError: Unsupported link mode or mismatch in SR-IOV
             capability
         """
-        if self.migration_enabled:
-            self._clean_iface(sriov_pf.name, InterfaceType.ETHERNET)
-
         logger.info("%s: adding sriov pf", sriov_pf.name)
         if sriov_pf.vdpa or sriov_pf.link_mode == 'switchdev':
             msg = (
@@ -2265,9 +2219,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :raises ConfigurationError: Indicates that VF config is performed
             without configuring the PF.
         """
-        if self.migration_enabled:
-            self._clean_iface(sriov_vf.name, InterfaceType.ETHERNET)
-
         logger.info("%s-%d: adding vf", sriov_vf.device, sriov_vf.vfid)
         data = self._add_common(sriov_vf)
         data[Interface.TYPE] = InterfaceType.ETHERNET
@@ -2289,9 +2240,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param ib_interface: The InfiniBand interface object to add.
         """
-        if self.migration_enabled:
-            self._clean_iface(ib_interface.name, InterfaceType.INFINIBAND)
-
         logger.info("%s: adding ib_interface", ib_interface.name)
         data = self._add_common(ib_interface)
         data[Interface.TYPE] = InterfaceType.INFINIBAND
@@ -2312,10 +2260,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param ib_child_interface: The InfiniBand child
          interface object to add.
         """
-        if self.migration_enabled:
-            self._clean_iface(ib_child_interface.name,
-                              InterfaceType.INFINIBAND)
-
         logger.info("%s: adding ib_child_interface", ib_child_interface.name)
         data = self._add_common(ib_child_interface)
         data[Interface.TYPE] = InterfaceType.INFINIBAND

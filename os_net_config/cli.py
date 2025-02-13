@@ -73,6 +73,13 @@ def parse_opts(argv):
                         """configuration during the migration.""",
                         choices=_PROVIDERS.keys(),
                         default=None)
+    parser.add_argument('--rollback', metavar='ROLLBACK',
+                        help="""Its an internal argument and shall not be """
+                        """used externally. During a migration from one """
+                        """provider to another, if any errors are seen, the """
+                        """previous provider shall be restored.""",
+                        choices=_PROVIDERS.keys(),
+                        default=None)
     parser.add_argument('--detailed-exit-codes',
                         action='store_true',
                         help="""Enable detailed exit codes. """
@@ -341,14 +348,16 @@ def main(argv=sys.argv, main_logger=None):
             purge_provider.del_object(obj)
         purge_provider.destroy()
 
+        utils.configure_migration_service(" ".join(argv))
+        utils.reboot_machine()
+        return 0
+
     try:
         provider = load_provider(opts.provider, opts.noop, opts.root_dir)
     except ImportError as e:
         main_logger.error('cannot load provider %s: %s', opts.provider, e)
         return 1
 
-    if purge_provider:
-        provider.enable_migration()
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
     # devices are created.
@@ -434,10 +443,23 @@ def main(argv=sys.argv, main_logger=None):
             e
         )
 
-        if purge_provider:
-            logger.info("Rolling back to %s", opts.purge_provider)
+        if opts.rollback:
+            try:
+                rollback_provider = load_provider(opts.rollback,
+                                                  opts.noop,
+                                                  opts.root_dir)
+            except ImportError as e:
+                main_logger.error(
+                    "cannot load rollback provider %s: %s", opts.rollback, e
+                )
+                return 1
+            logger.info("Rolling back to %s", opts.rollback)
             # Rolling back to the earlier provider.
-            purge_provider.roll_back_migration()
+            rollback_provider.roll_back_migration()
+            logger.info(
+                "Migration Failed. Reverted back to %s provider",
+                opts.rollback,
+            )
             migration_failed = True
         else:
             raise
@@ -454,17 +476,11 @@ def main(argv=sys.argv, main_logger=None):
         dcb_apply = dcb_config.DcbApplyConfig()
         dcb_apply.apply()
 
-    if purge_provider and migration_failed is False:
-        logger.info(
-            "Cleaning the residue files from %s provider", opts.purge_provider
-        )
-        purge_provider.clean_migration()
-    elif migration_failed:
-        logger.info(
-            "Migration Failed. Reverted back to %s provider",
-            opts.purge_provider,
-        )
-        return 1
+    if opts.rollback:
+        utils.disable_migration_service()
+        if migration_failed:
+            # return 1 to indicate a failure in the deployment.
+            return 1
 
     if opts.noop:
         if configure_sriov:
