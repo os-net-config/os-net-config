@@ -273,7 +273,6 @@ def main(argv=sys.argv, main_logger=None):
     except objects.InvalidConfigException as e:
         logger.error("Schema validation failed for network_config\n%s", e)
         return 1
-
     if not iface_array:
         return 1
 
@@ -507,7 +506,6 @@ def config_provider(provider_name,
         logger.info(
             "%s: Succesfully configured %s", provider_name, config_name
         )
-
     except Exception as e:
         logger.error(
             "%s: ***Failed to configure %s ***\n%s",
