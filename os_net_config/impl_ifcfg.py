@@ -1275,6 +1275,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param sriov_pf: The SriovPF object to be deleted
         """
         logger.info("%s: Deleting sriov pf", sriov_pf.name)
+        if sriov_pf.link_mode == "switchdev":
+            msg = f"{sriov_pf.name} can't be removed by ifcfg provider"
+            raise os_net_config.ConfigurationError(msg)
         self.del_device["sriov_pf"].append(sriov_pf.name)
 
     def add_sriov_vf(self, sriov_vf):
@@ -1301,13 +1304,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to be deleted
         """
-        logger.info(
-            "%s-%d: Deleting sriov vf: %s",
-            sriov_vf.device,
-            sriov_vf.vfid,
-            sriov_vf.name,
-        )
-        self._del_common(sriov_vf)
+        return
 
     def add_vpp_interface(self, vpp_interface):
         """Add a VppInterface object to the net config object
@@ -1522,10 +1519,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self.destroy_dpdk_interfaces()
 
         if self.del_device["sriov_pf"]:
-            sriov_config.reset_sriov_pfs()
-        for sriov_dev in self.del_device["sriov_pf"]:
-            logger.info("%s: Purging SR-IOV device", sriov_dev)
-            self.purge(sriov_dev)
+            utils.disable_sriov_config_service()
+
         for ifcfg_file in glob.iglob(cleanup_pattern()):
             iface = ifcfg_file[len(cleanup_pattern()) - 1:]
             self.move_ifcfg(iface)
@@ -2413,6 +2408,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         logger.info('Rolling back to ifcfg provider')
         self._restore_ifcfg_files()
         self.restore_map_files()
+        utils.configure_sriov_pfs()
+        utils.configure_sriov_vfs()
         utils.restore_dpdk_interfaces()
         self._bringup_all_devices()
         logger.info('Reverted back to ifcfg provider succesfully')
@@ -2433,8 +2430,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
     def _bringup_all_devices(self):
         logger.info('Bring up the devices with ifcfg provider')
-        utils.configure_sriov_pfs()
-        utils.configure_sriov_vfs()
         for file in os.listdir(NETWORK_SCRIPTS_PATH):
             device_name = ""
             if file.startswith('ifcfg-'):

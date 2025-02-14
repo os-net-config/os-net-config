@@ -344,7 +344,10 @@ def main(argv=sys.argv, main_logger=None):
 
     if purge_provider:
         for iface_json in iface_array:
-            obj = objects.object_from_json(iface_json)
+            try:
+                obj = objects.object_from_json(iface_json)
+            except common.SriovVfNotFoundException:
+                continue
             purge_provider.del_object(obj)
         purge_provider.destroy()
 
