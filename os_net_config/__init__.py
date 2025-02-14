@@ -492,7 +492,7 @@ class NetConfig(object):
     def remove_config(self, filename, msg=None):
         msg = msg or "Removing config %s" % filename
         logger.info("%s%s", self.log_prefix, msg)
-        if not self.noop:
+        if not self.noop and os.path.exists(filename):
             os.remove(filename)
 
     def ifdown(self, interface, iftype='interface'):
