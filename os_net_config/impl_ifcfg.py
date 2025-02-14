@@ -1263,6 +1263,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param sriov_pf: The SriovPF object to be deleted
         """
         logger.info("%s: Deleting sriov pf", sriov_pf.name)
+        if sriov_pf.link_mode == "switchdev":
+            msg = f"{sriov_pf.name} can't be removed by ifcfg provider"
+            raise os_net_config.ConfigurationError(msg)
         self.remove_sriov_pfs.append(sriov_pf.name)
 
     def add_sriov_vf(self, sriov_vf):
@@ -1289,13 +1292,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param sriov_vf: The SriovVF object to be deleted
         """
-        logger.info(
-            "%s-%d: Deleting sriov vf: %s",
-            sriov_vf.device,
-            sriov_vf.vfid,
-            sriov_vf.name,
-        )
-        self._del_common(sriov_vf)
+        return
 
     def add_vpp_interface(self, vpp_interface):
         """Add a VppInterface object to the net config object
@@ -1506,10 +1503,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         utils.remove_dpdk_interfaces()
 
         if self.remove_sriov_pfs:
-            sriov_config.reset_sriov_pfs()
-        for sriov_dev in self.remove_sriov_pfs:
-            logger.info("%s: Purging SR-IOV device", sriov_dev)
-            self.purge(sriov_dev)
+            utils.disable_sriov_config_service()
+
         for ifcfg_file in glob.iglob(cleanup_pattern()):
             iface = ifcfg_file[len(cleanup_pattern()) - 1:]
             self.move_ifcfg(iface)
@@ -1536,7 +1531,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             )
             shutil.move(sriov_config._UDEV_LEGACY_RULE_FILE, new_file)
 
-
     def restore_map_files(self):
         map_file = os.path.basename(common.DPDK_MAPPING_FILE)
         dpdk_file = os.path.join(PURGE_IFCFG_FILES, map_file)
@@ -1557,7 +1551,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 sriov_config._UDEV_LEGACY_RULE_FILE,
             )
             shutil.move(udev_file, sriov_config._UDEV_LEGACY_RULE_FILE)
-
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
@@ -2394,6 +2387,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         logger.info('Rolling back to ifcfg provider')
         self._restore_ifcfg_files()
         self.restore_map_files()
+        utils.configure_sriov_pfs()
+        utils.configure_sriov_vfs()
         utils.restore_dpdk_interfaces()
         self._bringup_all_devices()
         logger.info('Reverted back to ifcfg provider succesfully')
@@ -2414,8 +2409,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
     def _bringup_all_devices(self):
         logger.info('Bring up the devices with ifcfg provider')
-        utils.configure_sriov_pfs()
-        utils.configure_sriov_vfs()
         for file in os.listdir(NETWORK_SCRIPTS_PATH):
             device_name = ""
             if file.startswith('ifcfg-'):
