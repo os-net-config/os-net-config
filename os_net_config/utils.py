@@ -18,6 +18,7 @@ import glob
 import logging
 import os
 import re
+import shutil
 import time
 import yaml
 
@@ -647,6 +648,22 @@ def get_vf_devname(pf_name, vfid):
     # The VF's actual device name shall be the only directory seen in the path
     # /sys/class/net/<pf_name>/device/virtfn<vfid>/net
     return vf_nic[0]
+
+
+def backup_map_files(backup_path):
+    logger.debug("Backing up DPDK, SR-IOV, and mapping files.")
+    src_files = [common.DPDK_MAPPING_FILE,
+                 common.SRIOV_CONFIG_FILE,
+                 sriov_config._UDEV_LEGACY_RULE_FILE
+                 ]
+    for src in src_files:
+        if os.path.exists(src):
+            src_name = os.path.basename(src)
+            bkup_file = os.path.join(backup_path, src_name)
+            logger.info("Copying %s -> %s", src, bkup_file)
+            shutil.copy(src, bkup_file)
+        else:
+            logger.warning("%s does not exist", src)
 
 
 def restart_vpp(vpp_interfaces):
