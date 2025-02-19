@@ -98,6 +98,7 @@ class TestUtils(base.TestCase):
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
         common._LOG_FILE = '/tmp/' + rand + 'os_net_config.log'
         sriov_config._UDEV_LEGACY_RULE_FILE = UDEV_FILE + rand
+        common.set_noop(False)
 
     def tearDown(self):
         super(TestUtils, self).tearDown()

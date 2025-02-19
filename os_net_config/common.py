@@ -183,6 +183,9 @@ def get_file_data(filename):
 
 
 def write_yaml_config(filepath, data):
+    if get_noop():
+        logger.info("Writing file %s with content %s", filepath, data)
+        return
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, 'w') as f:
         yaml.safe_dump(data, f, default_flow_style=False)

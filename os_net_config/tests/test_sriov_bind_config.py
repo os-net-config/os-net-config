@@ -30,6 +30,7 @@ class TestSriovBindConfig(base.TestCase):
     def setUp(self):
         super(TestSriovBindConfig, self).setUp()
         rand = str(int(random.random() * 100000))
+        common.set_noop(False)
 
         sriov_bind_config._SRIOV_BIND_CONFIG_FILE = '/tmp/' + rand +\
             'sriov_bind_config.yaml'
