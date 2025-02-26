@@ -201,6 +201,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         changed_values = {}
         for key in ifcfg_data_old:
             if key in ifcfg_data_new:
+                if key in ['BOND_IFACES', 'OVS_EXTRA']:
+                    if sorted(ifcfg_data_old[key].split()) == \
+                        sorted(ifcfg_data_new[key].split()):
+                        logger.debug("Ignoring order of list for %s", key)
+                        continue
+
                 if ifcfg_data_old[key].upper() != ifcfg_data_new[key].upper():
                     changed_values[key] = 'modified'
             else:
@@ -1560,7 +1566,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 ivs_uplinks.append(interface_name)
             if "NFVSWITCH_BRIDGE" in iface_data:
                 nfvswitch_interfaces.append(interface_name)
-            if utils.diff(interface_path, iface_data):
+            old = self.parse_ifcfg(common.get_file_data(interface_path))
+            new = self.parse_ifcfg(iface_data)
+            changes = self.enumerate_ifcfg_changes(old, new)
+            if len(changes.values()):
                 if self.ifcfg_requires_restart(interface_path, iface_data):
                     restart_interfaces.append(interface_name)
                     # Openvswitch needs to be restarted when OVSDPDKPort or
