@@ -744,6 +744,12 @@ class TestIfcfgNetConfig(base.TestCase):
     def get_route6_config(self, name='em1'):
         return self.provider.route6_data.get(name, '')
 
+    def get_enumerate_ifcfg_changes(self, data_old, data_new):
+        return self.provider.enumerate_ifcfg_changes(data_old, data_new)
+
+    def get_ifcfg_data(self, ifcfg_data):
+        return self.provider.parse_ifcfg(ifcfg_data)
+
     def stub_get_dpdk_pci_address(self, ifname):
         if 'eth0' in ifname:
             return "0000:00:07.0"
@@ -2012,6 +2018,45 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
 """
         self.assertEqual(dpdk_bond_config,
                          self.get_interface_config('dpdkbond0'))
+
+    def test_ifcfg_ovs_dpdk_bond_anyorder(self):
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        iface0 = objects.Interface(name='nic2')
+        dpdk0 = objects.OvsDpdkPort(name='dpdk0', members=[iface0])
+        iface1 = objects.Interface(name='nic3')
+        dpdk1 = objects.OvsDpdkPort(name='dpdk1', members=[iface1])
+        bond = objects.OvsDpdkBond('dpdkbond0', members=[dpdk0, dpdk1])
+        bridge = objects.OvsUserBridge('br-link', members=[bond])
+
+        def test_bind_dpdk_interfaces(ifname, driver, noop):
+            self.assertIn(ifname, ['eth1', 'eth2'])
+            self.assertEqual(driver, 'vfio-pci')
+        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
+                      test_bind_dpdk_interfaces)
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      self.stub_get_dpdk_pci_address)
+
+        self.provider.add_ovs_dpdk_bond(bond)
+        self.provider.add_ovs_user_bridge(bridge)
+
+        dpdk_bond_config = {
+            'DEVICE': 'dpdkbond0', 'ONBOOT': 'yes',
+            'HOTPLUG': 'no', 'NM_CONTROLLED': 'no',
+            'PEERDNS': 'no', 'DEVICETYPE': 'ovs',
+            'TYPE': 'OVSDPDKBond', 'OVS_BRIDGE': 'br-link',
+            'BOND_IFACES': 'dpdk1 dpdk0',
+            'OVS_EXTRA': 'set Interface dpdk1 '
+                         'options:dpdk-devargs=0000:00:09.0 -- set '
+                         'Interface dpdk0 options:dpdk-devargs=0000:00:08.0'
+        }
+
+        new = self.get_interface_config('dpdkbond0')
+        new_data = self.get_ifcfg_data(new)
+        changes = self.get_enumerate_ifcfg_changes(dpdk_bond_config, new_data)
+        self.assertNotEqual(dpdk_bond_config, new_data)
+        self.assertEqual(0, len(changes))
 
     def test_network_ovs_mellanox_dpdk_bond(self):
         nic_mapping = {'nic1': 'em1', 'nic2': 'em2', 'nic3': 'em3'}
