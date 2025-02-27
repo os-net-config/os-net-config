@@ -224,7 +224,7 @@ class TestNmstateNetConfig(base.TestCase):
 
         self.stub_out("os_net_config.common.interface_mac",
                       generate_random_mac)
-
+        impl_nmstate.DISPATCHER_SCRIPT_PREFIX = ""
         impl_nmstate._VF_BIND_DRV_SCRIPT = (
             'dpdk_vfs="{dpdk_vfs}"\n'
             'linux_vfs="{linux_vfs}"')
@@ -305,10 +305,11 @@ class TestNmstateNetConfig(base.TestCase):
 
     def get_nmstate_ethtool_opts(self, name):
         data = {}
-        data[Ethernet.CONFIG_SUBTREE] = \
-            self.provider.interface_data[name][Ethernet.CONFIG_SUBTREE]
-        data[Ethtool.CONFIG_SUBTREE] = \
-            self.provider.interface_data[name][Ethtool.CONFIG_SUBTREE]
+        iface = self.provider.interface_data[name]
+        data[Ethernet.CONFIG_SUBTREE] = iface[Ethernet.CONFIG_SUBTREE]
+        data[Ethtool.CONFIG_SUBTREE] = iface[Ethtool.CONFIG_SUBTREE]
+        if 'dispatch' in iface.keys():
+            data['dispatch'] = iface['dispatch']
         return data
 
     def get_dns_data(self):
@@ -497,10 +498,15 @@ class TestNmstateNetConfig(base.TestCase):
         interface6 = objects.Interface('em6',
                                        ethtool_opts='-s em3 speed 100 '
                                        'duplex half autoneg off')
-        # Unhandled option -U
+        # Handled with dispatcher scripts -U
         interface7 = objects.Interface('em7',
                                        ethtool_opts='-U ${DEVICE} '
                                        'flow-type tcp4 tos 1 action 10')
+        # Handled with dispatcher scripts --set-priv-flags
+        interface10 = objects.Interface(
+            'em10',
+            ethtool_opts='--set-priv-flags $DEVICE disable-fw-lldp off'
+            )
         # Unsupported option `advertise`
         interface8 = objects.Interface('em8',
                                        ethtool_opts='advertise 0x100000')
@@ -513,6 +519,8 @@ class TestNmstateNetConfig(base.TestCase):
         self.provider.add_interface(interface3)
         self.provider.add_interface(interface4)
         self.provider.add_interface(interface5)
+        self.provider.add_interface(interface7)
+        self.provider.add_interface(interface10)
 
         em1_config = """
   - ethernet:
@@ -565,6 +573,24 @@ class TestNmstateNetConfig(base.TestCase):
         total-vfs: 0
     ethtool: {}
 """
+        em7_config = """
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
+    ethtool: {}
+    dispatch:
+        post-activation: |
+            /sbin/ethtool -U $1 flow-type tcp4 tos 1 action 10
+"""
+        em10_config = """
+  - ethernet:
+      sr-iov:
+        total-vfs: 0
+    ethtool: {}
+    dispatch:
+        post-activation: |
+            /sbin/ethtool --set-priv-flags $1 disable-fw-lldp off
+"""
         self.assertEqual(yaml.safe_load(em1_config)[0],
                          self.get_nmstate_ethtool_opts('em1'))
         self.assertEqual(yaml.safe_load(em2_config)[0],
@@ -578,9 +604,10 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertRaises(os_net_config.ConfigurationError,
                           self.provider.add_interface,
                           interface6)
-        self.assertRaises(os_net_config.ConfigurationError,
-                          self.provider.add_interface,
-                          interface7)
+        self.assertEqual(yaml.safe_load(em7_config)[0],
+                         self.get_nmstate_ethtool_opts('em7'))
+        self.assertEqual(yaml.safe_load(em10_config)[0],
+                         self.get_nmstate_ethtool_opts('em10'))
         self.assertRaises(os_net_config.ConfigurationError,
                           self.provider.add_interface,
                           interface8)
