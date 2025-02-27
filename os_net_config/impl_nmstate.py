@@ -52,14 +52,17 @@ logger = logging.getLogger(__name__)
 # Import the raw NetConfig object so we can call its methods
 netconfig = os_net_config.NetConfig()
 
+DISPATCHER_SCRIPT_PREFIX = r"""
+set +e
+set -x
+"""
+
 # Script used to bind the VFs with appropriate drivers.
 # VFs specified in `dpdk_vfs` will be bound with vfio-pci.
 # VFs specified in `linux_vfs` will be bound with their default drivers
 _VF_BIND_DRV_SCRIPT = r'''
 dpdk_vfs="{dpdk_vfs}"
 linux_vfs="{linux_vfs}"
-set +e
-set -x
 
 for vfid in $dpdk_vfs $linux_vfs; do
     vf_pci_id=$(readlink "/sys/class/net/$1/device/virtfn$vfid") &&
@@ -80,6 +83,8 @@ for vfid in $dpdk_vfs $linux_vfs; do
 done
 '''
 
+ETHTOOL_SCRIPT = "{ethtool_cmd} {ethtool_opts}"
+
 _OS_NET_CONFIG_MANAGED = "# os-net-config managed table"
 
 _ROUTE_TABLE_DEFAULT = """# reserved values
@@ -98,6 +103,7 @@ IPV4_DEFAULT_GATEWAY_DESTINATION = "0.0.0.0/0"
 IPV6_DEFAULT_GATEWAY_DESTINATION = "::/0"
 
 POST_ACTIVATION = 'post-activation'
+POST_DEACTIVATION = 'post-deactivation'
 DISPATCH = 'dispatch'
 CONFIG_RULES_FILE = '/var/lib/os-net-config/nmstate_files/rules.yaml'
 
@@ -146,6 +152,10 @@ def is_dict_subset(superset, subset):
     if superset == subset:
         return True
     if superset and subset:
+        if DISPATCH in superset.keys() and \
+            DISPATCH not in subset.keys():
+            return False
+
         for key, value in subset.items():
             if key not in superset:
                 # Items which are empty or false
@@ -1056,18 +1066,22 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if command[1] not in accepted_dev_names:
                     msg = (
                         f"{iface_name}: Incorrect dev name found in "
-                        "{ethtool_opts}"
+                        f"{ethtool_opts}"
                     )
                     raise os_net_config.ConfigurationError(msg)
                 if option in ethtool_map.keys():
                     self.add_ethtool_subtree(data, ethtool_map[option],
                                              command)
                 else:
-                    msg = (
-                        f"{iface_name}: Unhandled ethtool_opts "
-                        f"{ethtool_opts} Option {option} is not supported."
-                    )
-                    raise os_net_config.ConfigurationError(msg)
+                    opts = " ".join(command[2:])
+                    ethtool_script = ETHTOOL_SCRIPT.format(
+                        ethtool_opts=f"{option} $1 {opts}",
+                        ethtool_cmd=utils.ethtool_path()
+                        )
+                    self.add_dispatch_script(
+                        data, POST_ACTIVATION, ethtool_script
+                        )
+
             else:
                 command_str = '-s ${DEVICE} ' + ethtool_opts
                 command = command_str.split()
@@ -1409,9 +1423,29 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
         if DISPATCH not in device_data:
             device_data[DISPATCH] = {}
-        if stage not in device_data[DISPATCH]:
-            device_data[DISPATCH][stage] = ""
+        if device_data[DISPATCH].get(stage, "") == "":
+            device_data[DISPATCH][stage] = DISPATCHER_SCRIPT_PREFIX
         device_data[DISPATCH][stage] += f'{cmd}\n'
+
+    def remove_empty_dispatch_scripts(self, cur_state, new_state):
+        """Remove the dispatch scripts file when not required
+
+        When the new state does not require dispatch scripts but the current
+        state has the script file defined, the nmstate templates for removing
+        the dispatcher shall be
+        dispatch:
+            post-activation: ""
+            post-deactivation: ""
+        """
+        if cur_state and DISPATCH in cur_state.keys():
+            if DISPATCH in new_state.keys():
+                if POST_ACTIVATION not in new_state[DISPATCH].keys():
+                    new_state[DISPATCH][POST_ACTIVATION] = ""
+                if POST_DEACTIVATION not in new_state[DISPATCH].keys():
+                    new_state[DISPATCH][POST_DEACTIVATION] = ""
+            else:
+                new_state[DISPATCH] = {POST_ACTIVATION: "",
+                                       POST_DEACTIVATION: ""}
 
     def add_vf_driver_override(self, vf):
         """Add driver override for VFs
@@ -2342,6 +2376,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for interface_name, iface_data in self.interface_data.items():
             iface_state = self.iface_state(interface_name)
+            self.remove_empty_dispatch_scripts(iface_state, iface_data)
             if not is_dict_subset(iface_state, iface_data):
                 updated_interfaces[interface_name] = iface_data
             else:
@@ -2353,6 +2388,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         for bridge_name, bridge_data in self.bridge_data.items():
 
             bridge_state = self.iface_state(bridge_name)
+            self.remove_empty_dispatch_scripts(bridge_state, bridge_data)
             if not is_dict_subset(bridge_state, bridge_data):
                 updated_interfaces[bridge_name] = bridge_data
             else:
@@ -2364,6 +2400,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for bond_name, bond_data in self.linuxbond_data.items():
             bond_state = self.iface_state(bond_name)
+            self.remove_empty_dispatch_scripts(bond_state, bond_data)
             if not is_dict_subset(bond_state, bond_data):
                 updated_interfaces[bond_name] = bond_data
             else:
@@ -2374,6 +2411,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for vlan_name, vlan_data in self.vlan_data.items():
             vlan_state = self.iface_state(vlan_name)
+            self.remove_empty_dispatch_scripts(vlan_state, vlan_data)
             if not is_dict_subset(vlan_state, vlan_data):
                 updated_interfaces[vlan_name] = vlan_data
             else:
