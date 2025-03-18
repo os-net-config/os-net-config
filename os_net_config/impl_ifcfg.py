@@ -164,6 +164,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self.renamed_interfaces = {}
         self.bond_primary_ifaces = {}
         self.remove_iface = []
+        self.remove_dpdk_devs = []
         self.remove_sriov_pfs = []
         logger.info('Ifcfg net config provider created.')
 
@@ -987,7 +988,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param bridge: The OvsUserBridge object to be deleted.
         """
         logger.info("%s: Deleting ovs user bridge", bridge.name)
-        self._del_common(bridge)
+        self.remove_dpdk_devs.append(bridge.name)
 
     def add_linux_bridge(self, bridge):
         """Add a LinuxBridge object to the net config object.
@@ -1196,7 +1197,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ovs_dpdk_port: The OvsDpdkPort object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk port", ovs_dpdk_port.name)
-        self._del_common(ovs_dpdk_port)
+        self.remove_dpdk_devs.append(ovs_dpdk_port.name)
 
     def add_ovs_dpdk_bond(self, ovs_dpdk_bond):
         """Add an OvsDPDKBond object to the net config object.
@@ -1240,7 +1241,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param ovs_dpdk_bond: The OvsBond object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk bond", ovs_dpdk_bond.name)
-        self._del_common(ovs_dpdk_bond)
+        self.remove_dpdk_devs.append(ovs_dpdk_bond.name)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -1496,14 +1497,67 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         Clears the network configuration which is previously configured via
         the same provider.
         """
+        for iface in self.remove_dpdk_devs:
+            logger.info("%s: Purging ", iface)
+            self.purge(iface)
         for iface in self.remove_iface:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
+        utils.remove_dpdk_interfaces()
+
         if self.remove_sriov_pfs:
             sriov_config.reset_sriov_pfs()
         for sriov_dev in self.remove_sriov_pfs:
             logger.info("%s: Purging SR-IOV device", sriov_dev)
             self.purge(sriov_dev)
+        for ifcfg_file in glob.iglob(cleanup_pattern()):
+            iface = ifcfg_file[len(cleanup_pattern()) - 1:]
+            self.move_ifcfg(iface)
+        self.move_map_files()
+
+    def move_map_files(self):
+        if os.path.exists(common.DPDK_MAPPING_FILE):
+            map_file = os.path.basename(common.DPDK_MAPPING_FILE)
+            new_file = os.path.join(PURGE_IFCFG_FILES, map_file)
+            logger.info("Moving %s -> %s", common.DPDK_MAPPING_FILE, new_file)
+            shutil.move(common.DPDK_MAPPING_FILE, new_file)
+        if os.path.exists(common.SRIOV_CONFIG_FILE):
+            map_file = os.path.basename(common.SRIOV_CONFIG_FILE)
+            new_file = os.path.join(PURGE_IFCFG_FILES, map_file)
+            logger.info("Moving %s -> %s", common.SRIOV_CONFIG_FILE, new_file)
+            shutil.move(common.SRIOV_CONFIG_FILE, new_file)
+        if os.path.exists(sriov_config._UDEV_LEGACY_RULE_FILE):
+            udev_file = os.path.basename(sriov_config._UDEV_LEGACY_RULE_FILE)
+            new_file = os.path.join(PURGE_IFCFG_FILES, udev_file)
+            logger.info(
+                "Moving %s -> %s",
+                sriov_config._UDEV_LEGACY_RULE_FILE,
+                new_file
+            )
+            shutil.move(sriov_config._UDEV_LEGACY_RULE_FILE, new_file)
+
+
+    def restore_map_files(self):
+        map_file = os.path.basename(common.DPDK_MAPPING_FILE)
+        dpdk_file = os.path.join(PURGE_IFCFG_FILES, map_file)
+        if os.path.exists(dpdk_file):
+            logger.info("Moving %s -> %s", dpdk_file, common.DPDK_MAPPING_FILE)
+            shutil.move(dpdk_file, common.DPDK_MAPPING_FILE)
+        map_file = os.path.basename(common.SRIOV_CONFIG_FILE)
+        sriov_file = os.path.join(PURGE_IFCFG_FILES, map_file)
+        if os.path.exists(sriov_file):
+            logger.info("Moving %s -> %s", sriov_file, common.SRIOV_CONFIG_FILE)
+            shutil.move(sriov_file, common.SRIOV_CONFIG_FILE)
+        udev_file = os.path.basename(sriov_config._UDEV_LEGACY_RULE_FILE)
+        udev_file = os.path.join(PURGE_IFCFG_FILES, udev_file)
+        if os.path.exists(udev_file):
+            logger.info(
+                "Moving %s -> %s",
+                udev_file,
+                sriov_config._UDEV_LEGACY_RULE_FILE,
+            )
+            shutil.move(udev_file, sriov_config._UDEV_LEGACY_RULE_FILE)
+
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
@@ -2315,22 +2369,22 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         if not os.path.exists(PURGE_IFCFG_FILES):
             os.makedirs(PURGE_IFCFG_FILES)
-        if os.path.exists(ifcfg_file):
+        if self._is_os_net_config_managed(ifcfg_file):
             new_ifcfg_file = os.path.join(PURGE_IFCFG_FILES,
                                           f'ifcfg-{iface_name}')
             logger.info("Moving %s -> %s", ifcfg_file, new_ifcfg_file)
             shutil.move(ifcfg_file, new_ifcfg_file)
-        if os.path.exists(route_file):
+        if self._is_os_net_config_managed(route_file):
             new_route_file = os.path.join(PURGE_IFCFG_FILES,
                                           f'route-{iface_name}')
             logger.info("Moving %s -> %s", route_file, new_route_file)
             shutil.move(route_file, new_route_file)
-        if os.path.exists(route6_file):
+        if self._is_os_net_config_managed(route6_file):
             new_route6_file = os.path.join(PURGE_IFCFG_FILES,
                                            f'route6-{iface_name}')
             logger.info("Moving %s - %s", route6_file, new_route6_file)
             shutil.move(route6_file, new_route6_file)
-        if os.path.exists(rule_file):
+        if self._is_os_net_config_managed(rule_file):
             new_rule_file = os.path.join(PURGE_IFCFG_FILES,
                                          f'rule-{iface_name}')
             logger.info("Moving %s -> %s", rule_file, new_rule_file)
@@ -2339,12 +2393,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def roll_back_migration(self):
         logger.info('Rolling back to ifcfg provider')
         self._restore_ifcfg_files()
+        self.restore_map_files()
+        utils.restore_dpdk_interfaces()
         self._bringup_all_devices()
         logger.info('Reverted back to ifcfg provider succesfully')
-
-    def clean_migration(self):
-        logger.info("Clean migration files")
-        sriov_config.wipe_sriov_udev_files()
 
     def _restore_ifcfg_files(self):
         logger.info('Restoring the ifcfg files')
@@ -2379,16 +2431,21 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 logger.info("%s: Bringing up device", device_name)
                 self.ifup(device_name)
 
-    def purge(self, iface_name):
-        ifcfg_file = ifcfg_config_path(iface_name)
+    def _is_os_net_config_managed(self, ifcfg_file):
         if os.path.exists(ifcfg_file):
             with open(ifcfg_file, 'r') as f:
                 file_content = f.read()
             if _IFCFG_FILE_HEADER in file_content:
-                logger.info("%s: Bringing down", iface_name)
-                self.ifdown(iface_name)
-                self.move_ifcfg(iface_name)
-            else:
-                logger.info(
-                    "%s: Device is not managed by ifcfg provider", iface_name
-                )
+                return True
+        return False
+
+    def purge(self, iface_name):
+        ifcfg_file = ifcfg_config_path(iface_name)
+        if self._is_os_net_config_managed(ifcfg_file):
+            logger.info("%s: Bringing down", iface_name)
+            self.ifdown(iface_name)
+        else:
+            logger.info(
+                "%s: Device is not managed by ifcfg provider", iface_name
+            )
+
