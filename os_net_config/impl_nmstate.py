@@ -65,7 +65,7 @@ dpdk_vfs="{dpdk_vfs}"
 linux_vfs="{linux_vfs}"
 
 for vfid in $dpdk_vfs $linux_vfs; do
-    vf_pci_id=$(readlink "/sys/class/net/$1/device/virtfn$vfid") &&
+    vf_pci_id=$(readlink -ve "/sys/class/net/$1/device/virtfn$vfid") &&
     vf_pci_id=$(basename "$vf_pci_id") &&
     modalias=$(cat "/sys/class/net/$1/device/virtfn$vfid/modalias") &&
     def_driver=$(modprobe -R "$modalias") &&
@@ -75,8 +75,8 @@ for vfid in $dpdk_vfs $linux_vfs; do
     else
         driver="$def_driver"
     fi &&
-    cur_drv=$(readlink "/sys/bus/pci/devices/$vf_pci_id/driver") &&
-    cur_drv=$(basename "$cur_drv") &&
+    cur_drv=$(readlink "/sys/bus/pci/devices/$vf_pci_id/driver" 2>/dev/null) &&
+    cur_drv=$(basename "$cur_drv")
     if ! [ "$cur_drv" = "$driver" ]; then
         driverctl --nosave set-override "$vf_pci_id" "$driver"
     fi
