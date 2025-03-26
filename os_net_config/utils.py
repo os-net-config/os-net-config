@@ -565,19 +565,36 @@ def configure_sriov_vfs():
 
 
 def get_vf_devname(pf_name, vfid):
+    """Get the VF device name
+
+    :params pf_name: PF device name
+    :params vfid: VF id for which the name is required
+    :returns: VF name
+    """
+    # Fetch the name of the VF device from the sr-iov config map.
+    # If the map does not have the VF name, then the sysfs shall be parsed.
+    vf_name = _get_vf_name_from_map(pf_name, vfid)
+    if vf_name is not None:
+        return vf_name
     vf_path = common.get_dev_path(pf_name, f"virtfn{vfid}/net")
+    # The path /sys/class/net/{pf_name}/device/virtfn{vfid}/net/{vf_name}
+    # will be available when the default VF driver is bound with the VF.
+    # When sriov_drivers_autoprobe=0, the drivers will not be bound with
+    # VF by default and hence the path will not be available. In NIC
+    # partitioning use cases, the driver will be bound by os-net-config.
+    # It is necessary to wait for the above path to be available in order
+    # to read the VF name. Few retries are made to check for the existence
+    # of the vf_path.
+    for i in range(30):
+        if os.path.exists(vf_path):
+            break
+        time.sleep(1)
+    else:
+        msg = "NIC %s with VF id: %d could not be found" % (pf_name, vfid)
+        raise common.SriovVfNotFoundException(msg)
+
     if os.path.isdir(vf_path):
         vf_nic = os.listdir(vf_path)
-    else:
-        # if VF devices are bound with other drivers (DPDK) then the path
-        # doesn't exist. In such cases let us retrieve the vf name stored in
-        # the map
-        vf_name = _get_vf_name_from_map(pf_name, vfid)
-        if vf_name is not None:
-            return vf_name
-        else:
-            msg = "NIC %s with VF id: %d could not be found" % (pf_name, vfid)
-            raise common.SriovVfNotFoundException(msg)
     if len(vf_nic) != 1:
         msg = "VF name could not be identified in %s" % vf_path
         raise common.SriovVfNotFoundException(msg)
