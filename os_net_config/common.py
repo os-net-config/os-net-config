@@ -434,6 +434,25 @@ def is_vf_by_name(interface_name, check_mapping_file=False):
     return is_sriov_vf
 
 
+def get_default_vf_driver(pf_name, vfid):
+    modalias_path = get_dev_path(pf_name, f"virtfn{vfid}/modalias")
+    try:
+        with open(modalias_path) as f:
+            alias = f.read().strip()
+        cmd = ["modprobe", "-R", alias]
+        out, err = processutils.execute(*cmd)
+        kernel_driver = out.strip()
+        logger.info(
+            "%s-%d: default vf driver is %s", pf_name, vfid, kernel_driver
+        )
+        return kernel_driver
+    except (OSError, processutils.ProcessExecutionError) as e:
+        logger.error(
+            "%s-%d: failed to get default vf driver: %s", pf_name, vfid, e
+        )
+        return None
+
+
 def set_driverctl_override(pci_address, driver):
     if driver is None:
         logger.info("%s: Driver override is not required.", pci_address)
