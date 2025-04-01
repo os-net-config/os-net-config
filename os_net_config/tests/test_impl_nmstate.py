@@ -221,6 +221,8 @@ class TestNmstateNetConfig(base.TestCase):
     def setUp(self):
         super(TestNmstateNetConfig, self).setUp()
         common.set_noop(True)
+        common.DPDK_MAPPING_FILE = '/tmp/dpdk_mapping.yaml'
+        common.SRIOV_CONFIG_FILE = '/tmp/sriov_config.yaml'
 
         self.stub_out("os_net_config.common.interface_mac",
                       generate_random_mac)
@@ -285,6 +287,13 @@ class TestNmstateNetConfig(base.TestCase):
             return
         self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
                       test_bind_dpdk_interfaces)
+
+    def tearDown(self):
+        super(TestNmstateNetConfig, self).tearDown()
+        if os.path.isfile(common.SRIOV_CONFIG_FILE):
+            os.remove(common.SRIOV_CONFIG_FILE)
+        if os.path.isfile(common.DPDK_MAPPING_FILE):
+            os.remove(common.DPDK_MAPPING_FILE)
 
     def get_running_info(self, yaml_file):
         with open(yaml_file) as f:
