@@ -58,6 +58,8 @@ class TestSriovConfig(base.TestCase):
         super(TestSriovConfig, self).tearDown()
         if os.path.isfile(common._LOG_FILE):
             os.remove(common._LOG_FILE)
+        if os.path.isfile(sriov_config._UDEV_RULE_FILE):
+            os.remove(sriov_config._UDEV_RULE_FILE)
         if os.path.isfile(common.SRIOV_CONFIG_FILE):
             os.remove(common.SRIOV_CONFIG_FILE)
         if os.path.isfile(sriov_config._IFUP_LOCAL_FILE):
@@ -69,6 +71,8 @@ class TestSriovConfig(base.TestCase):
             os.remove(sriov_config._ALLOCATE_VFS_FILE)
         if os.path.isfile(sriov_config._UDEV_LEGACY_RULE_FILE):
             os.remove(sriov_config._UDEV_LEGACY_RULE_FILE)
+        if os.path.isfile(sriov_config._REP_LINK_NAME_FILE):
+            os.remove(sriov_config._REP_LINK_NAME_FILE)
 
     def _write_numvfs(self, ifname, numvfs=0, autoprobe=True):
         os.makedirs(common.get_dev_path(ifname, '_device'))
