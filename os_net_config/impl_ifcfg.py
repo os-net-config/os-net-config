@@ -2351,10 +2351,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self._bringup_all_devices()
         logger.info('Reverted back to ifcfg provider succesfully')
 
-    def clean_migration(self):
-        logger.info("Clean migration files")
-        sriov_config.wipe_sriov_udev_files()
-
     def _restore_ifcfg_files(self):
         logger.info('Restoring the ifcfg files')
         for file in os.listdir(PURGE_IFCFG_FILES):
