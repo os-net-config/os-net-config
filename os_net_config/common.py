@@ -422,6 +422,11 @@ def is_pf_attached_to_guest(iface_name):
     return False
 
 
+def is_pci_dev_available(pci_address):
+    dev_path = get_pci_dev_path(pci_address)
+    return os.path.exists(dev_path)
+
+
 def is_vf_by_name(interface_name, check_mapping_file=False):
     vf_path_check = get_dev_path(interface_name, 'physfn')
     is_sriov_vf = os.path.isdir(vf_path_check)
@@ -432,6 +437,20 @@ def is_vf_by_name(interface_name, check_mapping_file=False):
                     item['device_type'] == 'vf'):
                 is_sriov_vf = True
     return is_sriov_vf
+
+
+def unset_driverctl_override(pci_address):
+    cmd = ["driverctl", "unset-override", pci_address]
+    try:
+        out, err = processutils.execute(*cmd)
+        if err:
+            logger.error("%s: Failed to unbind dpdk interface.", pci_address)
+            return 1
+    except processutils.ProcessExecutionError as exc:
+        logger.error(
+            "%s: Failed to bind interface with dpdk. %s", pci_address, exc
+        )
+        return 1
 
 
 def set_driverctl_override(pci_address, driver):
