@@ -237,12 +237,22 @@ class TestCli(base.TestCase):
         def test_interface_mac(name):
             return 'AA:BB:CC:DD:EE:FF'
 
+        def test_get_default_vf_driver(device, vfid):
+            return 'iavf'
+
+        def test_get_pci_device_driver(pci_address):
+            return 'iavf'
+
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
                       test_get_pci_address)
         self.stub_out('os_net_config.common.interface_mac',
                       test_interface_mac)
+        self.stub_out('os_net_config.common.get_default_vf_driver',
+                      test_get_default_vf_driver)
+        self.stub_out('os_net_config.common.get_pci_device_driver',
+                      test_get_pci_device_driver)
         ivs_yaml = os.path.join(SAMPLE_BASE, 'sriov_pf.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'sriov_pf.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -270,10 +280,20 @@ class TestCli(base.TestCase):
         def test_get_pci_address(ifname):
             return '0000:79:10.2'
 
+        def test_get_default_vf_driver(device, vfid):
+            return 'iavf'
+
+        def test_get_pci_device_driver(pci_address):
+            return 'iavf'
+
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
                       test_get_pci_address)
+        self.stub_out('os_net_config.common.get_default_vf_driver',
+                      test_get_default_vf_driver)
+        self.stub_out('os_net_config.common.get_pci_device_driver',
+                      test_get_pci_device_driver)
         pf_yaml = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.yaml')
         pf_json = os.path.join(SAMPLE_BASE, 'sriov_pf_ovs_dpdk.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
