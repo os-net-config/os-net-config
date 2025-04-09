@@ -166,6 +166,28 @@ def _wait_for_vf_creation(pf_name, numvfs):
     logger.info("%s: Required VFs are created", pf_name)
 
 
+def _wait_for_sysfs_creation(pf_name):
+    """Wait for PFs sysfs creation
+
+    To avoid race conditions, wait for completion of PF sysfs creation
+
+    :param pf_name: PF interface name (ie: p1p1)
+    :raises: ProcessExecutionError
+    """
+    pf_path = common.get_dev_path(pf_name)
+    sriov_numvfs_path = common.get_dev_path(pf_name, "sriov_numvfs")
+
+    cmd = ["/usr/bin/udevadm", "wait", "-t", "60", pf_path]
+    logger.debug("%s: Running %s", pf_name, " ".join(cmd))
+    try:
+        processutils.execute(*cmd)
+    except processutils.ProcessExecutionError:
+        cmd = ["/usr/bin/udevadm", "settle", "-E",
+               sriov_numvfs_path, "-t", "60"]
+        logger.debug("%s: Running %s", pf_name, " ".join(cmd))
+        processutils.execute(*cmd)
+
+
 def get_drivers_autoprobe(ifname):
     """Getting sriov_drivers_autoprobe for PF
 
@@ -221,15 +243,7 @@ def get_numvfs(ifname):
     :raises: SRIOVNumvfsException
     """
     sriov_numvfs_path = common.get_dev_path(ifname, "sriov_numvfs")
-    cmd = ["/usr/bin/udevadm", "wait", "-t", "60", common.get_dev_path(ifname)]
-    logger.debug("%s: Running %s", ifname, " ".join(cmd))
-    try:
-        processutils.execute(*cmd)
-    except processutils.ProcessExecutionError:
-        cmd = ["/usr/bin/udevadm", "settle", "-E", sriov_numvfs_path,
-               "-t", "60"]
-        logger.debug("%s: Running %s", ifname, " ".join(cmd))
-        processutils.execute(*cmd)
+    _wait_for_sysfs_creation(ifname)
     logger.debug("%s: Getting numvfs", ifname)
     try:
         with open(sriov_numvfs_path, 'r') as f:
@@ -958,6 +972,7 @@ def main(argv=sys.argv):
                 autoprobe = pfs[0].get('drivers_autoprobe', True)
             else:
                 autoprobe = True
+            _wait_for_sysfs_creation(device_name)
             set_drivers_autoprobe(device_name, autoprobe)
             set_numvfs(device_name, int(numvfs), autoprobe)
         else:
