@@ -581,6 +581,24 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         )
                         self.nmstate_apply(self.set_ifaces([pf_state]),
                                            verify=True)
+                        # NetworkManager-dispatcher scripts will bind the VFs
+                        # with the drivers. Wait for the completion of the
+                        # driver bindings.
+                        if linux_vfs:
+                            lnx_driver = common.get_default_vf_driver(
+                                pf, linux_vfs[0]
+                            )
+                            common.wait_for_vf_driver_binding(
+                                pf,
+                                linux_vfs,
+                                lnx_driver,
+                            )
+                        if dpdk_vfs:
+                            common.wait_for_vf_driver_binding(
+                                pf,
+                                dpdk_vfs,
+                                "vfio-pci",
+                            )
                         updated_pfs.append(pf_state["name"])
                 else:
                     logger.info(

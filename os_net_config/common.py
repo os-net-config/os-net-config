@@ -24,6 +24,7 @@ import logging.handlers
 import os
 from oslo_concurrency import processutils
 import sys
+import time
 import traceback
 import yaml
 
@@ -451,6 +452,48 @@ def get_default_vf_driver(pf_name, vfid):
             "%s-%d: failed to get default vf driver: %s", pf_name, vfid, e
         )
         return None
+
+
+def wait_for_vf_driver_binding(pf, vfs, req_driver):
+    """Wait for the VF to be bound with the required driver
+
+    If the standard device driver is bound with the VF, then wait until the
+    sysfs paths corresponding to the network interface is available.
+    For vfio-pci driver, wait until the device is bound with the driver.
+    :params pf: PF device name
+    :params vfs: list of VF that are bound with req_driver
+    :parans req_driver: The driver which shall be bound with the device
+    """
+    for vf in vfs:
+        driver = None
+        pci_address = get_pci_address(f"sriov:{pf}:{vf}")
+        for i in range(30):
+            driver = get_pci_device_driver(pci_address)
+            if driver == req_driver:
+                logger.info("%s-%d: verified binding with %s", pf, vf, driver)
+                break
+            time.sleep(1)
+        else:
+            logger.error(
+                "%s-%d: bound with %s instead of %s",
+                pf,
+                vf,
+                driver,
+                req_driver,
+            )
+        if driver != "vfio-pci":
+            vf_path = get_dev_path(pf, f"virtfn{vf}/net")
+            for i in range(30):
+                if os.path.exists(vf_path):
+                    break
+                time.sleep(1)
+            else:
+                logger.warning(
+                    "%s-%d: device path %s is not available yet",
+                    pf,
+                    vf,
+                    vf_path,
+                )
 
 
 def set_driverctl_override(pci_address, driver):
