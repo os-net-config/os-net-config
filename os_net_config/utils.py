@@ -26,6 +26,26 @@ from os_net_config import sriov_config
 from oslo_concurrency import processutils
 
 logger = logging.getLogger(__name__)
+
+# The new provider will be installed on reboot
+_MIGRATION_SERVICE_FILE = "/etc/systemd/system/os-net-config-migrate.service"
+_MIGRATION_SERVICE_FILE_CONTENT = """[Unit]
+Description=Configure the networks
+After=systemd-udev-settle.service NetworkManager.service \
+openvswitch.service network.target \
+NetworkManager-dispatcher.service network.service
+
+Requires=NetworkManager-dispatcher.service NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart={args}
+
+[Install]
+WantedBy=multi-user.target
+
+"""
+
 # sriov_config service shall be created and enabled so that the various
 # SR-IOV PF and VF configurations shall be done during reboot as well using
 # sriov_config.py installed in path /usr/bin/os-net-config-sriov
@@ -236,6 +256,14 @@ def update_dpdk_map(ifname, driver):
         _update_dpdk_map(ifname, pci_address, mac_address, driver)
 
 
+def unbind_dpdk_interfaces(pci_address):
+    iface_driver = common.get_pci_device_driver(pci_address)
+    if iface_driver == "vfio-pci":
+        common.unset_driverctl_override(pci_address)
+    else:
+        logger.info("%s: not bound with vfio-pci", pci_address)
+
+
 def bind_dpdk_interfaces(ifname, driver, noop):
     if common.is_mellanox_interface(ifname) and 'vfio-pci' in driver:
         msg = ("For Mellanox NIC %s, the default driver vfio-pci "
@@ -284,6 +312,46 @@ def bind_dpdk_interfaces(ifname, driver, noop):
         # available nor bound with dpdk.
         msg = "Interface %s cannot be found" % ifname
         raise common.OvsDpdkBindException(msg)
+
+
+def remove_dpdk_interface(iface):
+    dpdk_map = common.get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        if dpdk_nic["name"] == iface:
+            err = detach_dpdk_interfaces(dpdk_nic["pci_address"])
+            if not err:
+                err = unbind_dpdk_interfaces(dpdk_nic["pci_address"])
+            if err:
+                logger.error(
+                    "%s: Failed to unbind/detach dpdk interface",
+                    dpdk_nic["name"],
+                )
+            break
+    else:
+        logger.error("%s: could not find in dpdk_mapping.yaml", iface)
+
+
+def restore_dpdk_interfaces():
+    dpdk_map = common.get_dpdk_map()
+    noop = common.get_noop()
+    for dpdk_nic in dpdk_map:
+        if not common.is_pci_dev_available(dpdk_nic["pci_address"]):
+            continue
+        if common.is_vf(dpdk_nic["pci_address"]):
+            continue
+        driver = common.get_pci_device_driver(dpdk_nic["pci_address"])
+        if driver == dpdk_nic["driver"]:
+            continue
+        bind_dpdk_interfaces(dpdk_nic["pci_address"], dpdk_nic["driver"], noop)
+
+
+def detach_dpdk_interfaces(pci_address):
+    cmd = ["ovs-appctl", "netdev-dpdk/detach", pci_address]
+    try:
+        out, err = processutils.execute(*cmd)
+    except processutils.ProcessExecutionError as exc:
+        logger.error("%s: Failed to detach. Err: %s", pci_address, exc)
+        return -1
 
 
 def translate_ifname_to_pci_address(ifname, noop):
@@ -548,6 +616,39 @@ def _configure_sriov_config_service():
     with open(_SRIOV_CONFIG_SERVICE_FILE, 'w') as f:
         f.write(_SRIOV_CONFIG_DEVICE_CONTENT)
     processutils.execute('systemctl', 'enable', 'sriov_config')
+
+
+def configure_migration_service(argv):
+    """Generate the sriov_config.service
+
+     sriov_config service shall configure the numvfs for the SriovPF nics
+     during reboot of the nodes.
+    """
+    if common.get_noop():
+        return
+    args = argv.replace("purge-provider", "rollback")
+    content = _MIGRATION_SERVICE_FILE_CONTENT.format(args=args)
+    with open(_MIGRATION_SERVICE_FILE, "w") as f:
+        f.write(content)
+    processutils.execute("systemctl", "enable", "os-net-config-migrate")
+
+
+def disable_migration_service():
+    if common.get_noop():
+        return
+    processutils.execute("systemctl", "disable", "os-net-config-migrate")
+
+
+def disable_sriov_config_service():
+    if common.get_noop():
+        return
+    processutils.execute("systemctl", "disable", "sriov_config")
+
+
+def reboot_machine():
+    cmd = ["shutdown", "-r", "-t", "0"]
+    if not common.get_noop():
+        processutils.execute(*cmd)
 
 
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):
