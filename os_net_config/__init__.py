@@ -485,6 +485,15 @@ class NetConfig(object):
         """
         raise NotImplementedError("apply is not implemented.")
 
+    def destroy(self, activate=True):
+        """Destroy the network configuration.
+
+        :param activate: A boolean which indicates whether the removal of
+            network configuration shall be performed
+        :returns: 0 if successful, 1 if failed
+        """
+        raise NotImplementedError("destroy is not implemented.")
+
     def execute(self, msg, cmd, *args, **kwargs):
         """Print a message and run a command.
 
