@@ -624,8 +624,8 @@ class TestCli(base.TestCase):
             def del_object(self, obj):
                 self.deleted_objects.append(obj)
 
-            def destroy(self):
-                pass
+            def destroy(self, activate=True):
+                return 0
 
         def mock_load_provider(provider_name, noop, root_dir):
             return MockProvider(noop, root_dir)
