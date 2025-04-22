@@ -731,7 +731,7 @@ def backup_map_files(backup_path):
                  ]
     for src in src_files:
         if os.path.exists(src):
-            src_name = os.path.basename(common.DPDK_MAPPING_FILE)
+            src_name = os.path.basename(src)
             bkup_file = os.path.join(backup_path, src_name)
             logger.info("Copying %s -> %s", src, bkup_file)
             shutil.copy(src, bkup_file)
