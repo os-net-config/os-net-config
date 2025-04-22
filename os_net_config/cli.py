@@ -296,7 +296,8 @@ def main(argv=sys.argv, main_logger=None):
             opts.purge_provider,
             iface_array,
             opts.root_dir,
-            opts.noop
+            opts.noop,
+            opts.no_activate,
         )
         onc_ret_code |= purge_ret
         if purge_ret == ExitCode.PURGE_FAILED:
@@ -369,6 +370,7 @@ def unconfig_provider(provider_name,
                       iface_array,
                       root_dir,
                       noop,
+                      no_activate=False,
                       ):
     """Remove network configurations created by the specified provider
 
@@ -395,7 +397,10 @@ def unconfig_provider(provider_name,
             continue
         purge_provider.del_object(obj)
 
-    purge_provider.destroy()
+    ret = purge_provider.destroy(activate=not no_activate)
+    if ret != 0:
+        logger.error("%s: Failed to unconfig", provider_name)
+        return ExitCode.ERROR
 
     logger.info("%s: Completed unconfig", provider_name)
     return ExitCode.SUCCESS
