@@ -891,6 +891,14 @@ def configure_sriov_vf():
             logger.info(f"{pf_name}: Configuring settings for VF: {vfid} "
                         f"VF name: {item['name']}")
             raise_error = True
+            if 'driver' in item:
+                common.set_driverctl_override(item['pci_address'],
+                                              item['driver'])
+                common.wait_for_vf_driver_binding(
+                    pf_name,
+                    [vfid],
+                    item['driver']
+                )
             if 'macaddr' in item:
                 cmd = base_cmd + ('mac', item['macaddr'])
                 run_ip_config_cmd(*cmd)
@@ -921,9 +929,6 @@ def configure_sriov_vf():
             if 'promisc' in item:
                 run_ip_config_cmd('ip', 'link', 'set', 'dev', item['name'],
                                   'promisc', item['promisc'])
-            if 'driver' in item:
-                common.set_driverctl_override(item['pci_address'],
-                                              item['driver'])
 
 
 def parse_opts(argv):
