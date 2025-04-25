@@ -186,6 +186,7 @@ def _wait_for_sysfs_creation(pf_name):
                sriov_numvfs_path, "-t", "60"]
         logger.debug("%s: Running %s", pf_name, " ".join(cmd))
         processutils.execute(*cmd)
+    logger.info("%s: Required sysfs files have been created", pf_name)
 
 
 def get_drivers_autoprobe(ifname):
@@ -302,8 +303,8 @@ def set_numvfs(ifname, numvfs, autoprobe=True):
     :raises: SRIOVNumvfsException
     """
     curr_numvfs = get_numvfs(ifname)
-    logger.debug(f"{ifname}: Interface has {curr_numvfs} configured, setting "
-                 f"to {numvfs}")
+    logger.debug(f"{ifname}: Interface has {curr_numvfs} configured, "
+                 f"request to set {numvfs}")
     if not isinstance(numvfs, int):
         msg = (f"{ifname}: Unable to configure pf with numvfs: {numvfs}\n"
                f"numvfs must be an integer")
@@ -312,7 +313,8 @@ def set_numvfs(ifname, numvfs, autoprobe=True):
     if numvfs != curr_numvfs:
         if curr_numvfs != 0:
             logger.warning(
-                "%s: numvfs already configured to %d", ifname, curr_numvfs
+                "%s: not setting numvfs, already configured to %d",
+                ifname, curr_numvfs
             )
             return curr_numvfs
 
@@ -324,7 +326,7 @@ def set_numvfs(ifname, numvfs, autoprobe=True):
             with open(sriov_numvfs_path, "w") as f:
                 f.write("%d" % numvfs)
         except IOError as exc:
-            msg = (f"{ifname} Unable to configure pf  with numvfs: {numvfs}\n"
+            msg = (f"{ifname} Unable to configure pf with numvfs: {numvfs}\n"
                    f"{exc}")
             raise SRIOVNumvfsException(msg)
 
@@ -584,8 +586,11 @@ def add_udev_rule_for_sriov_pf(pf_name):
 
 def add_udev_rule_for_legacy_sriov_pf(pf_name, numvfs):
     logger.info("%s: adding udev rules for legacy sriov: %d", pf_name, numvfs)
-    udev_line = f'KERNEL=="{pf_name}", '\
-                f'RUN+="/bin/os-net-config-sriov -n %k:{numvfs}"'
+    udev_line = (
+        f'KERNEL=="{pf_name}", '
+        f'RUN+="/bin/os-net-config-sriov -n %k:{numvfs}"'
+    )
+
     pattern = f'KERNEL=="{pf_name}", RUN+="/bin/os-net-config-sriov -n'
     return add_udev_rule(udev_line, _UDEV_LEGACY_RULE_FILE, pattern)
 
