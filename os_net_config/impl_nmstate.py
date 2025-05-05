@@ -2868,10 +2868,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.debug(
             "Updated the interfaces: %s", " ".join(updated_interfaces.keys())
         )
-
-        logger.info(
-            "Succesfully applied the network config with nmstate provider"
-        )
         return updated_interfaces
 
     def _get_dpdk_port_pci_address(self, dpdk_port_name):
