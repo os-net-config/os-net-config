@@ -1,0 +1,125 @@
+# Set the fallback config such that the SSH is restored in case of
+# failures in configuring network_config.
+fallback_config:
+- type: interface
+  name: nic2
+  use_dhcp: false
+  addresses:
+  - ip_netmask: 192.168.122.100/24
+  routes:
+  - default: true
+    next_hop: 192.168.122.1
+
+# network_config will have the complete network configuration required
+network_config:
+- type: interface
+  name: nic2
+  use_dhcp: false
+  addresses:
+  - ip_netmask: 192.168.122.100/24
+  routes:
+  - default: true
+    next_hop: 192.168.122.1
+- type: sriov_pf
+  name: nic3
+  mtu: 9000
+  numvfs: 5
+  use_dhcp: false
+  defroute: false
+  nm_controlled: true
+  hotplug: true
+  drivers_autoprobe: true
+- type: sriov_pf
+  name: nic4
+  mtu: 9000
+  numvfs: 5
+  use_dhcp: false
+  defroute: false
+  nm_controlled: true
+  hotplug: true
+  drivers_autoprobe: true
+- type: linux_bond
+  name: bond_api
+  use_dhcp: false
+  bonding_options: "mode=active-backup"
+  dns_servers: ['192.168.122.80']
+  members:
+  - type: sriov_vf
+    device: nic3
+    vfid: 0
+    vlan_id: 72
+  - type: sriov_vf
+    device: nic4
+    vfid: 0
+    vlan_id: 72
+  addresses:
+  - ip_netmask: 172.17.0.100/24
+- type: linux_bond
+  name: storage_bond
+  use_dhcp: false
+  bonding_options: "mode=active-backup"
+  dns_servers: ['192.168.122.80']
+  members:
+  - type: sriov_vf
+    device: nic3
+    vfid: 1
+    vlan_id: 73
+  - type: sriov_vf
+    device: nic4
+    vfid: 1
+    vlan_id: 73
+  addresses:
+  - ip_netmask: 172.18.0.100/24
+- type: ovs_user_bridge
+  name: br-link0
+  use_dhcp: false
+  mtu: 9000
+  ovs_extra: "set port br-link0 tag=74"
+  addresses:
+  - ip_netmask: 172.19.0.100/24
+  members:
+  - type: ovs_dpdk_bond
+    name: dpdkbond0
+    ovs_extra:
+      - set Interface dpdk0 options:n_rxq_desc=4096
+      - set Interface dpdk1 options:n_rxq_desc=4096
+    mtu: 9000
+    rx_queue: 1
+    members:
+    - type: ovs_dpdk_port
+      name: dpdk0
+      members:
+      - type: sriov_vf
+        device: nic3
+        vfid: 3
+    - type: ovs_dpdk_port
+      name: dpdk1
+      members:
+      - type: sriov_vf
+        device: nic4
+        vfid: 3
+- type: ovs_user_bridge
+  name: br-dpdk0
+  use_dhcp: false
+  mtu: 9000
+  members:
+    - type: ovs_dpdk_port
+      rx_queue: 1
+      name: dpdk2
+      members:
+        - type: interface
+          name: nic5
+- type: sriov_pf
+  name: nic6
+  mtu: 9000
+  numvfs: 5
+  use_dhcp: false
+  defroute: false
+  drivers_autoprobe: true
+- type: sriov_pf
+  name: nic7
+  mtu: 9000
+  numvfs: 5
+  use_dhcp: false
+  defroute: false
+  drivers_autoprobe: true
