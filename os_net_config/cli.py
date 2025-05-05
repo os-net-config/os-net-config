@@ -38,10 +38,39 @@ class ExitCode(IntEnum):
     - ERROR: Configuration failed due to an error
     Below values are returned when --detailed_exit_code is enabled in cli
     - FILES_CHANGED: Configuration successful and files were modified
+    - FALLBACK_SUCCESS: Fallback configuration applied successfully
+    - FALLBACK_ERROR: Fallback configuration failed
     """
     SUCCESS = 0          # Configuration successful
     ERROR = 1            # Configuration failed
     FILES_CHANGED = 2    # Configuration successful, files were modified
+    FALLBACK_SUCCESS = 3  # Fallback configuration applied successfully
+    FALLBACK_ERROR = 4    # Fallback configuration failed
+
+
+def get_exit_code(detailed_exit_codes, ret_code):
+    """Map return codes based on detailed exit codes setting.
+
+    When --detailed-exit-codes is enabled, return the actual exit code.
+    When disabled, simplify exit codes for backward compatibility.
+
+    :param detailed_exit_codes: Boolean indicating detailed codes enabled
+    :param ret_code: The actual return code from configuration operations
+    :return: Mapped exit code based on detailed_exit_codes setting
+    """
+    if detailed_exit_codes:
+        # Return actual exit codes when detailed mode is enabled
+        return ret_code
+    else:
+        # Backward compatibility mode: simplify exit codes
+        exit_code_map = {
+            ExitCode.SUCCESS: ExitCode.SUCCESS,           # 0 -> 0
+            ExitCode.ERROR: ExitCode.ERROR,               # 1 -> 1
+            ExitCode.FILES_CHANGED: ExitCode.SUCCESS,     # 2 -> 0
+            ExitCode.FALLBACK_SUCCESS: ExitCode.SUCCESS,  # 3 -> 0
+            ExitCode.FALLBACK_ERROR: ExitCode.ERROR,      # 4 -> 1
+        }
+        return exit_code_map.get(ret_code, ret_code)
 
 
 logger = common.configure_logger()
@@ -291,6 +320,19 @@ def main(argv=sys.argv, main_logger=None):
     if not iface_array:
         return ExitCode.ERROR
 
+    try:
+        fb_config = get_iface_config(
+            "fallback_config",
+            opts.config_file,
+            iface_mapping,
+            persist_mapping,
+            strict_validate=opts.exit_on_validation_errors,
+        )
+    except objects.InvalidConfigException as e:
+        main_logger.error(
+            "Schema validation failed for fallback_config\n%s", e)
+        return ExitCode.ERROR
+
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
     if utils.is_dcb_config_required():
@@ -341,7 +383,16 @@ def main(argv=sys.argv, main_logger=None):
         )
         ret_code = ExitCode.ERROR
 
-    if utils.is_dcb_config_required():
+    if ret_code == ExitCode.ERROR:
+        ret_code = safe_fallback(
+            opts.provider,
+            fb_config,
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop
+        )
+
+    elif utils.is_dcb_config_required():
         # Apply the DCB Config
         try:
             from os_net_config import dcb_config
@@ -353,17 +404,13 @@ def main(argv=sys.argv, main_logger=None):
         dcb_apply = dcb_config.DcbApplyConfig()
         dcb_apply.apply()
 
-    if opts.detailed_exit_codes or ret_code == ExitCode.ERROR:
-        return ret_code
-    else:
-        return ExitCode.SUCCESS
+    return get_exit_code(opts.detailed_exit_codes, ret_code)
 
 
 def unconfig_provider(provider_name,
                       iface_array,
                       root_dir,
-                      noop,
-                      ):
+                      noop):
     """Remove network configurations created by the specified provider
 
      :param provider_name: Name of provider to purge (ifcfg, nmstate, etc.)
@@ -401,8 +448,7 @@ def config_provider(provider_name,
                     root_dir,
                     noop,
                     no_activate,
-                    cleanup,
-                    ):
+                    cleanup):
     """Configure network interfaces using the specified provider
 
     :param provider_name: Name of provider(ifcfg, nmstate, eni, iproute)
@@ -572,6 +618,33 @@ def get_iface_config(
             for e in validation_errors:
                 logger.warning(e)
     return iface_array
+
+
+def safe_fallback(provider,
+                  fb_config,
+                  no_activate,
+                  root_dir,
+                  noop):
+    if not fb_config:
+        logger.warning("fallback_config is not provided")
+        return ExitCode.ERROR
+
+    logger.info("%s: Running safe fallback", provider)
+    ret = config_provider(
+        provider,
+        "fallback_config",
+        fb_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == ExitCode.SUCCESS or ret == ExitCode.FILES_CHANGED:
+        logger.info("%s: fallback_config is completed", provider)
+        return ExitCode.FALLBACK_SUCCESS
+    else:
+        logger.error("%s: failed to configure fallback_config", provider)
+        return ExitCode.FALLBACK_ERROR
 
 
 if __name__ == '__main__':
