@@ -276,6 +276,14 @@ def main(argv=sys.argv, main_logger=None):
     if not iface_array:
         return 1
 
+    fb_config = get_iface_config(
+        "fallback_config",
+        opts.config_file,
+        iface_mapping,
+        persist_mapping,
+        strict_validate=opts.exit_on_validation_errors,
+    )
+
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
     if utils.is_dcb_config_required():
@@ -306,7 +314,6 @@ def main(argv=sys.argv, main_logger=None):
             main_logger.error("Unable to set provider for this operating "
                               "system.")
             return 1
-
     try:
         logger.info("%s: Applying network_config section", opts.provider)
         ret_code = config_provider(
@@ -326,7 +333,14 @@ def main(argv=sys.argv, main_logger=None):
         )
         ret_code = 1
 
-    if utils.is_dcb_config_required():
+    if ret_code == 1:
+        safe_fallback(opts.provider,
+                      fb_config,
+                      opts.no_activate,
+                      opts.root_dir,
+                      opts.noop)
+
+    if ret_code != 1 and utils.is_dcb_config_required():
         # Apply the DCB Config
         try:
             from os_net_config import dcb_config
@@ -556,6 +570,33 @@ def get_iface_config(
             for e in validation_errors:
                 logger.warning(e)
     return iface_array
+
+
+def safe_fallback(provider,
+                  fb_config,
+                  no_activate,
+                  root_dir,
+                  noop):
+    if not fb_config:
+        logger.warning("fallback_config is not provided")
+        return 1
+
+    logger.info("%s: Running safe fallback", provider)
+    ret = config_provider(
+        provider,
+        "fallback_config",
+        fb_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == 0 or ret == 2:
+        logger.info("%s: fallback_config is completed", provider)
+        ret = 0
+    else:
+        logger.error("%s: failed to configure fallback_config", provider)
+    return ret
 
 
 if __name__ == '__main__':
