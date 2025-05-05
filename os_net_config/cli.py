@@ -209,11 +209,8 @@ def main(argv=sys.argv, main_logger=None):
     common.logger_level(main_logger, opts.verbose, opts.debug)
     main_logger.info("Using config file at: %s", opts.config_file)
     iface_array = []
-    configure_sriov = False
-    sriovpf_bond_ovs_ports = []
     provider = None
     purge_provider = None
-    files_changed = {}
 
     if opts.purge_provider:
         try:
@@ -327,7 +324,13 @@ def main(argv=sys.argv, main_logger=None):
                 continue
             purge_provider.del_object(obj)
         purge_provider.destroy()
-        return 0
+
+        # Re-configure the network to enable ssh
+        return safe_fallback(None,
+                             opts.config_file,
+                             opts.no_activate,
+                             opts.root_dir,
+                             opts.noop)
 
     if not opts.provider:
         ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
@@ -341,12 +344,56 @@ def main(argv=sys.argv, main_logger=None):
             main_logger.error("Unable to set provider for this operating "
                               "system.")
             return 1
-
     try:
-        provider = load_provider(opts.provider, opts.noop, opts.root_dir)
+        files_changed, ret = apply_provider(opts.provider,
+                                            iface_array,
+                                            opts.no_activate,
+                                            opts.cleanup,
+                                            opts.root_dir,
+                                            opts.noop
+                                            )
+    except Exception as e:
+        safe_fallback(opts.provider,
+                      opts.config_file,
+                      opts.no_activate,
+                      opts.root_dir,
+                      opts.noop)
+        raise
+    if ret:
+        safe_fallback(opts.provider,
+                      opts.config_file,
+                      opts.no_activate,
+                      opts.root_dir,
+                      opts.noop)
+
+    if utils.is_dcb_config_required():
+        # Apply the DCB Config
+        try:
+            from os_net_config import dcb_config
+        except ImportError as e:
+            logger.error("cannot apply DCB configuration: %s", e)
+            return 1
+
+        utils.configure_dcb_config_service()
+        dcb_apply = dcb_config.DcbApplyConfig()
+        dcb_apply.apply()
+
+
+    if opts.detailed_exit_codes and len(files_changed) > 0:
+        return 2
+
+    return 0
+
+def apply_provider(provider_name, iface_config, no_activate, cleanup, root_dir, noop):
+    configure_sriov = False
+    files_changed = {}
+    pf_files_changed = []
+    sriovpf_bond_ovs_ports = []
+    try:
+        provider = load_provider(provider_name, noop, root_dir)
     except ImportError as e:
-        main_logger.error('cannot load provider %s: %s', opts.provider, e)
-        return 1
+        logger.error('cannot load provider %s: %s', provider_name, e)
+        return files_changed, 1
 
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
@@ -357,7 +404,7 @@ def main(argv=sys.argv, main_logger=None):
     # VF devices would be created.
     # In the second parse, all other objects shall be added
     try:
-        for iface_json in iface_array:
+        for iface_json in iface_config:
             try:
                 obj = objects.object_from_json(iface_json)
             except common.SriovVfNotFoundException:
@@ -387,11 +434,11 @@ def main(argv=sys.argv, main_logger=None):
         # os-net-config skips the ifup <ifcfg-pfs>, since the ifcfgs for PFs
         # wouldn't have changed.
         if configure_sriov:
-            pf_files_changed = provider.apply(cleanup=opts.cleanup,
-                                              activate=not opts.no_activate,
+            pf_files_changed = provider.apply(cleanup=cleanup,
+                                              activate=not no_activate,
                                               config_rules_dns=False)
 
-            if opts.provider == 'ifcfg' and not opts.noop:
+            if provider_name == 'ifcfg' and not noop:
                 restart_ovs = bool(sriovpf_bond_ovs_ports)
                 # Avoid ovs restart for os-net-config re-runs, which will
                 # dirupt the offload configuration
@@ -402,7 +449,7 @@ def main(argv=sys.argv, main_logger=None):
                     execution_from_cli=True,
                     restart_openvswitch=restart_ovs)
 
-        for iface_json in iface_array:
+        for iface_json in iface_config:
             # All sriov_pfs at top level or at any member level will be
             # ignored and all other objects are parsed will be added here.
             # The VFs are expected to be available now and an exception
@@ -410,55 +457,80 @@ def main(argv=sys.argv, main_logger=None):
             try:
                 obj = objects.object_from_json(iface_json)
             except common.SriovVfNotFoundException:
-                if not opts.noop:
+                if not noop:
                     raise
 
             if not _is_sriovpf_obj_found(obj):
                 provider.add_object(obj)
 
-        if opts.provider == 'ifcfg' and configure_sriov and not opts.noop:
+        if provider_name == 'ifcfg' and configure_sriov and not noop:
             utils.configure_sriov_vfs()
 
-        files_changed = provider.apply(cleanup=opts.cleanup,
-                                       activate=not opts.no_activate)
+        files_changed = provider.apply(cleanup=cleanup,
+                                       activate=not no_activate)
         logger.info(
             "Succesfully applied the network configuration with "
             "%s provider",
-            opts.provider,
+            provider_name,
         )
     except Exception as e:
         logger.error(
             "***Failed to configure with %s provider***\n%s",
-            opts.provider,
+            provider_name,
             e
         )
+        return files_changed, 1
 
-    if utils.is_dcb_config_required():
-        # Apply the DCB Config
-        try:
-            from os_net_config import dcb_config
-        except ImportError as e:
-            logger.error("cannot apply DCB configuration: %s", e)
-            return 1
-
-        utils.configure_dcb_config_service()
-        dcb_apply = dcb_config.DcbApplyConfig()
-        dcb_apply.apply()
-
-    if opts.noop:
-        if configure_sriov:
-            files_changed.update(pf_files_changed)
+    if configure_sriov:
+        files_changed.update(pf_files_changed)
+    if noop:
         for location, data in files_changed.items():
             print("File:", location)
             print()
             print(data)
             print("----")
+    return files_changed, 0
 
-    if opts.detailed_exit_codes and len(files_changed) > 0:
-        return 2
+def safe_fallback(provider, config_file, no_activate,  root_dir, noop):
+    try:
+        with open(config_file) as cf:
+            fb_config = yaml.safe_load(cf.read()).get("fallback_config")
+        
+    except IOError:
+        logger.error("Error reading file: %s", config_file)
+        return 1
+    except FileNotFoundError:
+        logger.error("No config file exists at: %s", config_file)
+        return 1
 
-    return 0
-
+    if fb_config: 
+        fb_provider = fb_config.get("provider", provider)
+    else:
+        logger.error("Fallback config doesn't exist")
+        return 1
+    if fb_provider:
+        logger.info("Fallback provider %s", fb_provider)
+        iface_config = fb_config.get("network_config", None)
+    else:
+        logger.error("Fallback provider is not selected")
+        return 1
+    if iface_config:
+        logger.debug("fallback_config: %s", iface_config)
+    else:
+        logger.error("Fallback network config is missing")
+        return 1
+    files_changed, ret = apply_provider(fb_provider,
+                                        iface_config,
+                                        no_activate,
+                                        False,
+                                        root_dir,
+                                        noop
+                                    )
+    if ret:
+        logger.error("Failed to fallback with %s provider", fb_provider)
+    else:
+        logger.info("Fallback complete with %s provider", fb_provider)
+    return ret
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv, main_logger=logger))
