@@ -323,7 +323,6 @@ def main(argv=sys.argv, main_logger=None):
             main_logger.error("Unable to set provider for this operating "
                               "system.")
             return 1
-
     try:
         ret_code = config_provider(
             opts.provider,
@@ -339,8 +338,20 @@ def main(argv=sys.argv, main_logger=None):
             opts.provider,
             e
         )
+        safe_fallback(opts.provider,
+                      opts.config_file,
+                      opts.no_activate,
+                      opts.root_dir,
+                      opts.noop)
+        raise
+    if ret_code == 1:
+        safe_fallback(opts.provider,
+                      opts.config_file,
+                      opts.no_activate,
+                      opts.root_dir,
+                      opts.noop)
 
-    if utils.is_dcb_config_required():
+    if ret_code != 1 and utils.is_dcb_config_required():
         # Apply the DCB Config
         try:
             from os_net_config import dcb_config
@@ -497,6 +508,39 @@ def config_provider(provider_name,
     if len(files_changed) > 0:
         return 2
     return 0
+
+
+def safe_fallback(provider, config_file, no_activate, root_dir, noop):
+    logger.info("%s: Attempting safe fallback", provider)
+    try:
+        with open(config_file) as cf:
+            fb_config = yaml.safe_load(cf.read()).get("fallback_config")
+
+    except IOError:
+        logger.error("Error reading file: %s", config_file)
+        return 1
+    except FileNotFoundError:
+        logger.error("No config file exists at: %s", config_file)
+        return 1
+
+    if fb_config:
+        logger.debug("fallback_config: %s", fb_config)
+    else:
+        logger.error("Fallback network config is missing")
+        return 1
+    ret = config_provider(
+        provider,
+        fb_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret:
+        logger.error("%s: failed to fallback", provider)
+    else:
+        logger.info("%s: fallback complete", provider)
+    return ret
 
 
 if __name__ == '__main__':
