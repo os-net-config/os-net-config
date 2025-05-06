@@ -508,6 +508,22 @@ def wait_for_vf_driver_binding(pf, vfs, req_driver):
                 )
 
 
+def unset_driverctl_override(pci_address):
+    cmd = ["driverctl", "unset-override", pci_address]
+    try:
+        logger.info("%s: running %s", pci_address, " ".join(cmd))
+        out, err = processutils.execute(*cmd)
+        if err:
+            logger.error("%s: Failed to unbind dpdk interface.", pci_address)
+            return 1
+        return 0
+    except processutils.ProcessExecutionError as exc:
+        logger.error(
+            "%s: Failed to bind interface with dpdk. %s", pci_address, exc
+        )
+        return 1
+
+
 def set_driverctl_override(pci_address, driver):
     if driver is None:
         logger.info("%s: Driver override is not required.", pci_address)
