@@ -49,7 +49,7 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 #
 #1\tinr.ruhep\n"""
 
-PURGE_IFCFG_FILES = '/var/lib/os-net-config/ifcfg-purge/'
+BACKUP_IFCFG_FILES_PATH = '/var/lib/os-net-config/ifcfg-purge/'
 NETWORK_SCRIPTS_PATH = '/etc/sysconfig/network-scripts/'
 
 _OVS_TYPE_MAP = {
@@ -204,8 +204,18 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self.member_names = {}
         self.renamed_interfaces = {}
         self.bond_primary_ifaces = {}
-        self.remove_iface = []
-        self.remove_sriov_pfs = []
+        self.del_device = {
+            "iface": [],
+            "vlan": [],
+            "ovs_bond": [],
+            "linux_bond": [],
+            "linux_bridge": [],
+            "ovs_iface": [],
+            "ovs_bridge": [],
+            "sriov_vf": [],
+            "sriov_pf": [],
+            "dpdk_port": [],  # PCI address of the DPDK port is added here
+        }
         logger.info('Ifcfg net config provider created.')
 
     def parse_ifcfg(self, ifcfg_data):
@@ -527,7 +537,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         return children
 
     def _del_common(self, base_opt):
-        self.remove_iface.append(base_opt.name)
+        self.del_device["iface"].append(base_opt.name)
 
     def _add_common(self, base_opt):
 
@@ -948,7 +958,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self.renamed_interfaces[interface.hwname] = interface.name
 
     def del_interface(self, interface):
-        """Delete an Interface object to the net config object.
+        """Delete an Interface object from the net config object.
 
         :param interface: The Interface object to be deleted.
         """
@@ -970,12 +980,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(vlan.name, vlan.rules)
 
     def del_vlan(self, vlan):
-        """Delete the Vlan object to the net config object.
+        """Delete the Vlan object from the net config object.
 
         :param vlan: The vlan object to be deleted.
         """
         logger.info("%s: Deleting vlan ", vlan)
-        self._del_common(vlan)
+        self.del_device["vlan"].append(vlan.name)
 
     def add_ivs_interface(self, ivs_interface):
         """Add a ivs_interface object to the net config object.
@@ -1021,12 +1031,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(bridge.name, bridge.rules)
 
     def del_bridge(self, bridge):
-        """Delete an OvsBridge object to the net config object.
+        """Delete an OvsBridge object from the net config object.
 
         :param bridge: The OvsBridge object to be deleted
         """
         logger.info("%s: Deleting bridge", bridge.name)
-        self._del_common(bridge)
+        self.del_device["ovs_bridge"].append(bridge.name)
 
     def add_ovs_user_bridge(self, bridge):
         """Add an OvsUserBridge object to the net config object.
@@ -1043,12 +1053,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(bridge.name, bridge.rules)
 
     def del_ovs_user_bridge(self, bridge):
-        """Delete an OvsUserBridge object to the net config object.
+        """Delete an OvsUserBridge object from the net config object.
 
         :param bridge: The OvsUserBridge object to be deleted.
         """
         logger.info("%s: Deleting ovs user bridge", bridge.name)
-        self._del_common(bridge)
+        self.del_device["ovs_bridge"].append(bridge.name)
 
     def add_linux_bridge(self, bridge):
         """Add a LinuxBridge object to the net config object.
@@ -1103,10 +1113,10 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def del_bond(self, bond):
         """Delete an OvsBond object to the net config object.
 
-        :param bond: The OvsBond object to be deleted.
+        :param bond: The OvsBond object from be deleted.
         """
         logger.info("%s: Deleting bond", bond.name)
-        self._del_common(bond)
+        self.del_device["ovs_bond"].append(bond.name)
 
     def add_linux_bond(self, bond):
         """Add a LinuxBond object to the net config object.
@@ -1123,12 +1133,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(bond.name, bond.rules)
 
     def del_linux_bond(self, bond):
-        """Delete a LinuxBond object to the net config object.
+        """Delete a LinuxBond object from the net config object.
 
         :param bond: The LinuxBond object to be deleted.
         """
         logger.info("%s: Deleting linux bond", bond.name)
-        self._del_common(bond)
+        self.del_device["linux_bond"].append(bond.name)
 
     def add_linux_team(self, team):
         """Add a LinuxTeam object to the net config object.
@@ -1187,7 +1197,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self.renamed_interfaces[ib_interface.hwname] = ib_interface.name
 
     def del_ib_interface(self, ib_interface):
-        """Delete an InfiniBand interface object to the net config object.
+        """Delete an InfiniBand interface object from the net config object.
 
         :param ib_interface: The InfiniBand interface object to be deleted
         """
@@ -1213,7 +1223,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(ib_child_interface.name, ib_child_interface.rules)
 
     def del_ib_child_interface(self, ib_child_interface):
-        """Delete an InfiniBand child interface object to the net config object.
+        """Delete InfiniBand child interface object
 
         :param ib_child_interface: The InfiniBand child
          interface object to be deleted.
@@ -1252,12 +1262,15 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self.add_interface(dpdk_if_name)
 
     def del_ovs_dpdk_port(self, ovs_dpdk_port):
-        """Delete a OvsDpdkPort object to the net config object.
+        """Delete a OvsDpdkPort object from the net config object.
 
         :param ovs_dpdk_port: The OvsDpdkPort object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk port", ovs_dpdk_port.name)
-        self._del_common(ovs_dpdk_port)
+        self.del_device["ovs_iface"].append(ovs_dpdk_port.name)
+        ifcfg_dpdk = self.root_dir + ifcfg_config_path(ovs_dpdk_port.name)
+        pci_address = self._get_dpdk_pci_addresses(ifcfg_dpdk)
+        self.del_device["dpdk_port"].extend(pci_address)
 
     def add_ovs_dpdk_bond(self, ovs_dpdk_bond):
         """Add an OvsDPDKBond object to the net config object.
@@ -1296,12 +1309,15 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 self.add_interface(dpdk_if_name)
 
     def del_ovs_dpdk_bond(self, ovs_dpdk_bond):
-        """Delete an OvsDPDKBond object to the net config object.
+        """Delete an OvsDPDKBond object from the net config object.
 
         :param ovs_dpdk_bond: The OvsBond object to be deleted.
         """
         logger.info("%s: Deleting ovs dpdk bond", ovs_dpdk_bond.name)
-        self._del_common(ovs_dpdk_bond)
+        self.del_device["ovs_bond"].append(ovs_dpdk_bond.name)
+        ifcfg_dpdk = self.root_dir + ifcfg_config_path(ovs_dpdk_bond.name)
+        pci_address = self._get_dpdk_pci_addresses(ifcfg_dpdk)
+        self.del_device["dpdk_port"].extend(pci_address)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -1318,12 +1334,15 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(sriov_pf.name, sriov_pf.rules)
 
     def del_sriov_pf(self, sriov_pf):
-        """Delete a SriovPF object to the net config object
+        """Delete a SriovPF object from the net config object
 
         :param sriov_pf: The SriovPF object to be deleted
         """
         logger.info("%s: Deleting sriov pf", sriov_pf.name)
-        self.remove_sriov_pfs.append(sriov_pf.name)
+        if sriov_pf.link_mode == "switchdev":
+            msg = f"{sriov_pf.name} can't be removed by ifcfg provider"
+            raise os_net_config.NotImplementedError(msg)
+        self.del_device["sriov_pf"].append(sriov_pf.name)
 
     def add_sriov_vf(self, sriov_vf):
         """Add a SriovVF object to the net config object
@@ -1345,7 +1364,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             self._add_rules(sriov_vf.name, sriov_vf.rules)
 
     def del_sriov_vf(self, sriov_vf):
-        """Delete a SriovVF object to the net config object
+        """Delete a SriovVF object from the net config object
 
         :param sriov_vf: The SriovVF object to be deleted
         """
@@ -1355,7 +1374,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             sriov_vf.vfid,
             sriov_vf.name,
         )
-        self._del_common(sriov_vf)
+        self.del_device["sriov_vf"].append(sriov_vf.name)
 
     def add_vpp_interface(self, vpp_interface):
         """Add a VppInterface object to the net config object
@@ -1579,6 +1598,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             logger.warning(
                 "Failed to read DPDK config file %s: %s", ifcfg_dpdk_file, e
             )
+            return pci_addresses
+
         return pci_addresses
 
     def destroy(self):
@@ -1587,14 +1608,75 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         Clears the network configuration which is previously configured via
         the same provider.
         """
-        for iface in self.remove_iface:
+        device_to_delete = []
+        # Create a backup folder with the current timestamp
+        backup_path = os.path.join(BACKUP_IFCFG_FILES_PATH,
+                                   common.get_timestamp())
+        os.makedirs(backup_path, exist_ok=True)
+        utils.backup_map_files(backup_path)
+        for ifcfg_file in glob.iglob(cleanup_pattern()):
+            iface = ifcfg_file[len(cleanup_pattern()) - 1:]
+            self.backup_ifcfg(iface, backup_path)
+
+        for ovs_iface in self.del_device["ovs_iface"]:
+            logger.info("%s: Purging ", ovs_iface)
+            self.purge(ovs_iface)
+        device_to_delete.extend(self.del_device["ovs_iface"])
+
+        for ovs_bond in self.del_device["ovs_bond"]:
+            logger.info("%s: Purging ", ovs_bond)
+            self.purge(ovs_bond)
+        device_to_delete.extend(self.del_device["ovs_bond"])
+
+        for pci_address in self.del_device["dpdk_port"]:
+            utils.remove_dpdk_interface(pci_address)
+
+        for vlan in self.del_device["vlan"]:
+            logger.info("%s: Purging ", vlan)
+            self.purge(vlan)
+        device_to_delete.extend(self.del_device["vlan"])
+
+        for iface in self.del_device["iface"]:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
-        for sriov_dev in self.remove_sriov_pfs:
+        device_to_delete.extend(self.del_device["iface"])
+
+        for sriov_dev in self.del_device["sriov_vf"]:
+            self.purge(sriov_dev)
+            utils.remove_entries_for_sriov_dev(sriov_dev)
+        device_to_delete.extend(self.del_device["sriov_vf"])
+
+        for bridge in self.del_device["ovs_bridge"]:
+            logger.info("%s: Purging ", bridge)
+            self.purge(bridge)
+        device_to_delete.extend(self.del_device["ovs_bridge"])
+
+        for bridge in self.del_device["linux_bridge"]:
+            logger.info("%s: Purging ", bridge)
+            self.purge(bridge)
+        device_to_delete.extend(self.del_device["linux_bridge"])
+
+        for lb in self.del_device["linux_bond"]:
+            logger.info("%s: Purging ", lb)
+            self.purge(lb)
+        device_to_delete.extend(self.del_device["linux_bond"])
+
+        for sriov_dev in self.del_device["sriov_pf"]:
             logger.info("%s: Purging SR-IOV device", sriov_dev)
             sriov_config.reset_sriov_pf(sriov_dev)
             self.purge(sriov_dev)
             utils.remove_entries_for_sriov_dev(sriov_dev)
+        device_to_delete.extend(self.del_device["sriov_pf"])
+
+        for device in device_to_delete:
+            remove_ifcfg_config(device)
+
+        if self.errors:
+            message = 'Failure(s) occurred when applying configuration'
+            for e in self.errors:
+                logger.error('stdout: %s, stderr: %s', e.stdout, e.stderr)
+            raise os_net_config.ConfigurationError(message)
+        return 0
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
@@ -2436,76 +2518,29 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         return update_files
 
-    def move_ifcfg(self, iface_name):
+    def backup_ifcfg(self, iface_name, backup_path):
         ifcfg_file = ifcfg_config_path(iface_name)
         route_file = route_config_path(iface_name)
         route6_file = route6_config_path(iface_name)
         rule_file = route_rule_config_path(iface_name)
 
-        if not os.path.exists(PURGE_IFCFG_FILES):
-            os.makedirs(PURGE_IFCFG_FILES)
-        if os.path.exists(ifcfg_file):
-            new_ifcfg_file = os.path.join(PURGE_IFCFG_FILES,
-                                          f'ifcfg-{iface_name}')
-            logger.info("Moving %s -> %s", ifcfg_file, new_ifcfg_file)
-            shutil.move(ifcfg_file, new_ifcfg_file)
-        if os.path.exists(route_file):
-            new_route_file = os.path.join(PURGE_IFCFG_FILES,
-                                          f'route-{iface_name}')
-            logger.info("Moving %s -> %s", route_file, new_route_file)
-            shutil.move(route_file, new_route_file)
-        if os.path.exists(route6_file):
-            new_route6_file = os.path.join(PURGE_IFCFG_FILES,
-                                           f'route6-{iface_name}')
-            logger.info("Moving %s - %s", route6_file, new_route6_file)
-            shutil.move(route6_file, new_route6_file)
-        if os.path.exists(rule_file):
-            new_rule_file = os.path.join(PURGE_IFCFG_FILES,
-                                         f'rule-{iface_name}')
-            logger.info("Moving %s -> %s", rule_file, new_rule_file)
-            shutil.move(rule_file, new_rule_file)
-
-    def roll_back_migration(self):
-        logger.info('Rolling back to ifcfg provider')
-        self._restore_ifcfg_files()
-        self._bringup_all_devices()
-        logger.info('Reverted back to ifcfg provider succesfully')
-
-    def clean_migration(self):
-        logger.info("Clean migration files")
-
-    def _restore_ifcfg_files(self):
-        logger.info('Restoring the ifcfg files')
-        for file in os.listdir(PURGE_IFCFG_FILES):
-            if file.startswith('ifcfg-') or \
-                file.startswith('rule-') or \
-                file.startswith('route-') or \
-                file.startswith('route6-'):
-                file_path = os.path.join(PURGE_IFCFG_FILES, file)
-                new_file_path = os.path.join(NETWORK_SCRIPTS_PATH, file)
-                try:
-                    shutil.copy(file_path, new_file_path)
-                except shutil.SameFileError:
-                    pass
-
-    def _bringup_all_devices(self):
-        logger.info('Bring up the devices with ifcfg provider')
-        utils.configure_sriov_pfs()
-        utils.configure_sriov_vfs()
-        for file in os.listdir(NETWORK_SCRIPTS_PATH):
-            device_name = ""
-            if file.startswith('ifcfg-'):
-                device_name = file[len('ifcfg-'):]
-            if file.startswith('rule-'):
-                device_name = file[len('rule-'):]
-            if file.startswith('route-'):
-                device_name = file[len('route-'):]
-            if file.startswith('route6-'):
-                device_name = file[len('route6-'):]
-
-            if device_name:
-                logger.info("%s: Bringing up device", device_name)
-                self.ifup(device_name)
+        if not os.path.exists(backup_path):
+            os.makedirs(backup_path)
+        src_files = [
+            ifcfg_file,
+            route_file,
+            route6_file,
+            rule_file
+        ]
+        if self._is_os_net_config_managed(ifcfg_file):
+            for src in src_files:
+                if os.path.exists(src):
+                    filename = os.path.basename(src)
+                    bkup_file = os.path.join(backup_path, filename)
+                    logger.info("Copying %s -> %s", src, bkup_file)
+                    shutil.copy(src, bkup_file)
+                else:
+                    logger.warning("%s: not found", src)
 
     def _is_os_net_config_managed(self, ifcfg_file):
         try:
@@ -2943,7 +2978,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             logger.info("Backing up configuration files before device removal")
             if not self.noop:
                 # Create a backup folder with the current timestamp
-                backup_path = os.path.join(PURGE_IFCFG_FILES,
+                backup_path = os.path.join(BACKUP_IFCFG_FILES_PATH,
                                            common.get_timestamp())
                 os.makedirs(backup_path, exist_ok=True)
                 utils.backup_map_files(backup_path)
