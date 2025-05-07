@@ -394,7 +394,15 @@ def unconfig_provider(provider_name,
             continue
         purge_provider.del_object(obj)
 
-    purge_provider.destroy()
+    try:
+        purge_provider.destroy()
+    except Exception as e:
+        logger.error(
+            "%s: ***Failed to purge***\n%s",
+            provider_name,
+            e
+        )
+        return ExitCode.PURGE_FAILED
 
     logger.info("%s: Completed unconfig", provider_name)
     return ExitCode.SUCCESS
