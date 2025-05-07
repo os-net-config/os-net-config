@@ -597,6 +597,12 @@ def _configure_sriov_config_service():
     processutils.execute('systemctl', 'enable', 'sriov_config')
 
 
+def disable_sriov_config_service():
+    if common.get_noop():
+        return
+    processutils.execute("systemctl", "disable", "sriov_config")
+
+
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):
     logger.info("Configuring PFs now")
     sriov_config.configure_sriov_pf(
