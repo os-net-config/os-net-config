@@ -381,6 +381,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.reload_nm()
         logger.info('nmstate net config provider created.')
 
+    def reload_nm(self):
+        """Reload NetworkManager connections
+
+        Perform a reload of all the NM connections so that the
+        updates (if any) to the ifcfg-* files related to
+        NM_CONTROLLED shall be re-applied.
+        """
+        cmd = ['nmcli', 'connection', 'reload']
+        msg = "Reloading nmcli connections"
+        self.execute(msg, *cmd)
+
     def rollback_to_initial_settings(self):
         """Rollback to the initial settings
 
