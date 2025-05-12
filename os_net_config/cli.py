@@ -498,6 +498,7 @@ def apply_provider(provider_name,
 
 
 def safe_fallback(provider, config_file, no_activate, root_dir, noop):
+    from oslo_concurrency import processutils
     try:
         with open(config_file) as cf:
             fb_config = yaml.safe_load(cf.read()).get("fallback_config")
@@ -510,11 +511,20 @@ def safe_fallback(provider, config_file, no_activate, root_dir, noop):
         return 1
 
     if fb_config:
-        fb_provider = fb_config.get("provider", provider)
+        if provider:
+            fb_provider = provider
+        else:
+            fb_provider = fb_config.get("provider", None)
     else:
         logger.error("Fallback config doesn't exist")
         return 1
     if fb_provider:
+        if fb_provider == "nmstate":
+            logger.info("Reloading NM")
+            cmd = ['nmcli', 'connection', 'reload', '-w', '60']
+            processutils.execute(*cmd)
+            import time
+            time.sleep(10)
         logger.info("Fallback provider %s", fb_provider)
         iface_config = fb_config.get("network_config", None)
     else:

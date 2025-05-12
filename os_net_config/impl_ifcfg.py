@@ -160,6 +160,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         self.bond_primary_ifaces = {}
         self.del_device = {
             "iface": [],
+            "linux_bond": [],
             "dpdk": [],
             "dpdk_port": [],
             "sriov_pf": [],
@@ -1072,7 +1073,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param bond: The LinuxBond object to be deleted.
         """
         logger.info("%s: Deleting linux bond", bond.name)
-        self._del_common(bond)
+        self.del_device["linux_bond"].append(bond.name)
 
     def add_linux_team(self, team):
         """Add a LinuxTeam object to the net config object.
@@ -1512,6 +1513,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         the same provider.
         """
         for iface in self.del_device["dpdk"]:
+            logger.info("%s: Purging ", iface)
+            self.purge(iface)
+        for iface in self.del_device["linux_bond"]:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
         for iface in self.del_device["iface"]:
@@ -2343,15 +2347,16 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             route6_file,
             rule_file
         ]
-        for src in src_files:
-            if self._is_os_net_config_managed(src):
-                filename = os.path.basename(src)
-                bkup_file = os.path.join(BACKUP_IFCFG_FILES_PATH,
-                                         filename)
-                logger.info("Moving %s -> %s", ifcfg_file, bkup_file)
-                shutil.move(src, bkup_file)
-            else:
-                logger.warning("%s: not found", src)
+        if self._is_os_net_config_managed(ifcfg_file):
+            for src in src_files:
+                if os.path.exists(src):
+                    filename = os.path.basename(src)
+                    bkup_file = os.path.join(BACKUP_IFCFG_FILES_PATH,
+                                             filename)
+                    logger.info("Moving %s -> %s", ifcfg_file, bkup_file)
+                    shutil.move(src, bkup_file)
+                else:
+                    logger.warning("%s: not found", src)
 
     def _is_os_net_config_managed(self, ifcfg_file):
         if os.path.exists(ifcfg_file):

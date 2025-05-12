@@ -361,6 +361,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.vf_drv_override = {}
         self.del_device = {
             "iface": [],
+            "linux_bond": [],
             "dpdk": [],
             "dpdk_port": [],
             "sriov_pf": []
@@ -374,7 +375,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # separately if the flag is set. It will be applicable
         # only for NIC Partitioning use cases.
         self.need_vf_config = False
-        self.reload_nm()
         self.initial_state = netinfo.show_running_config()
         self.__dump_key_config(
             self.initial_state, msg='Initial network settings'
@@ -388,7 +388,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         updates (if any) to the ifcfg-* files related to
         NM_CONTROLLED shall be re-applied.
         """
-        cmd = ['nmcli', 'connection', 'reload']
+        cmd = ['nmcli', 'connection', 'reload', '-w', '60']
         msg = "Reloading nmcli connections"
         self.execute(msg, *cmd)
 
@@ -2238,7 +2238,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         iface_data = {Interface.NAME: bond.name,
                       Interface.TYPE: InterfaceType.BOND,
                       Interface.STATE: InterfaceState.ABSENT}
-        self.del_device["iface"].append(iface_data)
+        self.del_device["linux_bond"].append(iface_data)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -2351,6 +2351,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                       Interface.TYPE: InterfaceType.ETHERNET,
                       Interface.STATE: InterfaceState.ABSENT}
         self.del_device["iface"].append(iface_data)
+        return
 
     def add_ib_interface(self, ib_interface):
         """Add an InfiniBand interface object to the net config object.
@@ -2570,6 +2571,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
         apply_data = self.set_ifaces(self.del_device["dpdk"])
         self.nmstate_apply(apply_data, verify=True)
         self.destroy_dpdk_interfaces()
+        apply_data = self.set_ifaces(self.del_device["linux_bond"])
+        self.nmstate_apply(apply_data, verify=True)
         apply_data = self.set_ifaces(self.del_device["iface"])
         self.nmstate_apply(apply_data, verify=True)
         apply_data = self.set_ifaces(self.del_device["sriov_pf"])
