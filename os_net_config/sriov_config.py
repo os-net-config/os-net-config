@@ -256,12 +256,12 @@ def get_numvfs(ifname):
     return curr_numvfs
 
 
-def reset_sriov_pfs():
+def reset_sriov_pf(pf_name):
     """Reset the given PF
 
     Reset the numvfs for all the PFs configured.
     """
-    sriov_map = common.get_sriov_map()
+    sriov_map = common.get_sriov_map(pf_name)
     for item in sriov_map:
         if item['device_type'] == 'pf' and \
             item.get('link_mode') == "legacy":
