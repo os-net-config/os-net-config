@@ -723,18 +723,43 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         logger.info("cleaning up all network configs...")
         exclude_nics.extend(['lo'])
+        exclude_nics.extend(common.get_sriov_pf_names())
+        exclude_nics.extend(common.get_dpdk_iface_names())
+        exclude_types = [OVSBridge.TYPE, OVSInterface.TYPE]
         ifaces = netinfo.show_running_config()[Interface.KEY]
-
+        logger.debug("Interface name excluded: %s", ", ".join(exclude_nics))
+        logger.debug("Interface type excluded: %s", ", ".join(exclude_types))
         for iface in ifaces:
-            if Interface.NAME in iface and \
-               iface[Interface.NAME] not in exclude_nics:
-                if iface[Interface.STATE] == InterfaceState.IGNORE:
-                    logger.info("%s: Skip cleaning", iface[Interface.NAME])
-                    continue
-                iface[Interface.STATE] = InterfaceState.ABSENT
-                state = {Interface.KEY: [iface]}
+            if iface.get(Interface.NAME) in exclude_nics:
+                logger.info(
+                    "%s: Interface name is excluded from cleanup",
+                    iface[Interface.NAME]
+                )
+            elif common.is_vf_by_name(iface.get(Interface.NAME)):
+                logger.info(
+                    "%s: VFs are excluded from cleanup",
+                    iface[Interface.NAME]
+                )
+            elif iface[Interface.STATE] == InterfaceState.IGNORE:
+                logger.info(
+                    "%s: Interface state is excluded from cleanup",
+                    iface[Interface.NAME]
+                )
+            elif iface.get(Interface.TYPE) in exclude_types:
+                logger.info(
+                    "%s: Interface type %s is excluded from cleanup",
+                    iface[Interface.NAME],
+                    iface.get(Interface.TYPE)
+                )
+            else:
+                clean_iface = {
+                    Interface.NAME: iface.get(Interface.NAME),
+                    Interface.STATE: InterfaceState.ABSENT,
+                    Interface.TYPE: iface.get(Interface.TYPE),
+                }
+                state = {Interface.KEY: [clean_iface]}
                 self.__dump_key_config(
-                    iface, msg=f"{iface[Interface.NAME]}: Cleaning up"
+                    clean_iface, msg=f"{iface[Interface.NAME]}: Cleaning up"
                 )
                 if not self.noop:
                     netapplier.apply(state, verify_change=True)
@@ -2369,11 +2394,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
         Note the noop mode is set via the constructor noop boolean
         """
         logger.info('applying network configs....')
-        if cleanup:
-            self.cleanup_all_ifaces()
 
         add_routes = []
         del_routes = []
+
+        all_iface_names = []
 
         updated_interfaces = {}
         updated_pfs = []
@@ -2393,6 +2418,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             del_routes.extend(del_route)
 
         for interface_name, iface_data in self.interface_data.items():
+            all_iface_names.append(interface_name)
             iface_state = self.iface_state(interface_name)
             self.remove_empty_dispatch_scripts(iface_state, iface_data)
             if not is_dict_subset(iface_state, iface_data):
@@ -2404,7 +2430,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             del_routes.extend(del_route)
 
         for bridge_name, bridge_data in self.bridge_data.items():
-
+            all_iface_names.append(bridge_name)
             bridge_state = self.iface_state(bridge_name)
             self.remove_empty_dispatch_scripts(bridge_state, bridge_data)
             if not is_dict_subset(bridge_state, bridge_data):
@@ -2417,6 +2443,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             del_routes.extend(del_route)
 
         for bond_name, bond_data in self.linuxbond_data.items():
+            all_iface_names.append(bond_name)
             bond_state = self.iface_state(bond_name)
             self.remove_empty_dispatch_scripts(bond_state, bond_data)
             if not is_dict_subset(bond_state, bond_data):
@@ -2428,6 +2455,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             del_routes.extend(del_route)
 
         for vlan_name, vlan_data in self.vlan_data.items():
+            all_iface_names.append(vlan_name)
             vlan_state = self.iface_state(vlan_name)
             self.remove_empty_dispatch_scripts(vlan_state, vlan_data)
             if not is_dict_subset(vlan_state, vlan_data):
@@ -2437,6 +2465,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             add_route, del_route = self.generate_routes(vlan_name)
             add_routes.extend(add_route)
             del_routes.extend(del_route)
+
+        if cleanup:
+            self.cleanup_all_ifaces(exclude_nics=all_iface_names)
 
         if updated_interfaces:
             apply_data = self.set_ifaces(list(updated_interfaces.values()))
