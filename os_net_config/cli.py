@@ -402,6 +402,8 @@ def main(argv=sys.argv, main_logger=None):
                 utils.configure_sriov_pfs(
                     execution_from_cli=True,
                     restart_openvswitch=restart_ovs)
+            # Force disable cleanup as cleanup is already performed
+            opts.cleanup = False
 
         for iface_json in iface_array:
             # All sriov_pfs at top level or at any member level will be
