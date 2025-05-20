@@ -367,7 +367,8 @@ def main(argv=sys.argv, main_logger=None):
         # os-net-config skips the ifup <ifcfg-pfs>, since the ifcfgs for PFs
         # wouldn't have changed.
         if configure_sriov:
-            pf_files_changed = provider.apply(cleanup=opts.cleanup,
+            # Skip cleanup while applying PF configuration
+            pf_files_changed = provider.apply(cleanup=False,
                                               activate=not opts.no_activate,
                                               config_rules_dns=False)
 
