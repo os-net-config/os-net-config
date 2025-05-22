@@ -273,6 +273,11 @@ def get_sriov_pfs():
     return [pf for pf in sriov_map if pf["device_type"] == "pf"]
 
 
+def get_sriov_pf_names():
+    sriov_map = get_sriov_map()
+    return [pf['name'] for pf in sriov_map if pf["device_type"] == "pf"]
+
+
 def _get_dpdk_mac_address(name):
     contents = get_file_data(DPDK_MAPPING_FILE)
     dpdk_map = yaml.safe_load(contents) if contents else []

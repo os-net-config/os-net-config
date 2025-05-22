@@ -723,21 +723,42 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         logger.info("cleaning up all network configs...")
         exclude_nics.extend(['lo'])
+        exclude_nics.extend(common.get_sriov_pf_names())
+        exclude_types = [OVSBridge.TYPE, OVSInterface.TYPE]
         ifaces = netinfo.show_running_config()[Interface.KEY]
-
+        logger.debug("Interface name excluded: %s", ", ".join(exclude_nics))
+        logger.debug("Interface type excluded: %s", ", ".join(exclude_types))
         for iface in ifaces:
-            if Interface.NAME in iface and \
-               iface[Interface.NAME] not in exclude_nics:
-                if iface[Interface.STATE] == InterfaceState.IGNORE:
-                    logger.info("%s: Skip cleaning", iface[Interface.NAME])
-                    continue
-                iface[Interface.STATE] = InterfaceState.ABSENT
-                state = {Interface.KEY: [iface]}
-                self.__dump_key_config(
-                    iface, msg=f"{iface[Interface.NAME]}: Cleaning up"
+            if iface.get(Interface.NAME) in exclude_nics:
+                logger.info(
+                    "%s: Interface name is excluded from cleanup",
+                    iface[Interface.NAME]
                 )
-                if not self.noop:
-                    netapplier.apply(state, verify_change=True)
+                continue
+            if iface[Interface.STATE] == InterfaceState.IGNORE:
+                logger.info(
+                    "%s: Interface state is excluded from cleanup",
+                    iface[Interface.NAME]
+                )
+                continue
+            if iface.get(Interface.TYPE) in exclude_types:
+                logger.info(
+                    "%s: Interface type %s is excluded from cleanup",
+                    iface[Interface.NAME],
+                    iface.get(Interface.TYPE)
+                )
+                continue
+            clean_iface = {
+                Interface.NAME: iface.get(Interface.NAME),
+                Interface.STATE: InterfaceState.ABSENT,
+                Interface.TYPE: iface.get(Interface.TYPE),
+            }
+            state = {Interface.KEY: [clean_iface]}
+            self.__dump_key_config(
+                clean_iface, msg=f"{iface[Interface.NAME]}: Cleaning up"
+            )
+            if not self.noop:
+                netapplier.apply(state, verify_change=True)
 
     def route_state(self, name=''):
         """Return the current routes set according to nmstate.
