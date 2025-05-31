@@ -280,7 +280,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         permitted_changes = [
             'IPADDR', 'NETMASK',
             'MTU', 'ONBOOT', 'ETHTOOL_OPTS',
-            'DOMAIN', 'DNS1', 'DNS2'
+            'DOMAIN', 'DNS1', 'DNS2',
+            "IPV6_SET_SYSCTLS, IPV6_DEFAULTGW,"
+            "IPV6_DEFAULTDEV", "IPV6_FORCE_ACCEPT_RA"
         ]
         # Check whether any of the changes require restart
         for change in self.enumerate_ifcfg_changes(file_values, new_values):
@@ -765,6 +767,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             if v6_addresses:
                 first_v6 = v6_addresses[0]
                 data += "IPV6_AUTOCONF=no\n"
+                data += "IPV6_SET_SYSCTLS=yes\n"
                 data += "IPV6ADDR=%s\n" % first_v6.ip_netmask
                 if len(v6_addresses) > 1:
                     secondaries_v6 = " ".join(map(lambda a: a.ip_netmask,
@@ -777,6 +780,14 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             data += "OVS_EXTRA=\"%s\"\n" % " -- ".join(ovs_extra)
         if not base_opt.defroute:
             data += "DEFROUTE=no\n"
+
+        for route in base_opt.routes:
+            if route.default or (route.ip_netmask == "::/0"):
+                if ":" in route.next_hop:
+                    data += "IPV6_DEFAULTGW={}\n".format(route.next_hop)
+                    data += "IPV6_DEFAULTDEV={}\n".format(base_opt.name)
+                    data += "IPV6_FORCE_ACCEPT_RA=no\n"
+
         if base_opt.dhclient_args:
             data += "DHCLIENTARGS=%s\n" % base_opt.dhclient_args
         if base_opt.dns_servers:
@@ -1550,6 +1561,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         nfvswitch_interfaces = []       # nfvswitch physical interfaces
         nfvswitch_internal_ifaces = []  # nfvswitch internal/management ports
         stop_dhclient_interfaces = []
+        apply_sysctls = []
         ovs_needs_restart = False
         vpp_interfaces = self.vpp_interface_data.values()
         vpp_bonds = self.vpp_bond_data.values()
