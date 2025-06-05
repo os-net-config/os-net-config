@@ -61,6 +61,7 @@ set -x
 # VFs specified in `dpdk_vfs` will be bound with vfio-pci.
 # VFs specified in `linux_vfs` will be bound with their default drivers
 _VF_BIND_DRV_SCRIPT = r'''
+#DRIVER_BIND
 dpdk_vfs="{dpdk_vfs}"
 linux_vfs="{linux_vfs}"
 
@@ -83,7 +84,7 @@ for vfid in $dpdk_vfs $linux_vfs; do
 done
 '''
 
-ETHTOOL_SCRIPT = "{ethtool_cmd} {ethtool_opts}"
+ETHTOOL_SCRIPT = "{ethtool_cmd} {ethtool_opts} #ETHTOOL"
 
 _OS_NET_CONFIG_MANAGED = "# os-net-config managed table"
 
@@ -152,10 +153,6 @@ def is_dict_subset(superset, subset):
     if superset == subset:
         return True
     if superset and subset:
-        if DISPATCH in superset.keys() and \
-            DISPATCH not in subset.keys():
-            return False
-
         for key, value in subset.items():
             if key not in superset:
                 # Items which are empty or false
@@ -499,6 +496,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             # to be performed in nmstate.
             # JIRA: https://issues.redhat.com/browse/RHEL-67120
             cur_state = self.iface_state(pf_name)
+            self.remove_empty_dispatch_scripts(cur_state, pf_state)
             if not is_dict_subset(cur_state, pf_state):
                 if not self.noop and activate:
                     logger.debug("%s: Applying the PF config", pf_name)
@@ -1462,8 +1460,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if POST_DEACTIVATION not in new_state[DISPATCH].keys():
                     new_state[DISPATCH][POST_DEACTIVATION] = ""
             else:
-                new_state[DISPATCH] = {POST_ACTIVATION: "",
-                                       POST_DEACTIVATION: ""}
+                # In dispatcher scripts removal of ethtool opts are handled
+                # now and hence checking the same for removal of scripts
+                # when the ethtool_opts are removed.
+                if POST_ACTIVATION in cur_state[DISPATCH].keys() and \
+                        "ETHTOOL" in cur_state[DISPATCH][POST_ACTIVATION]:
+                    logger.info(
+                        "%s: removing ethtool dispatcher scripts",
+                        new_state[Interface.NAME]
+                    )
+                    new_state[DISPATCH] = {POST_ACTIVATION: "",
+                                           POST_DEACTIVATION: ""}
 
     def add_vf_driver_override(self, vf):
         """Add driver override for VFs
