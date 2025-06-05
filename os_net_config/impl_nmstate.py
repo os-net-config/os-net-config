@@ -461,7 +461,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         """
         if sriov_vf.device in self.sriov_vf_data:
             logger.info(
-                "%s-%d: Updating VF, Trust: %s "
+                "%s-%s: Updating VF, Trust: %s "
                 "Spoofcheck: %s Vlan: %d Qos: %d "
                 "Min Rate: %d Max Rate: %d",
                 sriov_vf.device, sriov_vf.vfid,
@@ -2270,7 +2270,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         vf_config = self.get_vf_config(sriov_vf)
         logger.debug(
-            "%s-%d: vf config %s", sriov_vf.device, sriov_vf.vfid, vf_config
+            "%s-%s vf config %s", sriov_vf.device, sriov_vf.vfid, vf_config
         )
 
         self.sriov_vf_data[sriov_vf.device][sriov_vf.vfid] = vf_config
@@ -2286,7 +2286,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if self.migration_enabled:
             self._clean_iface(sriov_vf.name, InterfaceType.ETHERNET)
 
-        logger.info("%s-%d: adding vf", sriov_vf.device, sriov_vf.vfid)
+        logger.info("%s-%s: adding vf", sriov_vf.device, sriov_vf.vfid)
         data = self._add_common(sriov_vf)
         data[Interface.TYPE] = InterfaceType.ETHERNET
         data[Ethernet.CONFIG_SUBTREE] = {}

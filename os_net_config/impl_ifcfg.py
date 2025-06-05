@@ -1271,7 +1271,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param sriov_vf: The SriovVF object to add
         """
         logger.info(
-            "%s-%d: adding sriov vf: %s",
+            "%s-%s: adding sriov vf: %s",
             sriov_vf.device,
             sriov_vf.vfid,
             sriov_vf.name,
@@ -1290,7 +1290,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         :param sriov_vf: The SriovVF object to be deleted
         """
         logger.info(
-            "%s-%d: Deleting sriov vf: %s",
+            "%s-%s: Deleting sriov vf: %s",
             sriov_vf.device,
             sriov_vf.vfid,
             sriov_vf.name,
