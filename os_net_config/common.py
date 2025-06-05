@@ -444,12 +444,12 @@ def get_default_vf_driver(pf_name, vfid):
         out, err = processutils.execute(*cmd)
         kernel_driver = out.strip()
         logger.info(
-            "%s-%d: default vf driver is %s", pf_name, vfid, kernel_driver
+            "%s-%s: default vf driver is %s", pf_name, vfid, kernel_driver
         )
         return kernel_driver
     except (OSError, processutils.ProcessExecutionError) as e:
         logger.error(
-            "%s-%d: failed to get default vf driver: %s", pf_name, vfid, e
+            "%s-%s: failed to get default vf driver: %s", pf_name, vfid, e
         )
         return None
 
@@ -470,12 +470,12 @@ def wait_for_vf_driver_binding(pf, vfs, req_driver):
         for i in range(30):
             driver = get_pci_device_driver(pci_address)
             if driver == req_driver:
-                logger.info("%s-%d: verified binding with %s", pf, vf, driver)
+                logger.info("%s-%s: verified binding with %s", pf, vf, driver)
                 break
             time.sleep(1)
         else:
             logger.error(
-                "%s-%d: bound with %s instead of %s",
+                "%s-%s: bound with %s instead of %s",
                 pf,
                 vf,
                 driver,
@@ -489,7 +489,7 @@ def wait_for_vf_driver_binding(pf, vfs, req_driver):
                 time.sleep(1)
             else:
                 logger.warning(
-                    "%s-%d: device path %s is not available yet",
+                    "%s-%s: device path %s is not available yet",
                     pf,
                     vf,
                     vf_path,
