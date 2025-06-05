@@ -927,3 +927,10 @@ def ethtool_path():
         logger.warning("Could not execute /sbin/ethtool or /usr/sbin/ethtool")
         return False
     return ethtoolcmd
+
+
+def set_accept_ra_sysctl(iface):
+    """Set /proc/sys/net/ipv6/conf/<iface>/accept_ra """
+    filename = "/proc/sys/net/ipv6/conf/{}/accept_ra".format(iface)
+    with open(filename, 'w') as f:
+        f.write("0")
