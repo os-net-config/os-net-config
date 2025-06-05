@@ -932,5 +932,7 @@ def ethtool_path():
 def set_accept_ra_sysctl(iface):
     """Set /proc/sys/net/ipv6/conf/<iface>/accept_ra """
     filename = "/proc/sys/net/ipv6/conf/{}/accept_ra".format(iface)
-    with open(filename, 'w') as f:
-        f.write("0")
+    if os.path.exists(filename):
+        logger.info("DEFROUTE=no: Set sysctl to ignore router advertisements")
+        with open(filename, 'w') as f:
+            f.write("0")
