@@ -18,6 +18,7 @@ import glob
 import logging
 import os
 import re
+import shutil
 import time
 import yaml
 
@@ -236,6 +237,18 @@ def update_dpdk_map(ifname, driver):
         _update_dpdk_map(ifname, pci_address, mac_address, driver)
 
 
+def unbind_dpdk_interfaces(pci_address):
+    iface_driver = common.get_pci_device_driver(pci_address)
+    if iface_driver == "vfio-pci":
+        return common.unset_driverctl_override(pci_address)
+    else:
+        logger.info(
+            "%s: not bound with vfio-pci and hence not removing the override",
+            pci_address,
+        )
+        return 0
+
+
 def bind_dpdk_interfaces(ifname, driver, noop):
     if common.is_mellanox_interface(ifname) and 'vfio-pci' in driver:
         msg = ("For Mellanox NIC %s, the default driver vfio-pci "
@@ -284,6 +297,40 @@ def bind_dpdk_interfaces(ifname, driver, noop):
         # available nor bound with dpdk.
         msg = "Interface %s cannot be found" % ifname
         raise common.OvsDpdkBindException(msg)
+
+
+def remove_dpdk_interface(iface):
+    dpdk_map = common.get_dpdk_map()
+    for dpdk_nic in dpdk_map:
+        if dpdk_nic["name"] == iface:
+            err = detach_dpdk_interfaces(dpdk_nic["pci_address"])
+            if err:
+                logger.warning(
+                    "%s: Failed to detach dpdk interface",
+                    dpdk_nic["name"],
+                )
+            err = unbind_dpdk_interfaces(dpdk_nic["pci_address"])
+            if err:
+                logger.error(
+                    "%s: Failed to unbind dpdk interface",
+                    dpdk_nic["name"],
+                )
+            break
+    else:
+        logger.error("%s: could not find in dpdk_mapping.yaml", iface)
+
+
+def detach_dpdk_interfaces(pci_address):
+    cmd = ["ovs-appctl", "netdev-dpdk/detach", pci_address]
+    try:
+        logger.info("%s: running %s", pci_address, " ".join(cmd))
+        out, err = processutils.execute(*cmd)
+        if err:
+            return 1
+        return 0
+    except processutils.ProcessExecutionError as exc:
+        logger.error("%s: Failed to detach. Err: %s", pci_address, exc)
+        return -1
 
 
 def translate_ifname_to_pci_address(ifname, noop):
@@ -550,6 +597,12 @@ def _configure_sriov_config_service():
     processutils.execute('systemctl', 'enable', 'sriov_config')
 
 
+def disable_sriov_config_service():
+    if common.get_noop():
+        return
+    processutils.execute("systemctl", "disable", "sriov_config")
+
+
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):
     logger.info("Configuring PFs now")
     sriov_config.configure_sriov_pf(
@@ -601,6 +654,21 @@ def get_vf_devname(pf_name, vfid):
     # The VF's actual device name shall be the only directory seen in the path
     # /sys/class/net/<pf_name>/device/virtfn<vfid>/net
     return vf_nic[0]
+
+
+def backup_map_files(backup_path):
+    src_files = [common.DPDK_MAPPING_FILE,
+                 common.SRIOV_CONFIG_FILE,
+                 sriov_config._UDEV_LEGACY_RULE_FILE
+                 ]
+    for src in src_files:
+        if os.path.exists(src):
+            src_name = os.path.basename(common.DPDK_MAPPING_FILE)
+            bkup_file = os.path.join(backup_path, src_name)
+            logger.info("Moving %s -> %s", src, bkup_file)
+            shutil.move(src, bkup_file)
+        else:
+            logger.warning("%s is absent", src)
 
 
 def restart_vpp(vpp_interfaces):
