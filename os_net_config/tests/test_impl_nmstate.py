@@ -589,7 +589,7 @@ class TestNmstateNetConfig(base.TestCase):
     ethtool: {}
     dispatch:
         post-activation: |
-            /sbin/ethtool -U $1 flow-type tcp4 tos 1 action 10
+            /sbin/ethtool -U $1 flow-type tcp4 tos 1 action 10 #ETHTOOL
 """
         em10_config = """
   - ethernet:
@@ -598,7 +598,7 @@ class TestNmstateNetConfig(base.TestCase):
     ethtool: {}
     dispatch:
         post-activation: |
-            /sbin/ethtool --set-priv-flags $1 disable-fw-lldp off
+            /sbin/ethtool --set-priv-flags $1 disable-fw-lldp off #ETHTOOL
 """
         self.assertEqual(yaml.safe_load(em1_config)[0],
                          self.get_nmstate_ethtool_opts('em1'))
