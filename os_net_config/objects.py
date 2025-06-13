@@ -742,21 +742,21 @@ class OvsBridge(_BaseOpts):
     def update_vf_config(iface):
         if iface.trust is None:
             logger.info(
-                "%s-%d: Trust is not set, defaulting to on",
+                "%s-%s: Trust is not set, defaulting to on",
                 iface.device,
                 iface.vfid
             )
             iface.trust = "on"
         if iface.spoofcheck is None:
             logger.info(
-                "%s-%d: Spoofcheck is not set, defaulting to off",
+                "%s-%s: Spoofcheck is not set, defaulting to off",
                 iface.device,
                 iface.vfid
             )
             iface.spoofcheck = "off"
         if iface.promisc is None:
             logger.info(
-                "%s-%d: Promisc is not set, defaulting to on",
+                "%s-%s: Promisc is not set, defaulting to on",
                 iface.device,
                 iface.vfid
             )
@@ -1134,21 +1134,21 @@ class LinuxBond(_BaseOpts):
     def update_vf_config(iface):
         if iface.trust is None:
             logger.info(
-                "%s-%d: Trust is not set, defaulting to on",
+                "%s-%s: Trust is not set, defaulting to on",
                 iface.device,
                 iface.vfid,
             )
             iface.trust = 'on'
         if iface.spoofcheck is None:
             logger.info(
-                "%s-%d: Spoofcheck is not set, defaulting to off",
+                "%s-%s: Spoofcheck is not set, defaulting to off",
                 iface.device,
                 iface.vfid,
             )
             iface.spoofcheck = 'off'
         if iface.promisc is None:
             logger.info(
-                "%s-%d: Promisc is not set, defaulting to off",
+                "%s-%s: Promisc is not set, defaulting to off",
                 iface.device,
                 iface.vfid,
             )
@@ -1231,21 +1231,21 @@ class OvsBond(_BaseOpts):
     def update_vf_config(iface):
         if iface.trust is None:
             logger.info(
-                "%s-%d: Trust is not set, defaulting to on",
+                "%s-%s: Trust is not set, defaulting to on",
                 iface.device,
                 iface.vfid,
             )
             iface.trust = "on"
         if iface.spoofcheck is None:
             logger.info(
-                "%s-%d: Spoofcheck is not set, defaulting to off",
+                "%s-%s: Spoofcheck is not set, defaulting to off",
                 iface.device,
                 iface.vfid,
             )
             iface.spoofcheck = "off"
         if iface.promisc is None:
             logger.info(
-                "%s-%d: Promisc is not set, defaulting to on",
+                "%s-%s: Promisc is not set, defaulting to on",
                 iface.device,
                 iface.vfid,
             )
@@ -1468,27 +1468,27 @@ class OvsDpdkPort(_BaseOpts):
     def update_vf_config(iface, driver=None):
         if iface.trust is None:
             logger.info(
-                "%s-%d: Trust is not set, defaulting to on",
+                "%s-%s: Trust is not set, defaulting to on",
                 iface.device,
                 iface.vfid,
             )
             iface.trust = "on"
         if iface.spoofcheck is None:
             logger.info(
-                "%s-%d: Spoofcheck is not set, defaulting to off",
+                "%s-%s: Spoofcheck is not set, defaulting to off",
                 iface.device,
                 iface.vfid,
             )
             iface.spoofcheck = "off"
         if iface.promisc is not None:
             logger.warning(
-                "%s-%d: Promisc can't be changed for ovs_dpdk_port",
+                "%s-%s: Promisc can't be changed for ovs_dpdk_port",
                 iface.device,
                 iface.vfid,
             )
             iface.promisc = None
         logger.info(
-            "%s-%d: Overriding the default driver for DPDK with %s",
+            "%s-%s: Overriding the default driver for DPDK with %s",
             iface.device,
             iface.vfid,
             driver,
