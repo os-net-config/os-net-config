@@ -1984,6 +1984,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 logger.info('No changes required for VPP')
 
         if cleanup:
+            real_nics_to_restore = []
             for ifcfg_file in glob.iglob(cleanup_pattern()):
                 if ifcfg_file not in all_file_names:
                     interface_name = ifcfg_file[len(cleanup_pattern()) - 1:]
@@ -1993,6 +1994,27 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         )
                         self.ifdown(interface_name)
                         self.remove_config(ifcfg_file)
+                        if (utils.is_real_nic(interface_name) and
+                                not common.is_vf_by_name(interface_name)):
+                            logger.info(
+                                "%s will be brought up after cleanup",
+                                interface_name
+                            )
+                            real_nics_to_restore.append(interface_name)
+
+            # During cleanup, physical interfaces not defined in the
+            # input YAML are brought DOWN. If they are not restored,
+            # subsequent configurations may fail due to changes in NIC
+            # numbering. This logic ensures real NICs are brought back
+            # UP to preserve consistent interface naming and avoid
+            # requiring changes to the YAML config.
+
+            for iface in real_nics_to_restore:
+                logger.info("%s: restoring real nic", iface)
+                data = self._add_common(objects.Interface(iface))
+                logger.debug("%s: generated ifcfg data \n%s", iface, data)
+                self.write_config(ifcfg_config_path(iface), data)
+                self.ifup(iface)
 
         if activate:
             for interface in apply_interfaces:
