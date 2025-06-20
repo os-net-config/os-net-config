@@ -917,6 +917,7 @@ class TestNmstateNetConfig(base.TestCase):
         name: br-ctlplane
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: False
@@ -960,6 +961,7 @@ class TestNmstateNetConfig(base.TestCase):
         name: br-ctlplane2
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: False
@@ -998,6 +1000,7 @@ class TestNmstateNetConfig(base.TestCase):
         name: br-ctlplane2
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: False
@@ -1048,6 +1051,7 @@ class TestNmstateNetConfig(base.TestCase):
         name: br-ctlplane2
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: True
@@ -1099,6 +1103,7 @@ class TestNmstateNetConfig(base.TestCase):
         name: br-ctlplane2
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: True
@@ -1141,6 +1146,7 @@ class TestNmstateNetConfig(base.TestCase):
         name: br-ctlplane2
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: False
@@ -1255,6 +1261,7 @@ class TestNmstateNetConfig(base.TestCase):
         expected_bridge_cfg = """
         name: br-ctlplane
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: false
@@ -1322,6 +1329,7 @@ class TestNmstateNetConfig(base.TestCase):
         expected_bridge_cfg = """
         name: br-ctlplane
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: false
@@ -1353,6 +1361,7 @@ class TestNmstateNetConfig(base.TestCase):
         expected_bridge_cfg = """
         name: br-phys-0
         bridge:
+           allow-extra-patch-ports: True
            options:
               fail-mode: standalone
               mcast-snooping-enable: false
@@ -1370,6 +1379,7 @@ class TestNmstateNetConfig(base.TestCase):
         expected_bridge_ex_cfg = """
         name: br-ex
         bridge:
+           allow-extra-patch-ports: True
            options:
               fail-mode: standalone
               mcast-snooping-enable: false
@@ -1709,6 +1719,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 fail-mode: standalone
                 mcast-snooping-enable: False
@@ -1802,6 +1813,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 datapath: netdev
                 fail-mode: standalone
@@ -1869,6 +1881,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 datapath: netdev
                 fail-mode: standalone
@@ -1985,6 +1998,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 datapath: netdev
                 fail-mode: standalone
@@ -2116,6 +2130,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 datapath: netdev
                 fail-mode: standalone
@@ -2250,6 +2265,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 datapath: netdev
                 fail-mode: standalone
@@ -2440,6 +2456,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 datapath: netdev
                 fail-mode: standalone
@@ -2586,6 +2603,7 @@ class TestNmstateNetConfig(base.TestCase):
         state: up
         type: ovs-bridge
         bridge:
+            allow-extra-patch-ports: True
             options:
                 datapath: netdev
                 fail-mode: standalone
