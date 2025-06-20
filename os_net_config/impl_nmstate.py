@@ -105,6 +105,7 @@ IPV6_DEFAULT_GATEWAY_DESTINATION = "::/0"
 POST_ACTIVATION = 'post-activation'
 POST_DEACTIVATION = 'post-deactivation'
 DISPATCH = 'dispatch'
+LOOPBACK = "lo"
 CONFIG_RULES_FILE = '/var/lib/os-net-config/nmstate_files/rules.yaml'
 
 
@@ -1504,28 +1505,31 @@ class NmstateNetConfig(os_net_config.NetConfig):
         logger.info("%s: adding interface", interface.name)
         data = self._add_common(interface)
 
-        data[Interface.TYPE] = InterfaceType.ETHERNET
-        data[Ethernet.CONFIG_SUBTREE] = {}
-        int_data = self.iface_state(interface.name)
-        try:
-            cur_numvfs = int_data['ethernet']['sr-iov']['total-vfs']
-        except (KeyError, TypeError):
-            cur_numvfs = 0
-        if utils.get_totalvfs(interface.name) > 0:
-            data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
-                Ethernet.SRIOV.TOTAL_VFS: cur_numvfs}
+        if interface.name == LOOPBACK:
+            data[Interface.TYPE] = InterfaceType.LOOPBACK
+        else:
+            data[Interface.TYPE] = InterfaceType.ETHERNET
+            data[Ethernet.CONFIG_SUBTREE] = {}
+            int_data = self.iface_state(interface.name)
+            try:
+                cur_numvfs = int_data['ethernet']['sr-iov']['total-vfs']
+            except (KeyError, TypeError):
+                cur_numvfs = 0
+            if utils.get_totalvfs(interface.name) > 0:
+                data[Ethernet.CONFIG_SUBTREE][Ethernet.SRIOV_SUBTREE] = {
+                    Ethernet.SRIOV.TOTAL_VFS: cur_numvfs}
 
-        if interface.ethtool_opts:
-            self.add_ethtool_config(interface.name, data,
-                                    interface.ethtool_opts)
+            if interface.ethtool_opts:
+                self.add_ethtool_config(interface.name, data,
+                                        interface.ethtool_opts)
 
-        if interface.renamed:
-            logger.info(
-                "%s: renamed from %s", interface.name, interface.hwname
-            )
-            self.renamed_interfaces[interface.hwname] = interface.name
-        if interface.hwaddr:
-            data[Interface.MAC] = interface.hwaddr
+            if interface.renamed:
+                logger.info(
+                    "%s: renamed from %s", interface.name, interface.hwname
+                )
+                self.renamed_interfaces[interface.hwname] = interface.name
+            if interface.hwaddr:
+                data[Interface.MAC] = interface.hwaddr
 
         self.__dump_key_config(data, msg=f"{interface.name}: Prepared config")
         self.interface_data[interface.name] = data
