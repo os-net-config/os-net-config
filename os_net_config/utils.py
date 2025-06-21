@@ -37,7 +37,7 @@ Before=network-pre.target  openvswitch.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/os-net-config-sriov
+ExecStart=/usr/bin/os-net-config-sriov -d
 
 [Install]
 WantedBy=basic.target
