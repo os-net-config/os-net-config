@@ -219,8 +219,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def enumerate_ifcfg_route_changes(self, old_routes, new_routes):
         """Determine which routes are added or removed.
 
-        :param file_values: contents of existing interface route file
-        :param data_values: contents of replacement interface route file
+        :param old_values: contents of existing interface route file
+        :param new_values: contents of replacement interface route file
         :return: list of tuples representing changes (route, state), where
                  state is one of added or removed
         """
@@ -237,8 +237,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
     def enumerate_ifcfg_rule_changes(self, old_rules, new_rules):
         """Determine which routes are added or removed.
 
-        :param file_values: contents of existing interface route rule file
-        :param data_values: contents of replacement interface route rule file
+        :param old_values: contents of existing interface route rule file
+        :param new_values: contents of replacement interface route rule file
         :return: list of tuples representing changes (rule, state), where
                  state is one of added or removed
         """
@@ -275,7 +275,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         permitted_changes = [
             'IPADDR', 'NETMASK',
             'MTU', 'ONBOOT', 'ETHTOOL_OPTS',
-            'DOMAIN', 'DNS1', 'DNS2'
+            'DOMAIN', 'DNS1', 'DNS2',
+            'IPV6_SET_SYSCTLS, IPV6_DEFAULTGW,',
+            'IPV6_DEFAULTDEV", "IPV6_FORCE_ACCEPT_RA'
         ]
         # Check whether any of the changes require restart
         for change in self.enumerate_ifcfg_changes(file_values, new_values):
@@ -760,6 +762,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             if v6_addresses:
                 first_v6 = v6_addresses[0]
                 data += "IPV6_AUTOCONF=no\n"
+                data += "IPV6_SET_SYSCTLS=yes\n"
                 data += "IPV6ADDR=%s\n" % first_v6.ip_netmask
                 if len(v6_addresses) > 1:
                     secondaries_v6 = " ".join(map(lambda a: a.ip_netmask,
@@ -772,6 +775,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             data += "OVS_EXTRA=\"%s\"\n" % " -- ".join(ovs_extra)
         if not base_opt.defroute:
             data += "DEFROUTE=no\n"
+        for route in base_opt.routes:
+            if route.default or (route.ip_netmask == "::/0"):
+                if ":" in route.next_hop:
+                    data += "IPV6_DEFAULTGW={}\n".format(route.next_hop)
+                    data += "IPV6_DEFAULTDEV={}\n".format(base_opt.name)
+                    data += "IPV6_FORCE_ACCEPT_RA=no\n"
         if base_opt.dhclient_args:
             data += "DHCLIENTARGS=%s\n" % base_opt.dhclient_args
         if base_opt.dns_servers:
@@ -1550,6 +1559,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         vpp_bonds = self.vpp_bond_data.values()
         ipcmd = utils.iproute2_path()
         ethtoolcmd = utils.ethtool_path()
+        set_sysctls = []
 
         for interface_name, iface_data in self.interface_data.items():
             route_data = self.route_data.get(interface_name, '')
@@ -1687,6 +1697,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             all_file_names.append(br_route_path)
             all_file_names.append(br_route6_path)
             all_file_names.append(br_rule_path)
+            if "IPV6_FORCE_ACCEPT_RA" in bridge_data:
+                set_sysctls.append(bridge_name)
             if utils.diff(bridge_path, bridge_data):
                 if self.ifcfg_requires_restart(bridge_path, bridge_data):
                     restart_bridges.append(bridge_name)
@@ -1726,6 +1738,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             all_file_names.append(br_route_path)
             all_file_names.append(br_route6_path)
             all_file_names.append(br_rule_path)
+            if "IPV6_FORCE_ACCEPT_RA" in bridge_data:
+                set_sysctls.append(bridge_name)
             if utils.diff(bridge_path, bridge_data):
                 if self.ifcfg_requires_restart(bridge_path, bridge_data):
                     restart_bridges.append(bridge_name)
@@ -1765,6 +1779,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             all_file_names.append(team_route_path)
             all_file_names.append(team_route6_path)
             all_file_names.append(team_rule_path)
+            if "IPV6_FORCE_ACCEPT_RA" in team_data:
+                set_sysctls.append(team_name)
             if utils.diff(team_path, team_data):
                 if self.ifcfg_requires_restart(team_path, team_data):
                     restart_linux_teams.append(team_name)
@@ -1851,6 +1867,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             all_file_names.append(route_path)
             all_file_names.append(route6_path)
             all_file_names.append(rule_path)
+            if "IPV6_FORCE_ACCEPT_RA" in iface_data:
+                set_sysctls.append(interface_name)
             # TODO(dsneddon) determine if InfiniBand can be used with IVS
             if "IVS_BRIDGE" in iface_data:
                 ivs_uplinks.append(interface_name)
@@ -1893,6 +1911,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             all_file_names.append(vlan_route_path)
             all_file_names.append(vlan_route6_path)
             all_file_names.append(vlan_rule_path)
+            if "IPV6_FORCE_ACCEPT_RA" in vlan_data:
+                set_sysctls.append(vlan_name)
             restarts = itertools.chain(restart_interfaces,
                                        restart_bridges,
                                        restart_linux_bonds,
@@ -1926,6 +1946,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     apply_rules.append((vlan_name, rule_data))
 
         for ib_child_name, ib_child_data in self.ib_childs_data.items():
+            if "IPV6_FORCE_ACCEPT_RA" in ib_child_data:
+                set_sysctls.append(ib_child_name)
             route_data = self.route_data.get(ib_child_name, '')
             route6_data = self.route6_data.get(ib_child_name, '')
             rule_data = self.rule_data.get(ib_child_name, '')
@@ -1982,6 +2004,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 update_files[vpp_path] = vpp_config
             else:
                 logger.info('No changes required for VPP')
+
+        for interface in set_sysctls:
+            utils.set_accept_ra_sysctl(interface)
 
         if cleanup:
             for ifcfg_file in glob.iglob(cleanup_pattern()):
