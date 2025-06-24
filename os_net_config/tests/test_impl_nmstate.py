@@ -1124,8 +1124,29 @@ class TestNmstateNetConfig(base.TestCase):
                 stp-priority: '0x7800'
         state: up
         """
-        interface1 = objects.Interface('em2')
-        interface2 = objects.Interface('em3')
+
+        expected_em2_cfg = """
+        name: em2
+        state: up
+        ethernet:
+            sr-iov:
+              total-vfs: 0
+        ipv4:
+            dhcp: False
+            enabled: False
+        ipv6:
+            autoconf: False
+            dhcp: False
+            enabled: False
+        type: ethernet
+        ovs-db:
+            external_ids:
+                foo: bar
+        """
+
+        ovs_extra_if = ["set interface {name} external-ids:foo=bar"]
+        interface1 = objects.Interface('em2', ovs_extra=ovs_extra_if)
+        interface2 = objects.Interface('em3', ovs_extra=ovs_extra_if)
         ovs_extra = [
             "br-set-external-id br-ctlplane2 bridge-id br-ctlplane",
             "set bridge {name} stp_enable=true rstp_enable=true",
@@ -1138,8 +1159,11 @@ class TestNmstateNetConfig(base.TestCase):
                                    members=[interface1, interface2],
                                    ovs_extra=ovs_extra)
         self.provider.add_bridge(bridge)
+        self.provider.add_interface(interface1)
         self.assertEqual(yaml.safe_load(expected_brctl2_cfg),
                          self.get_bridge_config('br-ctlplane2'))
+        self.assertEqual(yaml.safe_load(expected_em2_cfg),
+                         self.get_interface_config('em2'))
 
     def test_network_ovs_bridge_with_linux_bond(self):
         expected_brctl2_cfg = """

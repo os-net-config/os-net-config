@@ -516,7 +516,7 @@ class Interface(_BaseOpts):
                  nic_mapping=None, persist_mapping=False, defroute=True,
                  dhclient_args=None, dns_servers=None, nm_controlled=False,
                  onboot=True, domain=None, ethtool_opts=None, hotplug=False,
-                 linkdelay=None):
+                 linkdelay=None, ovs_extra=[]):
         addresses = addresses or []
         routes = routes or []
         rules = rules or []
@@ -529,6 +529,7 @@ class Interface(_BaseOpts):
         self.ethtool_opts = ethtool_opts
         self.hotplug = hotplug
         self.linkdelay = linkdelay
+        self.ovs_extra = format_ovs_extra(self, ovs_extra)
 
     @staticmethod
     def from_json(json):
@@ -536,6 +537,9 @@ class Interface(_BaseOpts):
         hotplug = strutils.bool_from_string(str(json.get('hotplug', False)))
         opts = _BaseOpts.base_opts_from_json(json)
         ethtool_opts = json.get('ethtool_opts', None)
+        ovs_extra = json.get('ovs_extra', [])
+        if not isinstance(ovs_extra, list):
+            ovs_extra = [ovs_extra]
         linkdelay = json.get('linkdelay', None)
         dcb_config_json = json.get('dcb')
         if dcb_config_json:
@@ -553,7 +557,8 @@ class Interface(_BaseOpts):
                                   dscp2prio=dcb_config.dscp2prio)
 
         return Interface(name, *opts, ethtool_opts=ethtool_opts,
-                         hotplug=hotplug, linkdelay=linkdelay)
+                         hotplug=hotplug, linkdelay=linkdelay,
+                         ovs_extra=ovs_extra)
 
 
 class Vlan(_BaseOpts):
@@ -1581,7 +1586,7 @@ class SriovVF(_BaseOpts):
                  nm_controlled=False, onboot=True, domain=None, vlan_id=0,
                  qos=0, spoofcheck=None, trust=None, state=None, macaddr=None,
                  promisc=None, min_tx_rate=0, max_tx_rate=0,
-                 ethtool_opts=None):
+                 ethtool_opts=None, ovs_extra=[]):
         addresses = addresses or []
         routes = routes or []
         rules = rules or []
@@ -1633,6 +1638,7 @@ class SriovVF(_BaseOpts):
         self.pci_address = pci_address
         self.driver = cur_driver if cur_driver else def_driver
         self.ethtool_opts = ethtool_opts
+        self.ovs_extra = format_ovs_extra(self, ovs_extra)
         utils.update_sriov_vf_map(device, self.vfid, name,
                                   vlan_id=self.vlan_id,
                                   qos=self.qos,
@@ -1683,11 +1689,14 @@ class SriovVF(_BaseOpts):
             raise InvalidConfigException(msg)
         macaddr = json.get('macaddr')
         ethtool_opts = json.get('ethtool_opts', None)
+        ovs_extra = json.get('ovs_extra', [])
+        if not isinstance(ovs_extra, list):
+            ovs_extra = [ovs_extra]
         return SriovVF(device, vfid, *opts, vlan_id=vlan_id, qos=qos,
                        spoofcheck=spoofcheck, trust=trust, state=state,
                        macaddr=macaddr, promisc=promisc,
                        min_tx_rate=min_tx_rate, max_tx_rate=max_tx_rate,
-                       ethtool_opts=ethtool_opts)
+                       ethtool_opts=ethtool_opts, ovs_extra=ovs_extra)
 
 
 class SriovPF(_BaseOpts):
