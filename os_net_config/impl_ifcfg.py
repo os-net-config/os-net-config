@@ -530,6 +530,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         elif isinstance(base_opt, objects.Interface):
             if base_opt.linkdelay:
                 data += "LINKDELAY=%s\n" % base_opt.linkdelay
+            if base_opt.bridge_name:
+                ovs_extra.extend(base_opt.ovs_extra)
+        elif isinstance(base_opt, objects.SriovVF):
+            if base_opt.bridge_name:
+                ovs_extra.extend(base_opt.ovs_extra)
         if base_opt.linux_bond_name:
             data += "MASTER=%s\n" % base_opt.linux_bond_name
             data += "SLAVE=yes\n"
