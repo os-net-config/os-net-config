@@ -1066,7 +1066,10 @@ class TestNmstateNetConfig(base.TestCase):
                           - name: em3
                       ovs-db:
                           other_config:
-                             bond-primary: em2
+                              bond-primary: em2
+                              zig: zag
+                          external_ids:
+                              foo: bar
                 - name: br-ctlplane2
                   vlan:
                       tag: 70
@@ -1089,9 +1092,11 @@ class TestNmstateNetConfig(base.TestCase):
             "set Bridge {name} other_config:stp-priority=0x7800",
             "set port {name} tag=70"]
 
+        ovs_extra_b = ["set port {name} external-ids:foo=bar",
+                       "set port {name} other_config:zig=zag"]
         ovs_options = 'bond_mode=balance-slb'
         bond = objects.OvsBond('bond0', members=[interface1, interface2],
-                               ovs_options=ovs_options)
+                               ovs_options=ovs_options, ovs_extra=ovs_extra_b)
         bridge = objects.OvsBridge('br-ctlplane2', use_dhcp=True,
                                    members=[bond], ovs_extra=ovs_extra)
         self.provider.add_bridge(bridge)
