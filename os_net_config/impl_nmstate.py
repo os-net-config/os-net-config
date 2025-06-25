@@ -1715,7 +1715,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         "%s=%s", "->".join(cfg["sub_tree"] + [key]), value
                     )
 
-    def parse_ovs_extra_for_bond(self, ovs_extras, name, data):
+    def parse_ovs_extra_for_bond_options(self, ovs_extras, name, data):
         """Parse ovs extra for bonding options
 
         Parse ovs extra fields for the bonding options
@@ -1869,6 +1869,34 @@ class NmstateNetConfig(os_net_config.NetConfig):
             for cmd_map in cfg_eq_val_pair:
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
+    def parse_ovs_extra_for_bond(self, ovs_extras, bond_name, data):
+        """Parse ovs extra for interface
+
+        :param ovs_extras: ovs extra as list of strings
+        :param bond_name: Bond name
+        :param data: The bond data that will be modified after
+            the parsing
+        """
+        bond_cfg = [{'config': r'^external[-_]ids:[\w+]',
+                     'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
+                     'nm_config': None,
+                     'nm_config_regex': r'^external[-_]ids:(.+?)=',
+                     'value_pattern': r'^external[-_]ids:.*=(.+?)$'},
+                    {'config': r'^other[-_]config:[\w+]',
+                     'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+                     'nm_config': None,
+                     'nm_config_regex': r'^other[-_]config:(.+?)=',
+                     'value_pattern': r'^other[-_]config:.*=(.+?)$'},
+                    ]
+        cfg_eq_val_pair = [{'command': ['set', 'port',
+                                        '({name}|%s)' % bond_name],
+                            'action': bond_cfg}]
+        for ovs_extra in ovs_extras:
+            logger.info("%s: Parse - %s", bond_name, ovs_extra)
+            ovs_extra_cmd = ovs_extra.split(' ')
+            for cmd_map in cfg_eq_val_pair:
+                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+
     def parse_ovs_extra_for_ports(self, ovs_extras, bridge_name, data):
         """Parse ovs extra for VLAN
 
@@ -1986,7 +2014,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if (isinstance(member, objects.OvsBond) or
                         isinstance(member, objects.OvsDpdkBond)):
                     bond_options = {}
-                    self.parse_ovs_extra_for_bond(
+                    self.parse_ovs_extra_for_bond_options(
                         member.ovs_extra, member.name, bond_options)
                     logger.debug(
                         "%s: Bond options from ovs_extra\n%s",
@@ -2020,6 +2048,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         bond_options,
                     )
                     bond_data = set_ovs_bonding_options(bond_options)
+                    self.parse_ovs_extra_for_bond(
+                        member.ovs_extra,
+                        member.name,
+                        bond_data
+                    )
                     bond_port = [{
                         OVSBridge.Port.LINK_AGGREGATION_SUBTREE: bond_data,
                         OVSBridge.Port.NAME: member.name},
