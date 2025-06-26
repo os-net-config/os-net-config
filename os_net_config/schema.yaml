@@ -367,6 +367,8 @@ definitions:
                 $ref: "#/definitions/int_or_param"
             dcb:
                 $ref: "#/definitions/dcb"
+            ovs_extra:
+                $ref: "#/definitions/ovs_extra_or_param"
         required:
           - type
           - name
@@ -515,6 +517,8 @@ definitions:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
             ethtool_opts:
                 $ref: "#/definitions/string_or_param"
+            ovs_extra:
+                $ref: "#/definitions/ovs_extra_or_param"
         required:
           - type
           - device

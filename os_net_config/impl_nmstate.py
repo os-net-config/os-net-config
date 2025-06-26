@@ -1563,6 +1563,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if interface.hwaddr:
                 data[Interface.MAC] = interface.hwaddr
 
+            if interface.ovs_port and interface.ovs_extra:
+                self.parse_ovs_extra_for_iface(
+                    interface.ovs_extra,
+                    interface.name,
+                    data
+                )
+
         self.__dump_key_config(data, msg=f"{interface.name}: Prepared config")
         self.interface_data[interface.name] = data
 
@@ -1832,6 +1839,35 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
             for cmd_map in cfg_val_pair:
                 self._ovs_extra_cfg_val(ovs_extra_cmd, cmd_map, data)
+
+    def parse_ovs_extra_for_iface(self, ovs_extras, iface_name, data):
+        """Parse ovs extra for interface
+
+        :param ovs_extras: ovs extra as list of string
+        :param iface_name: Interface name
+        :param data: The interface data that will be modified after
+            the parsing
+        """
+        # Parse for external-ids and external_ids.
+        iface_cfg = [{'config': r'^external-ids:[\w+]',
+                      'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
+                      'nm_config': None,
+                      'nm_config_regex': r'^external-ids:(.+?)=',
+                      'value_pattern': r'^external-ids:.*=(.+?)$'},
+                     {'config': r'^external_ids:[\w+]',
+                      'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
+                      'nm_config': None,
+                      'nm_config_regex': r'^external_ids:(.+?)=',
+                      'value_pattern': r'^external_ids:.*=(.+?)$'}
+                     ]
+        cfg_eq_val_pair = [{'command': ['set', 'interface',
+                                        '({name}|%s)' % iface_name],
+                            'action': iface_cfg}]
+        for ovs_extra in ovs_extras:
+            logger.info("%s: Parse - %s", iface_name, ovs_extra)
+            ovs_extra_cmd = ovs_extra.split(' ')
+            for cmd_map in cfg_eq_val_pair:
+                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
     def parse_ovs_extra_for_ports(self, ovs_extras, bridge_name, data):
         """Parse ovs extra for VLAN
@@ -2330,6 +2366,14 @@ class NmstateNetConfig(os_net_config.NetConfig):
         data[Ethernet.CONFIG_SUBTREE] = {}
         if sriov_vf.promisc:
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
+
+        if sriov_vf.ovs_port and sriov_vf.ovs_extra:
+            self.parse_ovs_extra_for_iface(
+                sriov_vf.ovs_extra,
+                sriov_vf.name,
+                data
+            )
+
         self.interface_data[sriov_vf.name] = data
 
         if sriov_vf.ethtool_opts:
