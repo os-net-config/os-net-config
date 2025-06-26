@@ -1,11 +1,17 @@
 ---
-name: CI
-
+name: Run gating CI for PR
+# This workflow validates pull requests for commit formatting and CI status labels
 on:
   push:
     branches:
       - master
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - unlabeled
 
 jobs:
   check-commits:
@@ -17,3 +23,37 @@ jobs:
           fetch-depth: 0 # force fetch all history
       - run: git config --global --add safe.directory $PWD
       - run: ./check-commits "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+  check-labels:
+    if: ${{ github.event_name == 'pull_request' && 
+            (github.event.action == 'opened' ||
+             github.event.action == 'reopened' || 
+             github.event.action == 'labeled' || 
+             github.event.action == 'unlabeled' || 
+             github.event.action == 'synchronize') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for ci-passed label and ci-gate status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const labelNames = labels.data.map(label => label.name);
+            const hasPassed = labelNames.includes('ci-passed');
+            const hasFailed = labelNames.includes('ci-failed');
+            const hasGate = labelNames.includes('ci-gate');
+
+            if (hasGate) {
+              core.setFailed("'ci-gate' - CI still in-progress");
+            } else if (hasFailed) {
+              core.setFailed("'ci-failed' - Fix code and re-run CI");
+            } else if (hasPassed) {
+              console.log("CI labels look good — 'ci-passed' present, 'ci-gate' not present.");
+            } else {
+              core.setFailed("Missing 'ci-passed' label. Trigger CI by adding 'ci-gate' label");
+            }
