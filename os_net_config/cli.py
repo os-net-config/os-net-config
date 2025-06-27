@@ -132,6 +132,13 @@ def parse_opts(argv):
              "(WARNING, permanently renames nics).",
         required=False)
 
+    parser.add_argument(
+        '--nm-cleanup',
+        dest="nm_cleanup",
+        action='store_true',
+        help="Cleanup existing nm connection for active interfaces.",
+        required=False)
+
     opts = parser.parse_args(argv[1:])
 
     return opts
@@ -391,6 +398,7 @@ def main(argv=sys.argv, main_logger=None):
             # Skip cleanup while applying PF configuration
             pf_files_changed = provider.apply(cleanup=False,
                                               activate=not opts.no_activate,
+                                              nmcleanup=opts.nm_cleanup,
                                               config_rules_dns=False)
 
             if opts.provider == 'ifcfg' and not opts.noop:
@@ -422,6 +430,7 @@ def main(argv=sys.argv, main_logger=None):
             utils.configure_sriov_vfs()
 
         files_changed = provider.apply(cleanup=opts.cleanup,
+                                       nmcleanup=opts.nm_cleanup,
                                        activate=not opts.no_activate)
         logger.info(
             "Succesfully applied the network configuration with "
