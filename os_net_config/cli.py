@@ -56,23 +56,24 @@ def parse_opts(argv):
                         """If no value is given, display full NIC mapping. """
                         """Exit after printing, ignoring other parameters. """,
                         nargs='*', default=None)
-    parser.add_argument('-p', '--provider', metavar='PROVIDER',
-                        help="""The provider to use. """
-                        """One of: ifcfg, eni, nmstate, iproute.""",
-                        choices=_PROVIDERS.keys(),
-                        default=None)
     parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
                         help="""The root directory of the filesystem.""",
                         default='')
-    parser.add_argument('--purge-provider', metavar='PURGE_PROVIDER',
-                        help="""Enable a migration from one provider."""
-                        """Cleans the network configurations created by """
-                        """the specified provider and migrates the same """
-                        """network configuration to the desired provider."""
-                        """There shall be no change in the input network """
-                        """configuration during the migration.""",
-                        choices=_PROVIDERS.keys(),
-                        default=None)
+    p_group = parser.add_mutually_exclusive_group(required=False)
+    p_group.add_argument('-p', '--provider', metavar='PROVIDER',
+                         help="""The provider to use. """
+                         """One of: ifcfg, eni, nmstate, iproute."""
+                         """It is mutually exclusive with --purge-provider.""",
+                         choices=_PROVIDERS.keys(),
+                         default=None)
+    p_group.add_argument('--purge-provider', metavar='PURGE_PROVIDER',
+                         help="""Cleans the network configurations created """
+                         """by the specified provider. There shall be no """
+                         """change in the input network config.yaml during """
+                         """the purge of the provider. It is mutually """
+                         """exclusive with --provider option.""",
+                         choices=_PROVIDERS.keys(),
+                         default=None)
     parser.add_argument('--detailed-exit-codes',
                         action='store_true',
                         help="""Enable detailed exit codes. """
@@ -213,25 +214,8 @@ def main(argv=sys.argv, main_logger=None):
     provider = None
     purge_provider = None
     files_changed = {}
-    migration_failed = False
-
-    if not opts.provider:
-        ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
-        if is_nmstate_available():
-            opts.provider = "nmstate"
-        elif os.path.exists(ifcfg_path):
-            opts.provider = "ifcfg"
-        elif os.path.exists('%s/etc/network/' % opts.root_dir):
-            opts.provider = "eni"
-        else:
-            main_logger.error("Unable to set provider for this operating "
-                              "system.")
-            return 1
 
     if opts.purge_provider:
-        if opts.purge_provider == opts.provider:
-            main_logger.error("purge-provider and provider can't be the same")
-            return 1
         try:
             purge_provider = load_provider(opts.purge_provider, opts.noop,
                                            opts.root_dir)
@@ -337,9 +321,26 @@ def main(argv=sys.argv, main_logger=None):
 
     if purge_provider:
         for iface_json in iface_array:
-            obj = objects.object_from_json(iface_json)
+            try:
+                obj = objects.object_from_json(iface_json)
+            except common.SriovVfNotFoundException:
+                continue
             purge_provider.del_object(obj)
         purge_provider.destroy()
+        return 0
+
+    if not opts.provider:
+        ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
+        if is_nmstate_available():
+            opts.provider = "nmstate"
+        elif os.path.exists(ifcfg_path):
+            opts.provider = "ifcfg"
+        elif os.path.exists('%s/etc/network/' % opts.root_dir):
+            opts.provider = "eni"
+        else:
+            main_logger.error("Unable to set provider for this operating "
+                              "system.")
+            return 1
 
     try:
         provider = load_provider(opts.provider, opts.noop, opts.root_dir)
@@ -347,8 +348,6 @@ def main(argv=sys.argv, main_logger=None):
         main_logger.error('cannot load provider %s: %s', opts.provider, e)
         return 1
 
-    if purge_provider:
-        provider.enable_migration()
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
     # devices are created.
@@ -435,14 +434,6 @@ def main(argv=sys.argv, main_logger=None):
             e
         )
 
-        if purge_provider:
-            logger.info("Rolling back to %s", opts.purge_provider)
-            # Rolling back to the earlier provider.
-            purge_provider.roll_back_migration()
-            migration_failed = True
-        else:
-            raise
-
     if utils.is_dcb_config_required():
         # Apply the DCB Config
         try:
@@ -454,18 +445,6 @@ def main(argv=sys.argv, main_logger=None):
         utils.configure_dcb_config_service()
         dcb_apply = dcb_config.DcbApplyConfig()
         dcb_apply.apply()
-
-    if purge_provider and migration_failed is False:
-        logger.info(
-            "Cleaning the residue files from %s provider", opts.purge_provider
-        )
-        purge_provider.clean_migration()
-    elif migration_failed:
-        logger.info(
-            "Migration Failed. Reverted back to %s provider",
-            opts.purge_provider,
-        )
-        return 1
 
     if opts.noop:
         if configure_sriov:
