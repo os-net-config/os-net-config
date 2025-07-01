@@ -71,6 +71,8 @@ SRIOV_CONFIG_FILE = '/var/lib/os-net-config/sriov_config.yaml'
 #         priority: 3
 
 DCB_CONFIG_FILE = '/var/lib/os-net-config/dcb_config.yaml'
+NMSTATE_NETWORK_CONFIG_FILE \
+    = '/var/lib/os-net-config/nmstate_files/network_config.yaml'
 
 _SYS_BUS_PCI_DEV = '/sys/bus/pci/devices'
 SYS_CLASS_NET = '/sys/class/net'
@@ -579,3 +581,14 @@ def restorecon(path: str):
         logger.error("Failed to restorecon on %s: %s", path, exc)
         raise
     logger.debug("Restorecon completed: %s", stdout)
+
+
+def write_nmstate_network_config(config):
+    write_yaml_config(NMSTATE_NETWORK_CONFIG_FILE, config)
+
+
+def get_nmstate_network_config():
+    contents = get_file_data(NMSTATE_NETWORK_CONFIG_FILE)
+    if contents:
+        return yaml.safe_load(contents)
+    return None
