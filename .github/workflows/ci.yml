@@ -1,0 +1,19 @@
+---
+name: CI
+
+on:
+  push:
+    branches:
+      - stable/wallaby
+  pull_request:
+
+jobs:
+  check-commits:
+    if: ${{ github.event.pull_request.base.sha && github.event.pull_request.head.sha }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # force fetch all history
+      - run: git config --global --add safe.directory $PWD
+      - run: ./check-commits "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
