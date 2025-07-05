@@ -50,7 +50,7 @@ def validate_config(config, config_name="Config file"):
 
 def _validate_config(config, config_name, schema, filter_errors):
     error_messages = []
-    validator = jsonschema.Draft4Validator(schema)
+    validator = jsonschema.Draft7Validator(schema)
     v_errors = validator.iter_errors(config)
     v_errors = sorted(v_errors, key=lambda e: e.path)
     for v_error in v_errors:
