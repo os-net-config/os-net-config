@@ -304,6 +304,18 @@ def main(argv=sys.argv, main_logger=None):
         logger.error("Schema validation failed for minimum_config\n%s", e)
         return ExitCode.ERROR
 
+    try:
+        min_config = get_iface_config(
+            "minimum_config",
+            opts.config_file,
+            iface_mapping,
+            persist_mapping,
+            strict_validate=opts.exit_on_validation_errors,
+        )
+    except objects.InvalidConfigException as e:
+        logger.error("Schema validation failed for minimum_config\n%s", e)
+        return 1
+
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
     if utils.is_dcb_config_required():
@@ -375,6 +387,43 @@ def main(argv=sys.argv, main_logger=None):
                 opts.provider
             )
             return ExitCode.SUCCESS
+
+    # Apply minimum _config using the new provider.
+    try:
+        ret_code = minimum_config(
+            opts.provider,
+            min_config,
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop)
+    except Exception as e:
+        logger.error(
+            "%s: ***Failed to configure minimum_config***\n%s",
+            opts.provider,
+            e
+        )
+        return 1
+
+    if opts.purge_provider:
+        # For migration from old provider to new provider, the minimum_config
+        # needs to be defined. Any failure to configure minimum_config will be
+        # considered as a failure to migrate.
+        if ret_code:
+            logger.error(
+                "%s: Failed to configure minimum_config. "
+                "First phase of migration failed",
+                opts.provider,
+            )
+            return ret_code
+        else:
+            logger.info(
+                "First phase of migration from %s -> %s is successful. "
+                "Run os-net-config --provider %s  to complete the migration",
+                opts.purge_provider,
+                opts.provider,
+                opts.provider
+            )
+            return 0
 
     try:
         logger.info("%s: Applying network_config section", opts.provider)
@@ -626,6 +675,32 @@ def get_iface_config(
             for e in validation_errors:
                 logger.warning(e)
     return iface_array
+
+def minimum_config(provider,
+                   min_config,
+                   no_activate,
+                   root_dir,
+                   noop):
+    if not min_config:
+        logger.warning("minimum_config is not provided")
+        return 1
+
+    logger.info("%s: Running minimum config", provider)
+    ret = config_provider(
+        provider,
+        "minimum_config",
+        min_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == 0 or ret == 2:
+        logger.info("%s: minimum_config is completed", provider)
+        ret = 0
+    else:
+        logger.error("%s: failed to configure minimum_config", provider)
+    return ret
 
 
 def minimum_config(provider,
