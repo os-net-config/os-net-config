@@ -22,6 +22,7 @@ import os
 import sys
 import yaml
 
+import os_net_config
 from os_net_config import common
 from os_net_config.exit_codes import ExitCode
 from os_net_config.exit_codes import get_exit_code
@@ -30,7 +31,6 @@ from os_net_config import objects
 from os_net_config import utils
 from os_net_config import validator
 from os_net_config import version
-
 
 logger = common.configure_logger()
 
@@ -212,7 +212,10 @@ def main(argv=sys.argv, main_logger=None):
         main_logger = common.configure_logger(log_file=not opts.noop)
     common.logger_level(main_logger, opts.verbose, opts.debug)
     main_logger.info("Using config file at: %s", opts.config_file)
-    iface_array = []
+    config_sections = {
+        "network_config": [],
+        "minimum_config": [],
+    }
 
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
@@ -267,24 +270,23 @@ def main(argv=sys.argv, main_logger=None):
         main_logger.debug("Interface report requested, exiting after report.")
         print(json.dumps(reported_nics))
         return onc_ret_code
-    try:
-        iface_array = get_iface_config(
-            "network_config",
-            opts.config_file,
-            iface_mapping,
-            persist_mapping,
-            strict_validate=opts.exit_on_validation_errors,
-        )
-    except objects.InvalidConfigException as e:
-        main_logger.error(
-            "Schema validation failed for network_config with error: \n%s", e
-        )
-        return get_exit_code(opts.detailed_exit_codes,
-                             onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED)
-
-    if not iface_array:
-        return get_exit_code(opts.detailed_exit_codes,
-                             onc_ret_code | ExitCode.ERROR)
+    for section in config_sections.keys():
+        try:
+            config_sections[section] = get_iface_config(
+                section,
+                opts.config_file,
+                iface_mapping,
+                persist_mapping,
+                strict_validate=opts.exit_on_validation_errors,
+            )
+        except objects.InvalidConfigException as e:
+            main_logger.error(
+                "%s: Schema validation failed with error: \n%s", section, e
+            )
+            return get_exit_code(
+                opts.detailed_exit_codes,
+                onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED
+            )
 
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
@@ -292,21 +294,27 @@ def main(argv=sys.argv, main_logger=None):
         common.reset_dcb_map()
 
     if opts.purge_provider:
+        if not config_sections["minimum_config"]:
+            logger.warning(
+                "minimum_config is needed for safe migration. "
+                "Please provide minimum_config section in the config file "
+                "and use --minimum-config cli option.")
+
         purge_ret = unconfig_provider(
             opts.purge_provider,
-            iface_array,
+            config_sections["network_config"],
             opts.root_dir,
             opts.noop
         )
         onc_ret_code |= purge_ret
         if purge_ret == ExitCode.PURGE_FAILED:
             main_logger.error(
-                "%s: Failed to purge provider", opts.purge_provider
+                "%s: Purge provider failed", opts.purge_provider
             )
             return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
         else:
             main_logger.info(
-                "%s: Purged provider successfully", opts.purge_provider
+                "%s: Purge provider completed", opts.purge_provider
             )
 
     if not opts.provider:
@@ -322,34 +330,47 @@ def main(argv=sys.argv, main_logger=None):
                               "system.")
             return get_exit_code(opts.detailed_exit_codes,
                                  onc_ret_code | ExitCode.ERROR)
-    logger.info("%s: Applying network_config section", opts.provider)
-    ret_code = config_provider(
-        opts.provider,
-        "network_config",
-        iface_array,
-        opts.root_dir,
-        opts.noop,
-        opts.no_activate,
-        opts.cleanup,
-    )
-    if ret_code == ExitCode.ERROR:
-        logger.error(
-            "%s: Failed to configure network_config. ",
+
+    if config_sections["minimum_config"]:
+        # Apply minimum _config using the new provider.
+        ret_code = minimum_config(
             opts.provider,
+            config_sections["minimum_config"],
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop)
+        if ret_code == ExitCode.MINIMUM_CONFIG_FAILED:
+            main_logger.error("%s: Minimum config failed", opts.provider)
+            return get_exit_code(opts.detailed_exit_codes, ret_code)
+        else:
+            main_logger.info(
+                "%s: Minimum config completed", opts.provider
+            )
+
+    if config_sections["network_config"]:
+        logger.info("%s: Applying network config", opts.provider)
+        ret_code = config_provider(
+            opts.provider,
+            "network_config",
+            config_sections["network_config"],
+            opts.root_dir,
+            opts.noop,
+            opts.no_activate,
+            opts.cleanup,
         )
-        return get_exit_code(opts.detailed_exit_codes,
-                             onc_ret_code | ExitCode.NETWORK_CONFIG_FAILED)
+    if ret_code == ExitCode.ERROR:
+        main_logger.error("%s: Network config failed", opts.provider)
+        return get_exit_code(
+            opts.detailed_exit_codes,
+            ret_code | ExitCode.NETWORK_CONFIG_FAILED
+        )
     else:
         onc_ret_code |= ret_code
-        main_logger.info(
-            "%s: Configured network_config successfully", opts.provider
-        )
+        main_logger.info("%s: Network config completed", opts.provider)
 
     # If the configuration is successful, apply the DCB config
     if has_failures(onc_ret_code) is False:
         if utils.is_dcb_config_required():
-            common.reset_dcb_map()
-
             # Apply the DCB Config
             try:
                 from os_net_config import dcb_config
@@ -360,6 +381,7 @@ def main(argv=sys.argv, main_logger=None):
             utils.configure_dcb_config_service()
             dcb_apply = dcb_config.DcbApplyConfig()
             dcb_apply.apply()
+            main_logger.info("%s: DCB config completed", opts.provider)
 
     return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
 
@@ -396,7 +418,7 @@ def unconfig_provider(provider_name,
 
     purge_provider.destroy()
 
-    logger.info("%s: Completed unconfig", provider_name)
+    logger.info("%s: Unconfig completed", provider_name)
     return ExitCode.SUCCESS
 
 
@@ -507,10 +529,10 @@ def config_provider(provider_name,
         files_changed = provider.apply(cleanup=cleanup,
                                        activate=not no_activate)
         logger.info(
-            "%s: Successfully configured %s", provider_name, config_name
+            "%s: %s configuration completed", provider_name, config_name
         )
 
-    except Exception as e:
+    except os_net_config.ConfigurationError as e:
         logger.error(
             "%s: ***Failed to configure %s ***\n%s",
             provider_name,
@@ -577,6 +599,35 @@ def get_iface_config(
             for e in validation_errors:
                 logger.warning(e)
     return iface_array
+
+
+def minimum_config(provider,
+                   min_config,
+                   no_activate,
+                   root_dir,
+                   noop):
+    if not min_config:
+        logger.warning(
+            "minimum_config is not provided in config file"
+        )
+        return ExitCode.MINIMUM_CONFIG_FAILED
+
+    logger.info("%s: Running minimum config", provider)
+    ret = config_provider(
+        provider,
+        "minimum_config",
+        min_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == ExitCode.ERROR:
+        logger.error("%s: minimum_config failed", provider)
+        return ExitCode.MINIMUM_CONFIG_FAILED
+    else:
+        logger.info("%s: minimum_config completed", provider)
+        return ExitCode.SUCCESS
 
 
 if __name__ == '__main__':
