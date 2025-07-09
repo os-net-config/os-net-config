@@ -675,7 +675,6 @@ def get_iface_config(
     else:
         logger.error("The config file %s is not found", config_file)
         return []
-
     if not isinstance(iface_array, list):
         logger.info(
             "interfaces are not defined in %s section of %s",
