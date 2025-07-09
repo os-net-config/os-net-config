@@ -217,6 +217,7 @@ def main(argv=sys.argv, main_logger=None):
     config_data = {
         "remove_config": [],
         "network_config": [],
+        "minimum_config": [],
         "fallback_config": [],
     }
 
@@ -317,6 +318,12 @@ def main(argv=sys.argv, main_logger=None):
         common.reset_dcb_map()
 
     if opts.purge_provider:
+        if not config_data["minimum_config"]:
+            logger.warning(
+                "minimum_config is needed for safe migration. "
+                "Please provide minimum_config section in the config file "
+                "and use --minimum-config cli option.")
+
         purge_ret = unconfig_provider(
             opts.purge_provider,
             config_data["network_config"],
@@ -347,6 +354,22 @@ def main(argv=sys.argv, main_logger=None):
                               "system.")
             return get_exit_code(opts.detailed_exit_codes,
                                  onc_ret_code | ExitCode.ERROR)
+
+    if config_data["minimum_config"]:
+        # Apply minimum _config using the new provider.
+        ret_code = minimum_config(
+            opts.provider,
+            config_data["minimum_config"],
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop)
+        if ret_code == ExitCode.MINIMUM_CONFIG_FAILED:
+            main_logger.error("%s: Minimum config failed", opts.provider)
+            return get_exit_code(opts.detailed_exit_codes, ret_code)
+        else:
+            main_logger.info(
+                "%s: Minimum config completed", opts.provider
+            )
 
     if config_data["network_config"]:
         logger.info("%s: Applying network config", opts.provider)
@@ -388,7 +411,6 @@ def main(argv=sys.argv, main_logger=None):
                     opts.detailed_exit_codes,
                     onc_ret_code | ExitCode.DCB_CONFIG_FAILED
                 )
-
             utils.configure_dcb_config_service()
             dcb_apply = dcb_config.DcbApplyConfig()
             dcb_apply.apply()
@@ -628,7 +650,7 @@ def config_provider(provider_name,
         files_changed = provider.apply(cleanup=cleanup,
                                        activate=not no_activate)
         logger.info(
-            "%s: Successfully configured %s", provider_name, config_name
+            "%s: %s configuration completed", provider_name, config_name
         )
 
     except Exception as e:
@@ -734,6 +756,35 @@ def safe_fallback(provider,
         return ExitCode.FALLBACK_FAILED
     else:
         logger.info("%s: fallback_config is completed", provider)
+        return ExitCode.SUCCESS
+
+
+def minimum_config(provider,
+                   min_config,
+                   no_activate,
+                   root_dir,
+                   noop):
+    if not min_config:
+        logger.warning(
+            "minimum_config is not provided in config file"
+        )
+        return ExitCode.SUCCESS
+
+    logger.info("%s: Running minimum config", provider)
+    ret = config_provider(
+        provider,
+        "minimum_config",
+        min_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == ExitCode.ERROR:
+        logger.error("%s: minimum_config failed", provider)
+        return ExitCode.MINIMUM_CONFIG_FAILED
+    else:
+        logger.info("%s: minimum_config completed", provider)
         return ExitCode.SUCCESS
 
 
