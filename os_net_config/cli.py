@@ -324,6 +324,36 @@ def main(argv=sys.argv, main_logger=None):
                               "system.")
             return 1
 
+    # Apply minimum _config using the new provider.
+    try:
+        ret_code = minimum_config(
+            opts.provider,
+            opts.config_file,
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop)
+    except Exception as e:
+        logger.error(
+            "***Failed to configure minimum_config with %s provider***\n%s",
+            opts.provider,
+            e
+        )
+        return 1
+
+    if opts.purge_provider:
+        # For migration from old provider to new provider, the minimum_config
+        # needs to be defined. Any failure to configure minimum_config will be
+        # considered as a failure to migrate.
+        if ret_code:
+            logger.error(
+                "%s: Failed to configure minimum_config",
+                opts.provider,
+            )
+            return ret_code
+        else:
+            logger.info("%s: Migration is complete", opts.provider)
+            return 0
+
     try:
         ret_code = config_provider(
             opts.provider,
@@ -497,6 +527,39 @@ def config_provider(provider_name,
     if len(files_changed) > 0:
         return 2
     return 0
+
+
+def minimum_config(provider, config_file, no_activate, root_dir, noop):
+    logger.info("%s: Performing minimal config", provider)
+    try:
+        with open(config_file) as cf:
+            min_config = yaml.safe_load(cf.read()).get("minimum_config")
+
+    except IOError:
+        logger.error("Error reading file: %s", config_file)
+        return 1
+    except FileNotFoundError:
+        logger.error("No config file exists at: %s", config_file)
+        return 1
+
+    if min_config:
+        logger.debug("minimum config: %s", min_config)
+    else:
+        logger.info("Minimum network config is not defined")
+        return 1
+    ret = config_provider(
+        provider,
+        min_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret:
+        logger.error("%s: failed to configure minimum_config", provider)
+    else:
+        logger.info("%s: minimum complete", provider)
+    return ret
 
 
 if __name__ == '__main__':
