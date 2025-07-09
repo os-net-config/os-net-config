@@ -31,7 +31,6 @@ from os_net_config import utils
 from os_net_config import validator
 from os_net_config import version
 
-
 logger = common.configure_logger()
 
 _SYSTEM_CTL_CONFIG_FILE = '/etc/sysctl.d/os-net-sysctl.conf'
@@ -212,7 +211,10 @@ def main(argv=sys.argv, main_logger=None):
         main_logger = common.configure_logger(log_file=not opts.noop)
     common.logger_level(main_logger, opts.verbose, opts.debug)
     main_logger.info("Using config file at: %s", opts.config_file)
-    iface_array = []
+    configs = {
+        "network_config": [],
+        "minimum_config": [],
+    }
 
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
@@ -292,9 +294,15 @@ def main(argv=sys.argv, main_logger=None):
         common.reset_dcb_map()
 
     if opts.purge_provider:
+        if not configs["minimum_config"]:
+            logger.warning(
+                "minimum_config is needed for safe migration. "
+                "Please provide minimum_config section in the config file "
+                "and use --minimum-config cli option.")
+
         purge_ret = unconfig_provider(
             opts.purge_provider,
-            iface_array,
+            configs["network_config"],
             opts.root_dir,
             opts.noop
         )
@@ -322,29 +330,49 @@ def main(argv=sys.argv, main_logger=None):
                               "system.")
             return get_exit_code(opts.detailed_exit_codes,
                                  onc_ret_code | ExitCode.ERROR)
-    logger.info("%s: Applying network_config section", opts.provider)
-    ret_code = config_provider(
-        opts.provider,
-        "network_config",
-        iface_array,
-        opts.root_dir,
-        opts.noop,
-        opts.no_activate,
-        opts.cleanup,
-    )
-    if ret_code == ExitCode.ERROR:
-        onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
-        logger.error(
-            "%s: Failed to configure network_config. ",
+
+    if configs["minimum_config"]:
+        # Apply minimum _config using the new provider.
+        ret_code = minimum_config(
             opts.provider,
+            configs["minimum_config"],
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop)
+        if ret_code == ExitCode.ERROR:
+            onc_ret_code |= ExitCode.MINIMUM_CONFIG_FAILED
+            logger.error(
+                "%s: Failed to configure minimum_config. ",
+                opts.provider,
+            )
+        else:
+            main_logger.info(
+                "%s: Configured minimum_config successfully", opts.provider
+            )
+
+    if configs["network_config"]:
+        logger.info("%s: Applying network_config section", opts.provider)
+        ret_code = config_provider(
+            opts.provider,
+            "network_config",
+            configs["network_config"],
+            opts.root_dir,
+            opts.noop,
+            opts.no_activate,
+            opts.cleanup,
+        )
+    if ret_code == ExitCode.ERROR:
+        logger.error(
+            "%s: Failed to configure network_config.", opts.provider
         )
         return get_exit_code(opts.detailed_exit_codes,
                              onc_ret_code | ExitCode.NETWORK_CONFIG_FAILED)
     else:
         onc_ret_code |= ret_code
         main_logger.info(
-            "%s: Configured network_config successfully", opts.provider
+            "%s: network_config section not provided", opts.provider
         )
+        ret_code = ExitCode.SUCCESS
 
     # If the configuration is successful, apply the DCB config
     if has_failures(onc_ret_code) is False:
@@ -356,8 +384,7 @@ def main(argv=sys.argv, main_logger=None):
                 from os_net_config import dcb_config
             except ImportError as e:
                 logger.error("cannot apply DCB configuration: %s", e)
-                return (onc_ret_code | ExitCode.DCB_CONFIG_FAILED)
-
+                onc_ret_code |= ExitCode.DCB_CONFIG_FAILED
             utils.configure_dcb_config_service()
             dcb_apply = dcb_config.DcbApplyConfig()
             dcb_apply.apply()
@@ -578,6 +605,37 @@ def get_iface_config(
             for e in validation_errors:
                 logger.warning(e)
     return iface_array
+
+
+def minimum_config(provider,
+                   min_config,
+                   no_activate,
+                   root_dir,
+                   noop):
+    if not min_config:
+        logger.warning(
+            "minimum_config is required, but not provided in config file"
+        )
+        return ExitCode.MINIMUM_CONFIG_FAILED
+
+    logger.info("%s: Running minimum config", provider)
+    ret = config_provider(
+        provider,
+        "minimum_config",
+        min_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == ExitCode.ERROR:
+        logger.error("%s: minimum_config configuration failed", provider)
+        ret = ExitCode.MINIMUM_CONFIG_FAILED
+    else:
+        logger.info("%s: minimum_config configuration completed", provider)
+        ret = ExitCode.SUCCESS
+
+    return ret
 
 
 if __name__ == '__main__':
