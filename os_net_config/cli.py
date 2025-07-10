@@ -56,21 +56,20 @@ def parse_opts(argv):
                         """If no value is given, display full NIC mapping. """
                         """Exit after printing, ignoring other parameters. """,
                         nargs='*', default=None)
+    parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
+                        help="""The root directory of the filesystem.""",
+                        default='')
     parser.add_argument('-p', '--provider', metavar='PROVIDER',
                         help="""The provider to use. """
                         """One of: ifcfg, eni, nmstate, iproute.""",
                         choices=_PROVIDERS.keys(),
                         default=None)
-    parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
-                        help="""The root directory of the filesystem.""",
-                        default='')
     parser.add_argument('--purge-provider', metavar='PURGE_PROVIDER',
-                        help="""Enable a migration from one provider."""
-                        """Cleans the network configurations created by """
-                        """the specified provider and migrates the same """
-                        """network configuration to the desired provider."""
-                        """There shall be no change in the input network """
-                        """configuration during the migration.""",
+                        help="""Cleans the network configurations created """
+                        """by the specified provider. There shall be no """
+                        """change in the input network config.yaml during """
+                        """the purge of the provider"""
+                        """One of: ifcfg, nmstate""",
                         choices=_PROVIDERS.keys(),
                         default=None)
     parser.add_argument('--detailed-exit-codes',
@@ -208,38 +207,6 @@ def main(argv=sys.argv, main_logger=None):
     common.logger_level(main_logger, opts.verbose, opts.debug)
     main_logger.info("Using config file at: %s", opts.config_file)
     iface_array = []
-    configure_sriov = False
-    sriovpf_bond_ovs_ports = []
-    provider = None
-    purge_provider = None
-    files_changed = {}
-    migration_failed = False
-
-    if not opts.provider:
-        ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
-        if is_nmstate_available():
-            opts.provider = "nmstate"
-        elif os.path.exists(ifcfg_path):
-            opts.provider = "ifcfg"
-        elif os.path.exists('%s/etc/network/' % opts.root_dir):
-            opts.provider = "eni"
-        else:
-            main_logger.error("Unable to set provider for this operating "
-                              "system.")
-            return 1
-
-    if opts.purge_provider:
-        if opts.purge_provider == opts.provider:
-            main_logger.error("purge-provider and provider can't be the same")
-            return 1
-        try:
-            purge_provider = load_provider(opts.purge_provider, opts.noop,
-                                           opts.root_dir)
-        except ImportError as e:
-            main_logger.error(
-                "cannot load purge provider %s: %s", opts.purge_provider, e
-            )
-            return 1
 
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
@@ -335,20 +302,133 @@ def main(argv=sys.argv, main_logger=None):
     if utils.is_dcb_config_required():
         common.reset_dcb_map()
 
-    if purge_provider:
-        for iface_json in iface_array:
-            obj = objects.object_from_json(iface_json)
-            purge_provider.del_object(obj)
-        purge_provider.destroy()
+    if opts.purge_provider:
+        ret_code = unconfig_provider(
+            opts.purge_provider,
+            iface_array,
+            opts.root_dir,
+            opts.noop,
+        )
+        return ret_code
 
+    if not opts.provider:
+        ifcfg_path = f'{opts.root_dir}/etc/sysconfig/network-scripts/'
+        if is_nmstate_available():
+            opts.provider = "nmstate"
+        elif os.path.exists(ifcfg_path):
+            opts.provider = "ifcfg"
+        elif os.path.exists('%s/etc/network/' % opts.root_dir):
+            opts.provider = "eni"
+        else:
+            main_logger.error("Unable to set provider for this operating "
+                              "system.")
+            return 1
+
+    # Apply minimum _config using the new provider.
     try:
-        provider = load_provider(opts.provider, opts.noop, opts.root_dir)
-    except ImportError as e:
-        main_logger.error('cannot load provider %s: %s', opts.provider, e)
+        ret_code = minimum_config(
+            opts.provider,
+            opts.config_file,
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop)
+    except Exception as e:
+        logger.error(
+            "***Failed to configure minimum_config with %s provider***\n%s",
+            opts.provider,
+            e
+        )
         return 1
 
-    if purge_provider:
-        provider.enable_migration()
+    if opts.purge_provider:
+        # For migration from old provider to new provider, the minimum_config
+        # needs to be defined. Any failure to configure minimum_config will be
+        # considered as a failure to migrate.
+        if ret_code:
+            logger.error(
+                "%s: Failed to configure minimum_config",
+                opts.provider,
+            )
+            return ret_code
+        else:
+            logger.info("%s: Migration is complete", opts.provider)
+            return 0
+
+    try:
+        ret_code = config_provider(
+            opts.provider,
+            iface_array,
+            opts.root_dir,
+            opts.noop,
+            opts.no_activate,
+            opts.cleanup,
+        )
+    except Exception as e:
+        logger.error(
+            "***Failed to configure with %s provider***\n%s",
+            opts.provider,
+            e
+        )
+
+    if utils.is_dcb_config_required():
+        # Apply the DCB Config
+        try:
+            from os_net_config import dcb_config
+        except ImportError as e:
+            logger.error("cannot apply DCB configuration: %s", e)
+            return 1
+
+        utils.configure_dcb_config_service()
+        dcb_apply = dcb_config.DcbApplyConfig()
+        dcb_apply.apply()
+
+    if opts.detailed_exit_codes or ret_code == 1:
+        return ret_code
+    else:
+        return 0
+
+
+def unconfig_provider(provider_name,
+                      iface_array,
+                      root_dir,
+                      noop,
+                      ):
+    try:
+        purge_provider = load_provider(provider_name, noop,
+                                       root_dir)
+    except ImportError as e:
+        logger.error(
+            "cannot load purge provider %s: %s", purge_provider, e
+        )
+        return 1
+
+    for iface_json in iface_array:
+        try:
+            obj = objects.object_from_json(iface_json)
+        except common.SriovVfNotFoundException:
+            continue
+        purge_provider.del_object(obj)
+    purge_provider.destroy()
+    return 0
+
+
+def config_provider(provider_name,
+                    iface_config,
+                    root_dir,
+                    noop,
+                    no_activate,
+                    cleanup,
+                    ):
+    configure_sriov = False
+    files_changed = {}
+    pf_files_changed = []
+    sriovpf_bond_ovs_ports = []
+    try:
+        provider = load_provider(provider_name, noop, root_dir)
+    except ImportError as e:
+        logger.error('cannot load provider %s: %s', provider_name, e)
+        return 1
+
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
     # devices are created.
@@ -358,7 +438,7 @@ def main(argv=sys.argv, main_logger=None):
     # VF devices would be created.
     # In the second parse, all other objects shall be added
     try:
-        for iface_json in iface_array:
+        for iface_json in iface_config:
             try:
                 obj = objects.object_from_json(iface_json)
             except common.SriovVfNotFoundException:
@@ -390,10 +470,10 @@ def main(argv=sys.argv, main_logger=None):
         if configure_sriov:
             # Skip cleanup while applying PF configuration
             pf_files_changed = provider.apply(cleanup=False,
-                                              activate=not opts.no_activate,
+                                              activate=not no_activate,
                                               config_rules_dns=False)
 
-            if opts.provider == 'ifcfg' and not opts.noop:
+            if provider_name == 'ifcfg' and not noop:
                 restart_ovs = bool(sriovpf_bond_ovs_ports)
                 # Avoid ovs restart for os-net-config re-runs, which will
                 # dirupt the offload configuration
@@ -404,7 +484,7 @@ def main(argv=sys.argv, main_logger=None):
                     execution_from_cli=True,
                     restart_openvswitch=restart_ovs)
 
-        for iface_json in iface_array:
+        for iface_json in iface_config:
             # All sriov_pfs at top level or at any member level will be
             # ignored and all other objects are parsed will be added here.
             # The VFs are expected to be available now and an exception
@@ -412,74 +492,74 @@ def main(argv=sys.argv, main_logger=None):
             try:
                 obj = objects.object_from_json(iface_json)
             except common.SriovVfNotFoundException:
-                if not opts.noop:
+                if not noop:
                     raise
 
             if not _is_sriovpf_obj_found(obj):
                 provider.add_object(obj)
 
-        if opts.provider == 'ifcfg' and configure_sriov and not opts.noop:
+        if provider_name == 'ifcfg' and configure_sriov and not noop:
             utils.configure_sriov_vfs()
 
-        files_changed = provider.apply(cleanup=opts.cleanup,
-                                       activate=not opts.no_activate)
+        files_changed = provider.apply(cleanup=cleanup,
+                                       activate=not no_activate)
         logger.info(
             "Succesfully applied the network configuration with "
             "%s provider",
-            opts.provider,
+            provider_name,
         )
     except Exception as e:
         logger.error(
             "***Failed to configure with %s provider***\n%s",
-            opts.provider,
+            provider_name,
             e
-        )
-
-        if purge_provider:
-            logger.info("Rolling back to %s", opts.purge_provider)
-            # Rolling back to the earlier provider.
-            purge_provider.roll_back_migration()
-            migration_failed = True
-        else:
-            raise
-
-    if utils.is_dcb_config_required():
-        # Apply the DCB Config
-        try:
-            from os_net_config import dcb_config
-        except ImportError as e:
-            logger.error("cannot apply DCB configuration: %s", e)
-            return 1
-
-        utils.configure_dcb_config_service()
-        dcb_apply = dcb_config.DcbApplyConfig()
-        dcb_apply.apply()
-
-    if purge_provider and migration_failed is False:
-        logger.info(
-            "Cleaning the residue files from %s provider", opts.purge_provider
-        )
-        purge_provider.clean_migration()
-    elif migration_failed:
-        logger.info(
-            "Migration Failed. Reverted back to %s provider",
-            opts.purge_provider,
         )
         return 1
 
-    if opts.noop:
-        if configure_sriov:
-            files_changed.update(pf_files_changed)
+    if configure_sriov:
+        files_changed.update(pf_files_changed)
+    if noop:
         for location, data in files_changed.items():
             print("File:", location)
             print()
             print(data)
             print("----")
-
-    if opts.detailed_exit_codes and len(files_changed) > 0:
+    if len(files_changed) > 0:
         return 2
-
     return 0
+
+
+def minimum_config(provider, config_file, no_activate, root_dir, noop):
+    logger.info("%s: Performing minimal config", provider)
+    try:
+        with open(config_file) as cf:
+            min_config = yaml.safe_load(cf.read()).get("minimum_config")
+
+    except IOError:
+        logger.error("Error reading file: %s", config_file)
+        return 1
+    except FileNotFoundError:
+        logger.error("No config file exists at: %s", config_file)
+        return 1
+
+    if min_config:
+        logger.debug("minimum config: %s", min_config)
+    else:
+        logger.info("Minimum network config is not defined")
+        return 1
+    ret = config_provider(
+        provider,
+        min_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret:
+        logger.error("%s: failed to configure minimum_config", provider)
+    else:
+        logger.info("%s: minimum complete", provider)
+    return ret
 
 
 if __name__ == '__main__':
