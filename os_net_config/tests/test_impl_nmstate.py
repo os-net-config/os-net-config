@@ -2833,6 +2833,242 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(expected_ib2_config),
                          self.get_interface_config('ib0.8064'))
 
+    def test_ovs_interface_with_valid_external_ids(self):
+        """Test OVS interface with valid external-ids commands"""
+        expected_config = """
+        name: eno2
+        type: ethernet
+        state: up
+        ovs-db:
+            external_ids:
+                vm-uuid: 12345
+                system-id: compute-1
+        ethernet:
+            sr-iov:
+                total-vfs: 0
+        ipv4:
+            enabled: false
+            dhcp: false
+        ipv6:
+            enabled: false
+            dhcp: false
+            autoconf: false
+        """
+
+        # Valid external-ids commands with both formats
+        ovs_extra = [
+            "set interface {name} external-ids:vm-uuid=12345",
+            "set interface eno2 external_ids:system-id=compute-1"
+        ]
+        interface = objects.Interface('eno2', ovs_extra=ovs_extra)
+        interface.ovs_port = True
+        self.provider.add_interface(interface)
+        self.assertEqual(yaml.safe_load(expected_config),
+                         self.get_interface_config('eno2'))
+
+    def test_ovs_interface_with_valid_mixed_commands(self):
+        """Test OVS interface with valid mixed external-ids commands"""
+        expected_config = """
+        name: eth1
+        type: ethernet
+        state: up
+        ovs-db:
+            external_ids:
+                environment: production
+                role: compute
+                tenant: main
+        ethernet:
+            sr-iov:
+                total-vfs: 0
+        ipv4:
+            enabled: false
+            dhcp: false
+        ipv6:
+            enabled: false
+            dhcp: false
+            autoconf: false
+        """
+
+        # Mix of hardcoded and template-based commands
+        ovs_extra = [
+            "set interface {name} external-ids:environment=production",
+            "set interface eth1 external_ids:role=compute",
+            "set interface {name} external-ids:tenant=main"
+        ]
+        interface = objects.Interface('eth1', ovs_extra=ovs_extra)
+        interface.ovs_port = True
+        self.provider.add_interface(interface)
+        self.assertEqual(yaml.safe_load(expected_config),
+                         self.get_interface_config('eth1'))
+
+    def test_ovs_interface_invalid_external_ids_format(self):
+        """Test OVS interface with invalid external-ids format raises error"""
+        # Malformed external-ids command (missing '=' sign)
+        ovs_extra = ["set interface {name} external-ids:vm-uuid"]
+        interface = objects.Interface('eno2', ovs_extra=ovs_extra)
+        interface.ovs_port = True
+
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_interface,
+                          interface)
+
+    def test_ovs_interface_interface_name_mismatch(self):
+        """Test OVS interface with interface name mismatch raises error"""
+        # Interface name in command doesn't match actual interface name
+        ovs_extra = ["set interface eth1 external-ids:vm-uuid=12345"]
+        interface = objects.Interface('eno2', ovs_extra=ovs_extra)
+        interface.ovs_port = True
+
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_interface,
+                          interface)
+
+    def test_ovs_interface_unsupported_command_type(self):
+        """Test OVS interface with unsupported command type raises error"""
+        # Commands other than external-ids are not supported for interfaces
+        ovs_extra = ["set interface {name} other_config:datapath-id=12345"]
+        interface = objects.Interface('eno2', ovs_extra=ovs_extra)
+        interface.ovs_port = True
+
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_interface,
+                          interface)
+
+    def test_ovs_interface_invalid_command_syntax(self):
+        """Test OVS interface with invalid command syntax raises error"""
+        # Malformed command syntax (typo in 'external-ids')
+        ovs_extra = ["set interface {name} junkids:vm-uuid=12345"]
+        interface = objects.Interface('eno2', ovs_extra=ovs_extra)
+        interface.ovs_port = True
+
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_interface,
+                          interface)
+
+    def test_ovs_interface_multiple_errors(self):
+        """Test OVS interface with multiple invalid commands raises error"""
+        # Multiple invalid commands
+        ovs_extra = [
+            "set interface {name} external-ids:valid=12345",     # Valid
+            "set interface {name} other_config:invalid=test",    # Invalid
+            "set interface eth1 external-ids:mismatch=test"      # Wrong name
+        ]
+        interface = objects.Interface('eno2', ovs_extra=ovs_extra)
+        interface.ovs_port = True
+
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_interface,
+                          interface)
+
+    def test_ovs_interface_empty_ovs_extra(self):
+        """Test OVS interface with empty ovs_extra succeeds"""
+        expected_config = """
+        name: eno2
+        type: ethernet
+        state: up
+        ethernet:
+            sr-iov:
+                total-vfs: 0
+        ipv4:
+            enabled: false
+            dhcp: false
+        ipv6:
+            enabled: false
+            dhcp: false
+            autoconf: false
+        """
+
+        # Empty ovs_extra should work fine
+        interface = objects.Interface('eno2', ovs_extra=[])
+        interface.ovs_port = True
+        self.provider.add_interface(interface)
+        self.assertEqual(yaml.safe_load(expected_config),
+                         self.get_interface_config('eno2'))
+
+    def test_sriov_vf_with_valid_ovs_extra(self):
+        """Test SR-IOV VF interface with valid external-ids commands"""
+        # Standard mapping
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        # Add required stubs for SR-IOV functionality
+        self.stub_out("os_net_config.common.get_pci_address",
+                      stub_get_pci_address)
+
+        # First add the Physical Function (PF) - this is required!
+        pf = objects.SriovPF(name='nic2', numvfs=10)
+        self.provider.add_sriov_pf(pf)
+
+        # Define OVS config with SR-IOV VF (following the working pattern)
+        ovs_config = """
+        type: ovs_bridge
+        name: br-test
+        members:
+          -
+            type: sriov_vf
+            device: nic2
+            vfid: 2
+            ovs_extra:
+              - "set interface {name} external-ids:vm-id=vm-12345"
+              - "set interface {name} external_ids:vlan=production"
+        """
+
+        def test_get_vf_devname(device, vfid):
+            return device + '_' + str(vfid)
+
+        self.stub_out('os_net_config.utils.get_vf_devname',
+                      test_get_vf_devname)
+
+        # Parse and add SR-IOV VF using the working pattern
+        ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
+        # Extract VF directly from bridge (simplified structure)
+        vf = ovs_obj.members[0]
+        self.provider.add_sriov_vf(vf)
+
+        # Validation passes if no ConfigurationError is raised
+        # The OVS extra validation should allow these valid commands
+
+    def test_sriov_vf_with_invalid_ovs_extra(self):
+        """Test SR-IOV VF interface with invalid external-ids commands"""
+        # Standard mapping
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        # Add required stubs for SR-IOV functionality
+        self.stub_out("os_net_config.common.get_pci_address",
+                      stub_get_pci_address)
+
+        # First add the Physical Function (PF) - this is required!
+        pf = objects.SriovPF(name='nic2', numvfs=10)
+        self.provider.add_sriov_pf(pf)
+        # Define OVS config with invalid external-ids command
+        ovs_config = """
+        type: ovs_bridge
+        name: br-test
+        members:
+          -
+            type: sriov_vf
+            device: nic2
+            vfid: 2
+            ovs_extra:
+              - "set interface {name} external-ids:invalid-syntax"
+        """
+
+        def test_get_vf_devname(device, vfid):
+            return device + '_' + str(vfid)
+
+        self.stub_out('os_net_config.utils.get_vf_devname',
+                      test_get_vf_devname)
+
+        # Parse and try to add SR-IOV VF with invalid ovs_extra
+        ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
+        # Extract VF directly from bridge (simplified structure)
+        vf = ovs_obj.members[0]
+
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_sriov_vf,
+                          vf)
+
 
 class TestNmstateNetConfigApply(base.TestCase):
 
