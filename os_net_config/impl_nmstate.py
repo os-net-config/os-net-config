@@ -1564,11 +1564,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 data[Interface.MAC] = interface.hwaddr
 
             if interface.ovs_port and interface.ovs_extra:
-                self.parse_ovs_extra_for_iface(
+                unhandled_list = self.parse_ovs_extra_for_iface(
                     interface.ovs_extra,
                     interface.name,
                     data
                 )
+                # Check for unhandled commands and raise error if any exist
+                if unhandled_list:
+                    msg = (f"{interface.name}: Unhandled ovs_extra commands: "
+                           f"{unhandled_list}. Check the format")
+                    raise os_net_config.ConfigurationError(msg)
 
         self.__dump_key_config(data, msg=f"{interface.name}: Prepared config")
         self.interface_data[interface.name] = data
@@ -1610,18 +1615,31 @@ class NmstateNetConfig(os_net_config.NetConfig):
         Parse the ovs_extra fields where the configs are in key=value format
         Example: ovs-vsctl set Bridge $name <config>=<value>
                  ovs-vsctl set Interface $name <config>=<value>
-        :param ovs_extra: given ovs extra as string
+        :param ovs_extra: given ovs extra as a list of strings
         :param cmd_map: A map of the available ovs_extra commands, actions
         :param data: The device data that will be modified after the parsing
+        :returns: Tuple (match_count, mismatch_count)
         :raises ConfigurationError: Invalid ovs_extra format
         """
         index = 0
+        match_cnt = 0
+        mismatch_cnt = 0
+
         for a, b in zip(ovs_extra, cmd_map['command']):
             if not re.match(b, a, re.IGNORECASE):
-                return False
+                return (0, 1)  # 0 matches, 1 mismatch
             index = index + 1
+        # Special case: if action list is empty, this means the command
+        # was matched but doesn't require any additional configuration
+        # processing (like del-controller)
+        if not cmd_map['action']:
+            logger.info("%s: No action required", ovs_extra)
+            return (1, 0)
+
         for idx in range(index, len(ovs_extra)):
             value = None
+            match_found = False
+
             for cfg in cmd_map['action']:
                 if re.match(cfg['config'], ovs_extra[idx], re.IGNORECASE):
                     value = None
@@ -1641,11 +1659,21 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     if cfg["nm_config"]:
                         key = cfg["nm_config"]
                         config[key] = value
+                        match_found = True
+                        logger.info(
+                            "%s=%s", "->".join(cfg["sub_tree"] + [(key)]),
+                            value
+                        )
                     elif cfg["nm_config_regex"]:
                         m = re.search(cfg["nm_config_regex"], ovs_extra[idx])
                         if m:
                             key = m.group(1)
                             config[key] = value
+                            match_found = True
+                            logger.info(
+                                "%s=%s", "->".join(cfg["sub_tree"] + [(key)]),
+                                value
+                            )
                         else:
                             msg = (
                                 "ovs_extra: Invalid format detected.\n"
@@ -1655,9 +1683,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     else:
                         msg = 'NM config not found'
                         raise os_net_config.ConfigurationError(msg)
-                    logger.info(
-                        "%s=%s", "->".join(cfg["sub_tree"] + [(key)]), value
-                    )
+            if match_found:
+                match_cnt += 1
+            else:
+                mismatch_cnt += 1
+        return (match_cnt, mismatch_cnt)
 
     def _ovs_extra_cfg_val(self, ovs_extra, cmd_map, data):
         """Parse ovs extra where key,value are seperated by spaces
@@ -1754,6 +1784,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.debug("%s: Parse - %s", name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
             for cmd_map in cfg_eq_val_pair:
+                # TODO(arn): Handle return value (match_count,
+                # mismatch_count) for better error handling
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
     def parse_ovs_extra(self, ovs_extras, name, data):
@@ -1836,6 +1868,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info("%s: Parse - %s", name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
             for cmd_map in cfg_eq_val_pair:
+                # TODO(arn): Handle return value (match_count,
+                # mismatch_count) for better error handling
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
             for cmd_map in cfg_val_pair:
                 self._ovs_extra_cfg_val(ovs_extra_cmd, cmd_map, data)
@@ -1843,31 +1877,43 @@ class NmstateNetConfig(os_net_config.NetConfig):
     def parse_ovs_extra_for_iface(self, ovs_extras, iface_name, data):
         """Parse ovs extra for interface
 
-        :param ovs_extras: ovs extra as list of string
+        :param ovs_extras: given ovs extra as a list of strings
         :param iface_name: Interface name
         :param data: The interface data that will be modified after
             the parsing
         """
-        # Parse for external-ids and external_ids.
-        iface_cfg = [{'config': r'^external-ids:[\w+]',
+        iface_cfg = [{'config': r'^external[-_]ids:[\w+]',
                       'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
                       'nm_config': None,
-                      'nm_config_regex': r'^external-ids:(.+?)=',
-                      'value_pattern': r'^external-ids:.*=(.+?)$'},
-                     {'config': r'^external_ids:[\w+]',
-                      'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
-                      'nm_config': None,
-                      'nm_config_regex': r'^external_ids:(.+?)=',
-                      'value_pattern': r'^external_ids:.*=(.+?)$'}
+                      'nm_config_regex': r'^external[-_]ids:(.+?)=',
+                      'value_pattern': r'^external[-_]ids:.*=(.+?)$'}
                      ]
         cfg_eq_val_pair = [{'command': ['set', 'interface',
                                         '({name}|%s)' % iface_name],
                             'action': iface_cfg}]
+
+        unhandled_list = []
         for ovs_extra in ovs_extras:
             logger.info("%s: Parse - %s", iface_name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
+
+            # Initialize error flag to true before the for loop
+            error_flag = True
+
             for cmd_map in cfg_eq_val_pair:
-                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+                mc, msc = self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map,
+                                                     data)
+                # If no mismatches and there are matches, command was
+                # handled successfully
+                if msc == 0 and mc > 0:
+                    error_flag = False
+
+            # Check error_flag and add to unhandled list
+            if error_flag:
+                unhandled_list.append(ovs_extra)
+
+        # Return unhandled list
+        return unhandled_list
 
     def parse_ovs_extra_for_bond(self, ovs_extras, bond_name, data):
         """Parse ovs extra for interface
@@ -1895,6 +1941,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info("%s: Parse - %s", bond_name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
             for cmd_map in cfg_eq_val_pair:
+                # TODO(arn): Handle return value (match_count,
+                # mismatch_count) for better error handling
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
     def parse_ovs_extra_for_ports(self, ovs_extras, bridge_name, data):
@@ -1920,6 +1968,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info("%s: Parse - %s", bridge_name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
             for cmd_map in cfg_eq_val_pair:
+                # TODO(arn): Handle return value (match_count,
+                # mismatch_count) for better error handling
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
     def add_bridge(self, bridge, dpdk=False):
@@ -2401,11 +2451,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
 
         if sriov_vf.ovs_port and sriov_vf.ovs_extra:
-            self.parse_ovs_extra_for_iface(
+            unhandled_list = self.parse_ovs_extra_for_iface(
                 sriov_vf.ovs_extra,
                 sriov_vf.name,
                 data
             )
+            # Check for unhandled commands and raise error if any exist
+            if unhandled_list:
+                msg = (f"{sriov_vf.name}: Unhandled ovs_extra commands: "
+                       f"{unhandled_list}. Check the format")
+                raise os_net_config.ConfigurationError(msg)
 
         self.interface_data[sriov_vf.name] = data
 
