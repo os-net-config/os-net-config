@@ -428,6 +428,11 @@ def main(argv=sys.argv, main_logger=None):
             "%s provider",
             opts.provider,
         )
+
+        if opts.provider == 'nmstate':
+            # If the provider is nmstate, save the network config.
+            common.write_nmstate_network_config(iface_array)
+
     except Exception as e:
         logger.error(
             "***Failed to configure with %s provider***\n%s",

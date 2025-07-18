@@ -725,9 +725,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
         exclude_nics.extend(common.get_sriov_pf_names())
         exclude_nics.extend(common.get_dpdk_iface_names())
         exclude_types = [OVSBridge.TYPE, OVSInterface.TYPE]
-        ifaces = netinfo.show_running_config()[Interface.KEY]
         logger.debug("Interface name excluded: %s", ", ".join(exclude_nics))
         logger.debug("Interface type excluded: %s", ", ".join(exclude_types))
+
+        ifaces = self.get_current_ifaces()
         for iface in ifaces:
             if iface.get(Interface.NAME) in exclude_nics:
                 logger.info(
@@ -762,6 +763,49 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 )
                 if not self.noop:
                     netapplier.apply(state, verify_change=True)
+
+    def get_current_ifaces(self):
+        current_interfaces = []
+        iface_array = common.get_nmstate_network_config()
+
+        if not isinstance(iface_array, list):
+            logger.debug(
+                "No interfaces defined in current config file"
+            )
+            return current_interfaces
+
+        current_provider = NmstateNetConfig()
+
+        for iface_json in iface_array:
+            obj = objects.object_from_json(iface_json)
+            logger.debug("current config object %s", obj)
+            current_provider.add_object(obj)
+
+        for interface_name, _ in current_provider.interface_data.items():
+            iface_state = self.iface_state(interface_name)
+            if iface_state:
+                current_interfaces.append(iface_state)
+                logger.debug("current interface %s", interface_name)
+
+        for bridge_name, _ in current_provider.bridge_data.items():
+            bridge_state = self.iface_state(bridge_name)
+            if bridge_state:
+                current_interfaces.append(bridge_state)
+                logger.debug("current bridge %s", bridge_name)
+
+        for bond_name, _ in current_provider.linuxbond_data.items():
+            bond_state = self.iface_state(bond_name)
+            if bond_state:
+                current_interfaces.append(bond_state)
+                logger.debug("current linux bond %s", bond_name)
+
+        for vlan_name, _ in current_provider.vlan_data.items():
+            vlan_state = self.iface_state(vlan_name)
+            if vlan_state:
+                current_interfaces.append(vlan_state)
+                logger.debug("current vlan %s", vlan_name)
+
+        return current_interfaces
 
     def route_state(self, name=''):
         """Return the current routes set according to nmstate.
