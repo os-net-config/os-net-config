@@ -138,6 +138,12 @@ def logger_level(logger, verbose=False, debug=False):
     logger.setLevel(log_level)
 
 
+def print_config(config, msg=""):
+    cfg_dump = yaml.dump(config, default_flow_style=False,
+                         allow_unicode=True, encoding=None)
+    logger.info("\n%s:\n%s", msg, cfg_dump)
+
+
 def get_dev_path(ifname, path=None):
     if not path:
         path = ""
