@@ -1165,6 +1165,77 @@ class TestUtils(base.TestCase):
         self.assertRaises(utils.VppException,
                           utils._get_vpp_interface, '0000:09.0')
 
+    def test_remove_dpdk_interface_by_name(self):
+
+        def fake_detach(pci):
+            return 0
+
+        def fake_unbind(pci):
+            return 0
+        self.stub_out('os_net_config.utils.detach_dpdk_interfaces',
+                      fake_detach)
+        self.stub_out('os_net_config.utils.unbind_dpdk_interfaces',
+                      fake_unbind)
+        dpdk_map = [
+            {'name': 'eth1', 'pci_address': '0000:03:00.0',
+             'mac_address': '01:02:03:04:05:06', 'driver': 'vfio-pci'},
+            {'name': 'eth2', 'pci_address': '0000:04:00.0',
+             'mac_address': '01:02:03:04:05:07', 'driver': 'igb_uio'}
+        ]
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
+        utils.remove_dpdk_interface('eth1')
+        contents = common.get_file_data(common.DPDK_MAPPING_FILE)
+        new_map = yaml.safe_load(contents) if contents else []
+        self.assertEqual(1, len(new_map))
+        self.assertEqual(new_map[0]['name'], 'eth2')
+
+    def test_remove_dpdk_interface_by_pci(self):
+
+        def fake_detach(pci):
+            return 0
+
+        def fake_unbind(pci):
+            return 0
+        self.stub_out('os_net_config.utils.detach_dpdk_interfaces',
+                      fake_detach)
+        self.stub_out('os_net_config.utils.unbind_dpdk_interfaces',
+                      fake_unbind)
+        dpdk_map = [
+            {'name': 'eth1', 'pci_address': '0000:03:00.0',
+             'mac_address': '01:02:03:04:05:06', 'driver': 'vfio-pci'},
+            {'name': 'eth2', 'pci_address': '0000:04:00.0',
+             'mac_address': '01:02:03:04:05:07', 'driver': 'igb_uio'}
+        ]
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
+        utils.remove_dpdk_interface('0000:04:00.0')
+        contents = common.get_file_data(common.DPDK_MAPPING_FILE)
+        new_map = yaml.safe_load(contents) if contents else []
+        self.assertEqual(1, len(new_map))
+        self.assertEqual(new_map[0]['pci_address'], '0000:03:00.0')
+
+    def test_delete_dpdk_map_entry_removes_file_when_empty(self):
+        dpdk_map = [
+            {'name': 'eth1', 'pci_address': '0000:03:00.0',
+             'mac_address': '01:02:03:04:05:06', 'driver': 'vfio-pci'}
+        ]
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
+        utils.delete_dpdk_map_entry('eth1')
+        self.assertFalse(os.path.exists(common.DPDK_MAPPING_FILE))
+
+    def test_delete_dpdk_map_entry_by_pci(self):
+        dpdk_map = [
+            {'name': 'eth1', 'pci_address': '0000:03:00.0',
+             'mac_address': '01:02:03:04:05:06', 'driver': 'vfio-pci'},
+            {'name': 'eth2', 'pci_address': '0000:04:00.0',
+             'mac_address': '01:02:03:04:05:07', 'driver': 'igb_uio'}
+        ]
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
+        utils.delete_dpdk_map_entry('0000:03:00.0')
+        contents = common.get_file_data(common.DPDK_MAPPING_FILE)
+        new_map = yaml.safe_load(contents) if contents else []
+        self.assertEqual(1, len(new_map))
+        self.assertEqual(new_map[0]['name'], 'eth2')
+
     @mock.patch('os_net_config.utils.processutils.execute',
                 return_value=('', None))
     def test_get_vpp_interface_name_multiple_iterations(self, mock_execute):
