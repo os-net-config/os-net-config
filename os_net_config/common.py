@@ -144,6 +144,11 @@ def print_config(config, msg=""):
     logger.info("\n%s:\n%s", msg, cfg_dump)
 
 
+def get_timestamp():
+    """Return the current timestamp as a string in YYYYMMDD_HHMMSS format."""
+    return time.strftime("%Y%m%d_%H%M%S", time.localtime())
+
+
 def get_dev_path(ifname, path=None):
     if not path:
         path = ""
