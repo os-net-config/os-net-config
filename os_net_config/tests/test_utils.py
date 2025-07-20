@@ -1476,3 +1476,79 @@ dpdk {
             '0000:03:00.0', 'Some other error message', 0, 5, 2
         )
         self.assertEqual('error', result)
+
+    def test_remove_sriov_entries_for_pf_with_entries(self):
+        sriov_map = [
+            {'device_type': 'pf', 'name': 'eth1', 'numvfs': 5},
+            {'device_type': 'vf', 'device': {'name': 'eth1', 'vfid': 0},
+             'name': 'eth1_0'},
+            {'device_type': 'vf', 'device': {'name': 'eth1', 'vfid': 1},
+             'name': 'eth1_1'},
+            {'device_type': 'pf', 'name': 'eth2', 'numvfs': 3},
+            {'device_type': 'vf', 'device': {'name': 'eth2', 'vfid': 0},
+             'name': 'eth2_0'}
+        ]
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
+
+        utils.remove_sriov_entries_for_pf('eth1')
+
+        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
+        remaining_map = yaml.safe_load(contents)
+        self.assertEqual(2, len(remaining_map))
+        # Should only have eth2 entries left
+        self.assertEqual('eth2', remaining_map[0]['name'])
+        self.assertEqual('eth2', remaining_map[1]['device']['name'])
+
+    def test_remove_sriov_entries_for_pf_empty_map(self):
+        def fake_disable_service():
+            pass
+        self.stub_out('os_net_config.utils.disable_sriov_config_service',
+                      fake_disable_service)
+
+        sriov_map = [
+            {'device_type': 'pf', 'name': 'eth1', 'numvfs': 5},
+            {'device_type': 'vf', 'device': {'name': 'eth1', 'vfid': 0},
+             'name': 'eth1_0'}
+        ]
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
+
+        utils.remove_sriov_entries_for_pf('eth1')
+
+        # File should be removed when map becomes empty
+        self.assertFalse(os.path.exists(common.SRIOV_CONFIG_FILE))
+
+    def test_remove_sriov_entries_for_pf_nonexistent_pf(self):
+        sriov_map = [
+            {'device_type': 'pf', 'name': 'eth1', 'numvfs': 5},
+            {'device_type': 'vf', 'device': {'name': 'eth1', 'vfid': 0},
+             'name': 'eth1_0'}
+        ]
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
+
+        utils.remove_sriov_entries_for_pf('eth999')
+
+        # Original map should remain unchanged
+        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
+        remaining_map = yaml.safe_load(contents)
+        self.assertEqual(2, len(remaining_map))
+
+    def test_disable_sriov_config_service_success(self):
+        def fake_execute(*args, **kwargs):
+            pass
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+
+        # Should not raise any exceptions
+        utils.disable_sriov_config_service()
+
+    def test_disable_sriov_config_service_failure(self):
+        from oslo_concurrency import processutils
+
+        def fake_execute(*args, **kwargs):
+            raise processutils.ProcessExecutionError(
+                'Service disable failed')
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+
+        # Should log warning but not raise exception
+        utils.disable_sriov_config_service()
