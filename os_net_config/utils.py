@@ -300,10 +300,17 @@ def bind_dpdk_interfaces(ifname, driver, noop):
         raise common.OvsDpdkBindException(msg)
 
 
-def remove_dpdk_interface(iface):
+def remove_dpdk_interface(identifier):
+    """Remove a DPDK interface by name or PCI address.
+
+    Detach and unbind the interface if found.
+
+    :param identifier: Interface name or PCI address
+    """
     dpdk_map = common.get_dpdk_map()
     for dpdk_nic in dpdk_map:
-        if dpdk_nic["name"] == iface:
+        if (dpdk_nic.get("name") == identifier or
+                dpdk_nic.get("pci_address") == identifier):
             err = detach_dpdk_interfaces(dpdk_nic["pci_address"])
             if err:
                 logger.warning(
@@ -316,9 +323,49 @@ def remove_dpdk_interface(iface):
                     "%s: Failed to unbind dpdk interface",
                     dpdk_nic["name"],
                 )
+            else:
+                delete_dpdk_map_entry(dpdk_nic["name"])
             break
     else:
-        logger.error("%s: could not find in dpdk_mapping.yaml", iface)
+        logger.error("%s: could not find in dpdk_mapping.yaml", identifier)
+
+
+def delete_dpdk_map_entry(identifier):
+    """Remove a DPDK mapping entry by interface name or PCI address.
+
+    If the resulting map is empty, remove the DPDK_MAPPING_FILE.
+
+    :param identifier: Interface name or PCI address to remove
+    """
+    dpdk_map = common.get_dpdk_map()
+    new_map = []
+    removed = False
+    for item in dpdk_map:
+        if (item.get("name") == identifier or
+                item.get("pci_address") == identifier):
+            logger.info(
+                "%s: Removing DPDK mapping entry (name: %s, pci: %s)",
+                identifier, item.get("name"), item.get("pci_address")
+            )
+            removed = True
+            continue  # Skip this entry
+        new_map.append(item)
+    if not new_map:
+        if os.path.exists(common.DPDK_MAPPING_FILE):
+            logger.info(
+                "DPDK mapping file %s is empty after removing '%s', "
+                "deleting the file.",
+                common.DPDK_MAPPING_FILE,
+                identifier,
+            )
+            os.remove(common.DPDK_MAPPING_FILE)
+    else:
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, new_map)
+    if not removed:
+        logger.warning(
+            "%s: No DPDK mapping entry found in the mapping file.",
+            identifier
+        )
 
 
 def detach_dpdk_interfaces(pci_address):
