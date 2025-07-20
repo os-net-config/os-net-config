@@ -462,6 +462,29 @@ def get_totalvfs(iface_name):
     return -1
 
 
+def remove_sriov_entries_for_pf(pfname):
+    """Remove all VF and PF entries for the PF device from the SR-IOV map.
+
+    If the resulting map is empty, remove the SRIOV_CONFIG_FILE.
+    """
+    sriov_map = common.get_sriov_map()
+    new_map = []
+    for item in sriov_map:
+        if (item["device_type"] == "vf" and
+                item["device"].get("name") == pfname):
+            continue  # Skip this VF
+        if (item["device_type"] == "pf" and
+                item.get("name") == pfname):
+            continue  # Skip this PF
+        new_map.append(item)
+    if not new_map:
+        if os.path.exists(common.SRIOV_CONFIG_FILE):
+            os.remove(common.SRIOV_CONFIG_FILE)
+            disable_sriov_config_service()
+    else:
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, new_map)
+
+
 def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                         link_mode='legacy', vdpa=False, steering_mode=None,
                         lag_candidate=None, drivers_autoprobe=True,
@@ -642,6 +665,15 @@ def _configure_sriov_config_service():
     with open(_SRIOV_CONFIG_SERVICE_FILE, 'w') as f:
         f.write(_SRIOV_CONFIG_DEVICE_CONTENT)
     processutils.execute('systemctl', 'enable', 'sriov_config')
+
+
+def disable_sriov_config_service():
+    if common.get_noop():
+        return
+    try:
+        processutils.execute("systemctl", "disable", "sriov_config")
+    except processutils.ProcessExecutionError as e:
+        logger.warning("Failed to disable sriov_config service: %s", e)
 
 
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):
