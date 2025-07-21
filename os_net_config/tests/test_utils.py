@@ -1303,3 +1303,46 @@ dpdk {
         dpdk_map = yaml.safe_load(contents) if contents else []
         self.assertEqual(2, len(dpdk_map))
         self.assertListEqual(dpdk_test, dpdk_map)
+
+    def test_interface_maxmtu_success(self):
+        """Test get_interface_maxmtu when max_mtu is valid."""
+        def test_execute(*args, **kwargs):
+            json_output = '[{"ifname": "eth0", "max_mtu": 9000}]'
+            return json_output, None
+
+        def test_get_noop():
+            return False
+
+        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
+        self.stub_out('os_net_config.common.get_noop', test_get_noop)
+
+        result = utils.get_interface_maxmtu("eth0")
+        self.assertEqual(9000, result)
+
+    def test_get_interface_maxmtu_empty_output(self):
+        """Test get_interface_maxmtu when max_mtu is empty."""
+        def test_execute(name, *args, **kwargs):
+            return "", ""
+
+        def test_get_noop():
+            return False
+
+        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
+        self.stub_out('os_net_config.common.get_noop', test_get_noop)
+
+        result = utils.get_interface_maxmtu("eth0")
+        self.assertEqual(-1, result)
+
+    def test_get_interface_maxmtu_command_stderr_error(self):
+        """Test get_interface_maxmtu for error."""
+        def test_execute(name, *args, **kwargs):
+            return "", "Device not found"
+
+        def test_get_noop():
+            return False
+
+        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
+        self.stub_out('os_net_config.common.get_noop', test_get_noop)
+
+        result = utils.get_interface_maxmtu("eth0")
+        self.assertEqual(-1, result)
