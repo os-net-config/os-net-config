@@ -112,6 +112,7 @@ class TestENINetConfig(base.TestCase):
 
     def setUp(self):
         super(TestENINetConfig, self).setUp()
+        common.set_noop(False)
 
         def stub_is_ovs_installed():
             return True
