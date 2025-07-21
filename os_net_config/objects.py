@@ -388,6 +388,7 @@ class _BaseOpts(object):
         self.hwaddr = None
         self.hwname = None
         self.renamed = False
+        self.mtu = mtu
         # Split name to support <nic>.<vlan_id> format, e.g. em1.10 or nic1.10
         if len(name.split('.')) > 1 and name.split('.')[1].isdigit():
             base_name = name.split('.')[0]
@@ -404,10 +405,14 @@ class _BaseOpts(object):
                 self.renamed = True
             else:
                 self.name = '%s%s' % (mapped_nic_names[base_name], vlan_suffix)
+            if mtu is not None:
+                ismax = utils.get_interface_maxmtu(mapped_nic_names[base_name],
+                                                   mtu)
         else:
             self.name = name
+            if mtu is not None:
+                ismax = utils.get_interface_maxmtu(name, mtu)
 
-        self.mtu = mtu
         self.use_dhcp = use_dhcp
         self.use_dhcpv6 = use_dhcpv6
         self.addresses = addresses
@@ -428,6 +433,10 @@ class _BaseOpts(object):
         self.linux_team_name = None  # internal
         self.ovs_port = False  # internal
         self.primary_interface_name = None  # internal
+
+        if (mtu is not None) and ismax:
+            msg = f"Requested MTU {mtu} is greater than supported"
+            raise InvalidConfigException(msg)
 
     def v4_addresses(self):
         v4_addresses = []

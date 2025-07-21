@@ -15,6 +15,7 @@
 # under the License.
 
 import glob
+import json
 import logging
 import os
 import re
@@ -664,6 +665,26 @@ def backup_map_files(backup_path):
             shutil.copy(src, bkup_file)
         else:
             logger.warning("%s does not exist", src)
+
+
+def get_interface_maxmtu(name, mtu):
+    noop = common.get_noop()
+    cmd = ['ip', '-d', '-j', 'link', 'show', name]
+    logger.info("%s: running %s", name, " ".join(cmd))
+    if not noop:
+        try:
+            out, err = processutils.execute(*cmd)
+            if err:
+                logger.error("Failed to get mtu : %s", err)
+                return False
+            if out:
+                data = json.loads(out)
+                maxmtu = data[0].get('max_mtu')
+                logger.debug(f"Max MTU supported for {name}: {maxmtu}")
+                return (mtu > maxmtu)
+        except processutils.ProcessExecutionError as exc:
+            logger.error("%s: Failed to execute command %s", cmd, exc)
+            return False
 
 
 def restart_vpp(vpp_interfaces):
