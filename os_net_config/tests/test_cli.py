@@ -48,6 +48,7 @@ class TestCli(base.TestCase):
         rand = str(int(random.random() * 100000))
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config_' + rand + '.yaml'
         common._LOG_FILE = '/tmp/' + rand + 'os_net_config.log'
+        common.set_noop(False)
         sys.stdout = StringIO()
         sys.stderr = StringIO()
         self.stub_out('os_net_config.common.interface_mac',
