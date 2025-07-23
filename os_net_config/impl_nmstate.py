@@ -2330,9 +2330,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.interface_data[ovs_dpdk_port.name] = data
         self.__dump_config(data, msg=f"{ovs_dpdk_port.name}: Prepared config")
 
-    def nmstate_get_dpdk_pci_address(self, dpdk_port_name):
-        """
-        Return the dpdk-devargs (PCI address) for a DPDK port interface.
+    def get_dpdk_pci_address(self, dpdk_port_name):
+        """Return the dpdk-devargs (PCI address) for a DPDK port interface.
+
         :param dpdk_port_name: Name of the DPDK port interface
         :return: PCI address string or None
         """
@@ -2348,7 +2348,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                       Interface.TYPE: OVSInterface.TYPE,
                       Interface.STATE: InterfaceState.ABSENT}
         self.del_device["dpdk"].append(iface_data)
-        pci_address = self.nmstate_get_dpdk_pci_address(ovs_dpdk_port.name)
+        pci_address = self.get_dpdk_pci_address(ovs_dpdk_port.name)
         if not pci_address:
             self.del_device["dpdk_port"].append(pci_address)
 
@@ -2807,4 +2807,3 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.nmstate_apply(apply_data, verify=True)
         for pf in self.del_device["sriov_pf"]:
             utils.remove_sriov_entries_for_pf(pf)
-

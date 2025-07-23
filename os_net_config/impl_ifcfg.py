@@ -1276,7 +1276,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         logger.info("%s: Deleting ovs dpdk bond", ovs_dpdk_bond.name)
         self.del_device["dpdk"].append(ovs_dpdk_bond.name)
 
-
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
 
@@ -1542,15 +1541,16 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 for line in f:
                     if line.strip().startswith("OVS_EXTRA="):
                         # Remove OVS_EXTRA= and surrounding quotes
-                        value = line.strip().split("=", 1)[1].strip().strip('"')
+                        cmds = line.strip().split("=", 1)[1].strip().strip('"')
                         # Split by '--' in case of multiple commands
-                        for part in value.split("--"):
+                        for part in cmds.split("--"):
                             match = devargs_pattern.search(part)
                             if match:
                                 pci_addresses.append(match.group(1))
         except (IOError, OSError) as e:
-            logger.warning("Failed to read DPDK config file %s: %s",
-                          ifcfg_dpdk_file, e)
+            logger.warning(
+                "Failed to read DPDK config file %s: %s", ifcfg_dpdk_file, e
+            )
             return pci_addresses
 
         return pci_addresses
