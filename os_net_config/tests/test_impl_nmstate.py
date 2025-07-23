@@ -3069,6 +3069,26 @@ class TestNmstateNetConfig(base.TestCase):
                           self.provider.add_sriov_vf,
                           vf)
 
+    def test_enhanced_ovs_interface_constructor(self):
+        """Test enhanced OvsInterface constructor with ovs_extra parameter"""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        # Test the new ovs_extra parameter in OvsInterface
+        ovs_extra_cmds = ["set interface {name} external_ids:vm-id=12345"]
+
+        ovs_interface = objects.OvsInterface(
+            'test-iface',
+            ovs_extra=ovs_extra_cmds
+        )
+
+        # Verify the ovs_extra is properly formatted and stored
+        expected = ["set interface test-iface external_ids:vm-id=12345"]
+        self.assertEqual(expected, ovs_interface.ovs_extra)
+
+        # Test adding it to provider
+        self.provider.add_ovs_interface(ovs_interface)
+
 
 class TestNmstateNetConfigApply(base.TestCase):
 

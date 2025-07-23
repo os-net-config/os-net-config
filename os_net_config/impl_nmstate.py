@@ -1745,6 +1745,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         "%s=%s", "->".join(cfg["sub_tree"] + [key]), value
                     )
 
+    def get_handled_ovs_extra(self, original_list, unhandled_list):
+        """Get ovs_extra commands that were successfully handled.
+
+        :param original_list: Original list of ovs_extra commands
+        :param unhandled_list: List of commands that were not handled
+        :return: List of commands that were successfully handled
+        """
+        return [cmd for cmd in original_list if cmd not in unhandled_list]
+
     def parse_ovs_extra_for_bond_options(self, ovs_extras, name, data):
         """Parse ovs extra for bonding options
 
@@ -1999,7 +2008,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             defroute=bridge.defroute, dhclient_args=bridge.dhclient_args,
             dns_servers=bridge.dns_servers,
             nm_controlled=None, onboot=bridge.onboot,
-            domain=bridge.domain, hwaddr=mac)
+            domain=bridge.domain, hwaddr=mac, ovs_extra=bridge.ovs_extra)
         self.add_ovs_interface(ovs_interface_port)
 
         ovs_int_port = {'name': ovs_interface_port.name}
@@ -2220,6 +2229,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         if ovs_interface.hwaddr:
             data[Interface.MAC] = ovs_interface.hwaddr
+
+        # Parse ovs_extra commands for the interface
+        if ovs_interface.ovs_extra:
+            self.parse_ovs_extra_for_iface(
+                ovs_interface.ovs_extra, ovs_interface.name, data)
+
         self.interface_data[ovs_interface.name + '-if'] = data
         self.__dump_config(data, msg=f"{ovs_interface.name}: Prepared config")
 
