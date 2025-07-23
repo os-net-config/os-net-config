@@ -821,6 +821,7 @@ class TestCli(base.TestCase):
         finally:
             if os.path.exists(config_file):
                 os.remove(config_file)
+
     def test_config_provider_success(self):
         """Test config_provider function with successful configuration"""
 

@@ -606,6 +606,7 @@ def get_iface_config(
                 logger.warning(e)
     return iface_array
 
+
 def minimum_config(provider,
                    min_config,
                    no_activate,
