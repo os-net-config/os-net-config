@@ -1778,11 +1778,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
              'sub_tree': [],
              'nm_config': 'bond_updelay',
              'value_pattern': r'^bond_updelay=(.+?)$'},
-            {'config': r'^other_config:[\w+]',
+            {'config': r'^other[-_]config:[\w+]',
              'sub_tree': [],
              'nm_config': None,
              'nm_config_regex': r'^(.+?)=.*$',
-             'value_pattern': r'^other_config:.*=(.+?)$'}]
+             'value_pattern': r'^other[-_]config:.*=(.+?)$'}]
 
         # ovs-vsctl set Port $name <config>=<value>
         cfg_eq_val_pair = [{'command': ['set', 'port',
@@ -1797,75 +1797,56 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 # mismatch_count) for better error handling
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
 
-    def parse_ovs_extra(self, ovs_extras, name, data):
+    def parse_ovs_extra_for_bridge(self, ovs_extras, name, data):
         """Parse ovs extra for bridges, ports
 
-        :param ovs_extras: given ovs extra as string
+        :param ovs_extras: given ovs extra as list of strings
         :param name: bridge/port name
         :param data: The OVS Interface or Bridge data that will
             be modified after the parsing
         """
 
-        bridge_cfg = [{'config': r'^fail_mode=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.FAIL_MODE,
-                       'value_pattern': r'^fail_mode=(.+?)$'},
-                      {'config': r'^mcast_snooping_enable=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.MCAST_SNOOPING_ENABLED,
-                       'value_pattern': r'^mcast_snooping_enable=(.+?)$'},
-                      {'config': r'^rstp_enable=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.RSTP,
-                       'value_pattern': r'^rstp_enable=(.+?)$'},
-                      {'config': r'^stp_enable=[\w+]',
-                       'sub_tree': [OVSBridge.CONFIG_SUBTREE,
-                                    OVSBridge.OPTIONS_SUBTREE],
-                       'nm_config': OVSBridge.Options.STP,
-                       'value_pattern': r'^stp_enable=(.+?)$'},
-                      {'config': r'^other_config:[\w+]',
-                       'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                       'nm_config': None,
-                       'nm_config_regex': r'^other_config:(.+?)=',
-                       'value_pattern': r'^other_config:.*=(.+?)$'},
-                      {'config': r'^other-config:[\w+]',
-                       'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                       'nm_config': None,
-                       'nm_config_regex': r'^other-config:(.+?)=',
-                       'value_pattern': r'^other-config:.*=(.+?)$'}]
-
-        iface_cfg = [{'config': r'^other_config:[\w+]',
-                      'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                      'nm_config': None,
-                      'nm_config_regex': r'^other_config:(.+?)=',
-                      'value_pattern': r'^other_config:.*=(.+?)$'},
-                     {'config': r'^other-config:[\w+]',
-                      'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
-                      'nm_config': None,
-                      'nm_config_regex': r'^other-config:(.+?)=',
-                      'value_pattern': r'^other-config:.*=(.+?)$'},
-                     {'config': r'^options:n_rxq_desc=[\w+]',
-                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
-                      'nm_config': OVSInterface.Dpdk.N_RXQ_DESC,
-                      'value_pattern': r'^options:n_rxq_desc=(.+?)$'},
-                     {'config': r'^options:n_txq_desc=[\w+]',
-                      'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
-                      'nm_config': OVSInterface.Dpdk.N_TXQ_DESC,
-                      'value_pattern': r'^options:n_txq_desc=(.+?)$'}]
+        bridge_cfg = [
+            {'config': r'^fail_mode=[\w+]',
+             'sub_tree': [OVSBridge.CONFIG_SUBTREE,
+                          OVSBridge.OPTIONS_SUBTREE],
+             'nm_config': OVSBridge.Options.FAIL_MODE,
+             'value_pattern': r'^fail_mode=(.+?)$'},
+            {'config': r'^mcast_snooping_enable=[\w+]',
+             'sub_tree': [OVSBridge.CONFIG_SUBTREE,
+                          OVSBridge.OPTIONS_SUBTREE],
+             'nm_config': OVSBridge.Options.MCAST_SNOOPING_ENABLED,
+             'value_pattern': r'^mcast_snooping_enable=(.+?)$'},
+            {'config': r'^rstp_enable=[\w+]',
+             'sub_tree': [OVSBridge.CONFIG_SUBTREE,
+                          OVSBridge.OPTIONS_SUBTREE],
+             'nm_config': OVSBridge.Options.RSTP,
+             'value_pattern': r'^rstp_enable=(.+?)$'},
+            {'config': r'^stp_enable=[\w+]',
+             'sub_tree': [OVSBridge.CONFIG_SUBTREE,
+                          OVSBridge.OPTIONS_SUBTREE],
+             'nm_config': OVSBridge.Options.STP,
+             'value_pattern': r'^stp_enable=(.+?)$'},
+            {'config': r'^other[-_]config:[\w+]',
+             'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+             'nm_config': None,
+             'nm_config_regex': r'^other[-_]config:(.+?)=',
+             'value_pattern': r'^other[-_]config:.*=(.+?)$'},
+            {'config': r'^external[-_]ids:[\w+]',
+             'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
+             'nm_config': None,
+             'nm_config_regex': r'^external[-_]ids:(.+?)=',
+             'value_pattern': r'^external[-_]ids:.*=(.+?)$'}
+        ]
 
         external_id_cfg = [{'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
                             'config': r'.*',
                             'nm_config': None,
                             'nm_config_regex': r'^(.+?)$',
                             'value_pattern': r'^(.+?)$'}]
-        cfg_eq_val_pair = [{'command': ['set', 'bridge', '({name}|%s)' % name],
-                            'action': bridge_cfg},
-                           {'command': ['set', 'interface',
-                                        '({name}|%s)' % name],
-                            'action': iface_cfg}]
+        cfg_eq_val_pair = [
+            {'command': ['set', 'bridge', '({name}|%s)' % name],
+             'action': bridge_cfg}]
 
         cfg_val_pair = [{'command': ['br-set-external-id',
                                      '({name}|%s)' % name],
@@ -1882,6 +1863,48 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
             for cmd_map in cfg_val_pair:
                 self._ovs_extra_cfg_val(ovs_extra_cmd, cmd_map, data)
+
+    def parse_ovs_extra_for_dpdk(self, ovs_extras, dpdk_port, data):
+        """Parse ovs extra for bridges, ports
+
+        :param ovs_extras: given ovs extra as list of strings
+        :param name: bridge/port name
+        :param data: The OVS Interface or Bridge data that will
+            be modified after the parsing
+        """
+
+        dpdk_port_cfg = [
+            {'config': r'^other[-_]config:[\w+]',
+             'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+             'nm_config': None,
+             'nm_config_regex': r'^other[-_]config:(.+?)=',
+             'value_pattern': r'^other[-_]config:.*=(.+?)$'},
+            {'config': r'^options:n_rxq_desc=[\w+]',
+             'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
+             'nm_config': OVSInterface.Dpdk.N_RXQ_DESC,
+             'value_pattern': r'^options:n_rxq_desc=(.+?)$'},
+            {'config': r'^options:n_txq_desc=[\w+]',
+             'sub_tree': [OVSInterface.DPDK_CONFIG_SUBTREE],
+             'nm_config': OVSInterface.Dpdk.N_TXQ_DESC,
+             'value_pattern': r'^options:n_txq_desc=(.+?)$'},
+            {'config': r'^external[-_]ids:[\w+]',
+             'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
+             'nm_config': None,
+             'nm_config_regex': r'^external[-_]ids:(.+?)=',
+             'value_pattern': r'^external[-_]ids:.*=(.+?)$'}
+        ]
+
+        cfg_eq_val_pair = [{'command': ['set', 'interface',
+                                        '({name}|%s)' % dpdk_port],
+                            'action': dpdk_port_cfg}]
+
+        # ovs-vsctl set Interface $name <config>=<value>
+        for ovs_extra in ovs_extras:
+            logger.info("%s: Parse - %s", dpdk_port, ovs_extra)
+            ovs_extra_cmd = ovs_extra.split(' ')
+            for cmd_map in cfg_eq_val_pair:
+                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+            # TODO(arn): Raise error if it didnt match anything
 
     def parse_ovs_extra_for_iface(self, ovs_extras, iface_name, data):
         """Parse ovs extra for interface
@@ -2061,7 +2084,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             mac = self.interface_mac(bridge.primary_interface_name)
             bridge.ovs_extra.append("set bridge %s other_config:hwaddr=%s" %
                                     (bridge.name, mac))
-        self.parse_ovs_extra(bridge.ovs_extra, bridge.name, data)
+        self.parse_ovs_extra_for_bridge(bridge.ovs_extra, bridge.name, data)
 
         if dpdk:
             ovs_bridge_options[OVSBridge.Options.DATAPATH] = 'netdev'
@@ -2290,8 +2313,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info(
                 "%s: Parse - %s", ovs_dpdk_port.name, ovs_dpdk_port.ovs_extra
             )
-            self.parse_ovs_extra(ovs_dpdk_port.ovs_extra,
-                                 ovs_dpdk_port.name, data)
+            self.parse_ovs_extra_for_dpdk(ovs_dpdk_port.ovs_extra,
+                                          ovs_dpdk_port.name, data)
         self.interface_data[ovs_dpdk_port.name] = data
         self.__dump_config(data, msg=f"{ovs_dpdk_port.name}: Prepared config")
 
