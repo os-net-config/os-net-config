@@ -261,40 +261,20 @@ def main(argv=sys.argv, main_logger=None):
         main_logger.debug("Interface report requested, exiting after report.")
         print(json.dumps(reported_nics))
         return retval
-
-    # Read config file containing network configs to apply
-    if os.path.exists(opts.config_file):
-        try:
-            with open(opts.config_file) as cf:
-                iface_array = yaml.safe_load(cf.read()).get("network_config")
-                main_logger.debug("network_config: %s", iface_array)
-        except IOError:
-            main_logger.error("Error reading file: %s", opts.config_file)
-            return 1
-    else:
-        main_logger.error("No config file exists at: %s", opts.config_file)
-        return 1
-
-    if not isinstance(iface_array, list):
-        main_logger.error(
-            "No interfaces defined in config: %s", opts.config_file
+    try:
+        iface_array = get_iface_config(
+            "network_config",
+            opts.config_file,
+            iface_mapping,
+            persist_mapping,
+            strict_validate=opts.exit_on_validation_errors,
         )
+    except objects.InvalidConfigException as e:
+        main_logger.error("Schema validation failed for network_config\n%s", e)
         return 1
 
-    for iface_json in iface_array:
-        if iface_json.get('type') != 'route_table':
-            iface_json.update({'nic_mapping': iface_mapping})
-            iface_json.update({'persist_mapping': persist_mapping})
-
-    validation_errors = validator.validate_config(iface_array)
-    if validation_errors:
-        if opts.exit_on_validation_errors:
-            for e in validation_errors:
-                main_logger.error(e)
-            return 1
-        else:
-            for e in validation_errors:
-                main_logger.warning(e)
+    if not iface_array:
+        return 1
 
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
@@ -529,6 +509,53 @@ def config_provider(provider_name,
     if len(files_changed) > 0:
         return 2
     return 0
+
+
+def get_iface_config(
+        config_name,
+        config_file,
+        iface_map,
+        persist_map,
+        strict_validate=False):
+    logger.info("Reading %s for %s section", config_file, config_name)
+    # Read config file containing network configs to apply
+    if os.path.exists(config_file):
+        try:
+            with open(config_file) as cf:
+                iface_array = yaml.safe_load(cf.read()).get(config_name)
+                common.print_config(iface_array, config_name)
+        except IOError:
+            logger.error("Error reading file: %s", config_file)
+            return []
+        except (yaml.scanner.ScannerError, yaml.parser.ParserError) as e:
+            logger.error("Invalid YAML in config file %s: %s", config_file, e)
+            return []
+    else:
+        logger.error("No config file exists at: %s", config_file)
+        return []
+
+    if not isinstance(iface_array, list):
+        logger.error(
+            "No interfaces defined in config: %s", config_file
+        )
+        return []
+
+    for iface_json in iface_array:
+        if iface_json.get('type') != 'route_table':
+            iface_json.update({'nic_mapping': iface_map})
+            iface_json.update({'persist_mapping': persist_map})
+
+    validation_errors = validator.validate_config(iface_array)
+    if validation_errors:
+        if strict_validate:
+            for e in validation_errors:
+                logger.error(e)
+            msg = "\n".join(validation_errors)
+            raise objects.InvalidConfigException(msg)
+        else:
+            for e in validation_errors:
+                logger.warning(e)
+    return iface_array
 
 
 if __name__ == '__main__':
