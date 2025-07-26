@@ -98,6 +98,11 @@ class TestCli(base.TestCase):
         return address_map.get(ifname, None)
 
     def test_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bond_yaml = os.path.join(SAMPLE_BASE, 'bond.yaml')
         bond_json = os.path.join(SAMPLE_BASE, 'bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -115,9 +120,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ivs_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ivs\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ivs.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ivs.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -135,9 +147,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ivs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_dhcp\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bridge_yaml = os.path.join(SAMPLE_BASE, 'bridge_dhcp.yaml')
         bridge_json = os.path.join(SAMPLE_BASE, 'bridge_dhcp.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=eni --noop '
@@ -153,9 +172,16 @@ class TestCli(base.TestCase):
                           'ovs_type OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         vlan_yaml = os.path.join(SAMPLE_BASE, 'bridge_vlan.yaml')
         vlan_json = os.path.join(SAMPLE_BASE, 'bridge_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -172,9 +198,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_interface_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'interface\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         interface_yaml = os.path.join(SAMPLE_BASE, 'interface.yaml')
         interface_json = os.path.join(SAMPLE_BASE, 'interface.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -190,6 +223,8 @@ class TestCli(base.TestCase):
                           'IPADDR=192.0.2.1']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_rootfs(self):
@@ -243,6 +278,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -271,6 +311,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_sriov_vf_with_dpdk_noop_output(self):
@@ -286,6 +328,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf_ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -312,9 +359,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk_bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -331,9 +385,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKBond']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nfvswitch_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'nfvswitch\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         nfvswitch_yaml = os.path.join(SAMPLE_BASE, 'nfvswitch.yaml')
         nfvswitch_json = os.path.join(SAMPLE_BASE, 'nfvswitch.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -351,9 +412,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=nfvswitch']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -370,6 +438,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nic_mapping_report_output(self):
@@ -409,6 +479,11 @@ class TestCli(base.TestCase):
         self.assertNotIn('em4', stdout_list.values())
 
     def test_contrail_vrouter_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -425,9 +500,16 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -444,6 +526,8 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_dpdk_noop_output(self):
@@ -565,3 +649,264 @@ class TestCli(base.TestCase):
         ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
 
         self.assertEqual(1, ret_code)
+
+    def test_get_iface_config_success(self):
+        """Test successful config reading and validation"""
+        config_data = {
+            'network_config': [
+                {'type': 'interface', 'name': 'eth0'},
+                {'type': 'interface', 'name': 'eth1'}
+            ]
+        }
+        config_file = '/tmp/test_config.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False
+            )
+            self.assertEqual(len(result), 2)
+            self.assertEqual(result[0]['name'], 'eth0')
+            self.assertEqual(result[1]['name'], 'eth1')
+            # Check NIC mapping was added
+            self.assertIn('nic_mapping', result[0])
+            self.assertIn('persist_mapping', result[0])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_file_not_exists(self):
+        """Test handling of non-existent config file"""
+        result = cli.get_iface_config(
+            'network_config', '/nonexistent/file.yaml', {}, False
+        )
+        self.assertEqual(result, [])
+
+    def test_get_iface_config_io_error(self):
+        """Test handling of IO errors when reading config file"""
+        # Create a directory instead of file to trigger IOError
+        config_path = '/tmp/test_config_dir'
+        os.makedirs(config_path, exist_ok=True)
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_path, {}, False
+            )
+            self.assertEqual(result, [])
+        finally:
+            if os.path.exists(config_path):
+                os.rmdir(config_path)
+
+    def test_get_iface_config_invalid_yaml(self):
+        """Test handling of invalid YAML content"""
+        config_file = '/tmp/test_invalid.yaml'
+
+        with open(config_file, 'w') as f:
+            f.write('invalid: yaml: content: [')
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False
+            )
+            self.assertEqual(result, [])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_missing_section(self):
+        """Test handling when config section is missing"""
+        config_data = {'other_section': []}
+        config_file = '/tmp/test_missing_section.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False
+            )
+            self.assertEqual(result, [])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_not_list(self):
+        """Test handling when config section is not a list"""
+        config_data = {
+            'network_config': {'invalid': 'not a list'}
+        }
+        config_file = '/tmp/test_not_list.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False
+            )
+            self.assertEqual(result, [])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_route_table_excluded(self):
+        """Test that route_table entries are excluded from NIC mapping"""
+        config_data = {
+            'network_config': [
+                {'type': 'interface', 'name': 'eth0'},
+                {'type': 'route_table', 'table_id': 200, 'name': 'custom'}
+            ]
+        }
+        config_file = '/tmp/test_route_table.yaml'
+        iface_mapping = {'nic1': 'eth0'}
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_file, iface_mapping, True
+            )
+            self.assertEqual(len(result), 2)
+            # Interface should have mapping
+            self.assertEqual(result[0]['nic_mapping'], iface_mapping)
+            self.assertEqual(result[0]['persist_mapping'], True)
+            # Route table should not have mapping
+            self.assertNotIn('nic_mapping', result[1])
+            self.assertNotIn('persist_mapping', result[1])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_strict_validation_success(self):
+        """Test strict validation mode with valid config"""
+        config_data = {
+            'network_config': [
+                {'type': 'interface', 'name': 'eth0'}
+            ]
+        }
+        config_file = '/tmp/test_strict_valid.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            # Mock validator to return no errors
+            def mock_validate_config(config):
+                return []
+            self.stub_out('os_net_config.validator.validate_config',
+                          mock_validate_config)
+
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False, strict_validate=True
+            )
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0]['name'], 'eth0')
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_strict_validation_failure(self):
+        """Test strict validation mode with invalid config raises exception"""
+        config_data = {
+            'network_config': [
+                {'type': 'interface', 'invalid_field': 'value'}
+            ]
+        }
+        config_file = '/tmp/test_strict_invalid.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        # Mock validator to return errors
+        def mock_validate_config(config):
+            return ['Validation error 1', 'Validation error 2']
+        self.stub_out('os_net_config.validator.validate_config',
+                      mock_validate_config)
+        self.assertRaises(
+            os_net_config.objects.InvalidConfigException,
+            cli.get_iface_config,
+            'network_config',
+            config_file,
+            {},
+            False,
+            strict_validate=True
+        )
+        if os.path.exists(config_file):
+            os.remove(config_file)
+
+    def test_get_iface_config_warning_validation(self):
+        """Test warning-only validation mode logs warnings but continues"""
+        config_data = {
+            'network_config': [
+                {'type': 'interface', 'name': 'eth0'}
+            ]
+        }
+        config_file = '/tmp/test_warning_validation.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            # Mock validator to return errors
+            def mock_validate_config(config):
+                return ['Warning: Invalid configuration']
+            self.stub_out('os_net_config.validator.validate_config',
+                          mock_validate_config)
+
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False, strict_validate=False
+            )
+            # Should still return config despite validation warnings
+            self.assertEqual(len(result), 1)
+            self.assertEqual(result[0]['name'], 'eth0')
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_with_nic_mapping(self):
+        """Test config with NIC mapping applied correctly"""
+        config_data = {
+            'network_config': [
+                {'type': 'interface', 'name': 'nic1'},
+                {'type': 'interface', 'name': 'nic2'}
+            ]
+        }
+        config_file = '/tmp/test_nic_mapping.yaml'
+        iface_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_file, iface_mapping, True
+            )
+            self.assertEqual(len(result), 2)
+            for iface in result:
+                self.assertEqual(iface['nic_mapping'], iface_mapping)
+                self.assertEqual(iface['persist_mapping'], True)
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_empty_config(self):
+        """Test handling of empty config list"""
+        config_data = {
+            'network_config': []
+        }
+        config_file = '/tmp/test_empty_config.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False
+            )
+            self.assertEqual(result, [])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
