@@ -63,7 +63,7 @@ the network configuration, but an alternate file can be used with the
 ``--config-file`` argument. The following arguments change the behaviour
 during configuration:
 
-- ``--detailed-exit-codes`` If enabled an exit code of ``2`` means that
+- ``--detailed-exit-codes`` If enabled an exit code of ``FILES_CHANGED`` (2) means that
   files were modified.
 - ``--exit-on-validation-errors`` Exit with an error if configuration
   file validation fails.

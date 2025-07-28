@@ -16,6 +16,7 @@
 
 
 import argparse
+from enum import IntEnum
 import importlib
 import json
 import os
@@ -27,6 +28,20 @@ from os_net_config import objects
 from os_net_config import utils
 from os_net_config import validator
 from os_net_config import version
+
+
+class ExitCode(IntEnum):
+    """Exit codes used by os-net-config.
+
+    These codes indicate the result of configuration operations:
+    - SUCCESS: Configuration completed successfully
+    - ERROR: Configuration failed due to an error
+    Below values are returned when --detailed_exit_code is enabled in cli
+    - FILES_CHANGED: Configuration successful and files were modified
+    """
+    SUCCESS = 0          # Configuration successful
+    ERROR = 1            # Configuration failed
+    FILES_CHANGED = 2    # Configuration successful, files were modified
 
 
 logger = common.configure_logger()
@@ -74,7 +89,7 @@ def parse_opts(argv):
     parser.add_argument('--detailed-exit-codes',
                         action='store_true',
                         help="""Enable detailed exit codes. """
-                        """If enabled an exit code of '2' means """
+                        """If enabled an exit code of FILES_CHANGED means """
                         """that files were modified. """
                         """Disabled by default.""",
                         default=False)
@@ -228,7 +243,7 @@ def main(argv=sys.argv, main_logger=None):
     if opts.interfaces is not None:
         reported_nics = {}
         mapped_nics = objects.mapped_nics(iface_mapping)
-        retval = 0
+        retval = ExitCode.SUCCESS
         if len(opts.interfaces) > 0:
             for requested_nic in opts.interfaces:
                 found = False
@@ -247,7 +262,7 @@ def main(argv=sys.argv, main_logger=None):
                         reported_nics[requested_nic] = requested_nic
                         found = True
                 if not found:
-                    retval = 1
+                    retval = ExitCode.ERROR
             if reported_nics:
                 main_logger.debug(
                     "Interface mapping requested for interface: %s",
@@ -257,7 +272,7 @@ def main(argv=sys.argv, main_logger=None):
             main_logger.debug("Interface mapping requested for all interfaces")
             reported_nics = mapped_nics
         # Return the report on the mapped NICs. If all NICs were found, exit
-        # cleanly, otherwise exit with status 1.
+        # cleanly, otherwise exit with status ERROR.
         main_logger.debug("Interface report requested, exiting after report.")
         print(json.dumps(reported_nics))
         return retval
@@ -271,10 +286,10 @@ def main(argv=sys.argv, main_logger=None):
         )
     except objects.InvalidConfigException as e:
         main_logger.error("Schema validation failed for network_config\n%s", e)
-        return 1
+        return ExitCode.ERROR
 
     if not iface_array:
-        return 1
+        return ExitCode.ERROR
 
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
@@ -288,7 +303,7 @@ def main(argv=sys.argv, main_logger=None):
             opts.root_dir,
             opts.noop
         )
-        if purge_ret != 0:
+        if purge_ret != ExitCode.SUCCESS:
             main_logger.error(
                 "Failed to purge %s provider", opts.purge_provider
             )
@@ -305,7 +320,7 @@ def main(argv=sys.argv, main_logger=None):
         else:
             main_logger.error("Unable to set provider for this operating "
                               "system.")
-            return 1
+            return ExitCode.ERROR
 
     try:
         logger.info("%s: Applying network_config section", opts.provider)
@@ -324,7 +339,7 @@ def main(argv=sys.argv, main_logger=None):
             opts.provider,
             e
         )
-        ret_code = 1
+        ret_code = ExitCode.ERROR
 
     if utils.is_dcb_config_required():
         # Apply the DCB Config
@@ -332,16 +347,16 @@ def main(argv=sys.argv, main_logger=None):
             from os_net_config import dcb_config
         except ImportError as e:
             logger.error("cannot apply DCB configuration: %s", e)
-            return 1
+            return ExitCode.ERROR
 
         utils.configure_dcb_config_service()
         dcb_apply = dcb_config.DcbApplyConfig()
         dcb_apply.apply()
 
-    if opts.detailed_exit_codes or ret_code == 1:
+    if opts.detailed_exit_codes or ret_code == ExitCode.ERROR:
         return ret_code
     else:
-        return 0
+        return ExitCode.SUCCESS
 
 
 def unconfig_provider(provider_name,
@@ -355,7 +370,7 @@ def unconfig_provider(provider_name,
      :param iface_array: List of interface configurations
      :param root_dir: Root directory for filesystem operations
      :param noop: If True, only show what would be done
-     :returns: 0 on success, 1 on error
+     :returns: ExitCode.SUCCESS on success, ExitCode.ERROR on error
      """
     logger.info("%s: Performing unconfig", provider_name)
     try:
@@ -365,7 +380,7 @@ def unconfig_provider(provider_name,
         logger.error(
             "%s: cannot load purge provider, error %s", provider_name, e
         )
-        return 1
+        return ExitCode.ERROR
 
     for iface_json in iface_array:
         try:
@@ -377,7 +392,7 @@ def unconfig_provider(provider_name,
     purge_provider.destroy()
 
     logger.info("%s: Completed unconfig", provider_name)
-    return 0
+    return ExitCode.SUCCESS
 
 
 def config_provider(provider_name,
@@ -398,7 +413,8 @@ def config_provider(provider_name,
     :param no_activate: If True, install config but don't start/stop
         interfaces
     :param cleanup: If True, cleanup unconfigured interfaces
-    :returns: 0 on success, 1 on error, 2 if files were modified
+    :returns: ExitCode
+
     """
     configure_sriov = False
     files_changed = {}
@@ -409,7 +425,7 @@ def config_provider(provider_name,
         provider = load_provider(provider_name, noop, root_dir)
     except ImportError as e:
         logger.error("%s: cannot load provider, error %s", provider_name, e)
-        return 1
+        return ExitCode.ERROR
 
     # Look for the presence of SriovPF types in the first parse of the json
     # if SriovPFs exists then PF devices needs to be configured so that the VF
@@ -496,7 +512,7 @@ def config_provider(provider_name,
             config_name,
             e
         )
-        return 1
+        return ExitCode.ERROR
 
     if configure_sriov:
         files_changed.update(pf_files_changed)
@@ -507,8 +523,8 @@ def config_provider(provider_name,
             print(data)
             print("----")
     if len(files_changed) > 0:
-        return 2
-    return 0
+        return ExitCode.FILES_CHANGED
+    return ExitCode.SUCCESS
 
 
 def get_iface_config(
