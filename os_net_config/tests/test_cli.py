@@ -23,6 +23,7 @@ import yaml
 
 import os_net_config
 from os_net_config import cli
+from os_net_config.cli import ExitCode
 from os_net_config import common
 from os_net_config.tests import base
 
@@ -74,7 +75,7 @@ class TestCli(base.TestCase):
         if os.path.isfile(common.SRIOV_CONFIG_FILE):
             os.remove(common.SRIOV_CONFIG_FILE)
 
-    def run_cli(self, argstr, exitcodes=(0,)):
+    def run_cli(self, argstr, exitcodes=(ExitCode.SUCCESS,)):
         for s in [sys.stdout, sys.stderr]:
             s.flush()
             s.truncate(0)
@@ -242,7 +243,8 @@ class TestCli(base.TestCase):
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
                                            '-c %s --detailed-exit-codes'
-                                           % interface_yaml, exitcodes=(2,))
+                                           % interface_yaml,
+                                           exitcodes=(ExitCode.FILES_CHANGED,))
 
     def test_interface_noop_detailed_exit_codes_no_changes(self):
         interface_yaml = os.path.join(SAMPLE_BASE, 'interface.yaml')
@@ -260,7 +262,8 @@ class TestCli(base.TestCase):
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
                                            '-c %s --detailed-exit-codes'
-                                           % interface_yaml, exitcodes=(0,))
+                                           % interface_yaml,
+                                           exitcodes=(ExitCode.SUCCESS,))
 
     def test_sriov_noop_output(self):
         def test_get_vf_devname(device, vfid):
@@ -588,7 +591,7 @@ class TestCli(base.TestCase):
             "", False, False, False
         )
 
-        self.assertEqual(2, ret_code)
+        self.assertEqual(ExitCode.FILES_CHANGED, ret_code)
 
     def test_config_provider_failure(self):
         """Test config_provider function with provider loading failure"""
@@ -607,7 +610,7 @@ class TestCli(base.TestCase):
             "", False, False, False
         )
 
-        self.assertEqual(1, ret_code)
+        self.assertEqual(ExitCode.ERROR, ret_code)
 
     def test_unconfig_provider_success(self):
         """Test unconfig_provider function with successful cleanup"""
@@ -632,7 +635,7 @@ class TestCli(base.TestCase):
         iface_array = [{"type": "interface", "name": "eth0"}]
         ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
 
-        self.assertEqual(0, ret_code)
+        self.assertEqual(ExitCode.SUCCESS, ret_code)
 
     def test_unconfig_provider_failure(self):
         """Test unconfig_provider function with provider loading failure"""
@@ -648,7 +651,7 @@ class TestCli(base.TestCase):
         iface_array = [{"type": "interface", "name": "eth0"}]
         ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
 
-        self.assertEqual(1, ret_code)
+        self.assertEqual(ExitCode.ERROR, ret_code)
 
     def test_get_iface_config_success(self):
         """Test successful config reading and validation"""
