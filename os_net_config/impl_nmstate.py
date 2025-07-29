@@ -1827,6 +1827,11 @@ class NmstateNetConfig(os_net_config.NetConfig):
                           OVSBridge.OPTIONS_SUBTREE],
              'nm_config': OVSBridge.Options.STP,
              'value_pattern': r'^stp_enable=(.+?)$'},
+            {'config': r'^datapath_type=[\w+]',
+             'sub_tree': [OVSBridge.CONFIG_SUBTREE,
+                          OVSBridge.OPTIONS_SUBTREE],
+             'nm_config': OVSBridge.Options.DATAPATH,
+             'value_pattern': r'^datapath_type=(.+?)$'},
             {'config': r'^other[-_]config:[\w+]',
              'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
              'nm_config': None,
@@ -1844,16 +1849,24 @@ class NmstateNetConfig(os_net_config.NetConfig):
                             'nm_config': None,
                             'nm_config_regex': r'^(.+?)$',
                             'value_pattern': r'^(.+?)$'}]
+
+        # Configuration for del-controller command (not checking parameters)
+        del_controller_cfg = []
+
         cfg_eq_val_pair = [
             {'command': ['set', 'bridge', '({name}|%s)' % name],
-             'action': bridge_cfg}]
+             'action': bridge_cfg},
+            {'command': ['del-controller', '%s' % name],
+             'action': del_controller_cfg},
+        ]
 
         cfg_val_pair = [{'command': ['br-set-external-id',
                                      '({name}|%s)' % name],
                          'action': external_id_cfg}]
         # ovs-vsctl set Bridge $name <config>=<value>
-        # ovs-vsctl set Interface $name <config>=<value>
         # ovs-vsctl br-set-external-id $name key [value]
+        # ovs-vsctl del-controller $name
+
         for ovs_extra in ovs_extras:
             logger.info("%s: Parse - %s", name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
@@ -1980,7 +1993,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
     def parse_ovs_extra_for_ports(self, ovs_extras, bridge_name, data):
         """Parse ovs extra for VLAN
 
-        :param ovs_extras: given ovs extra as string
+        :param ovs_extras: given ovs extra as a list of strings
         :param bridge_name: bridge name
         :param data: The interface data that will be modified after
             the parsing
@@ -1992,7 +2005,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
                          {'config': r'^tag=[\w+]',
                           'sub_tree': [OVSBridge.Port.VLAN_SUBTREE],
                           'nm_config': OVSBridge.Port.Vlan.MODE,
+                          'value': 'access'},
+                         {'config': r'^vlan_mode=access',
+                          'sub_tree': [OVSBridge.Port.VLAN_SUBTREE],
+                          'nm_config': OVSBridge.Port.Vlan.MODE,
                           'value': 'access'}]
+        # NOTE: Port-level external IDs are NOT supported
+        # (e.g., "set port br-ex external-ids:a=b")
+        # by nmstate.
+
         cfg_eq_val_pair = [{'command': ['set', 'port',
                                         '({name}|%s)' % bridge_name],
                             'action': port_vlan_cfg}]
