@@ -3089,6 +3089,42 @@ class TestNmstateNetConfig(base.TestCase):
         # Test adding it to provider
         self.provider.add_ovs_interface(ovs_interface)
 
+    def test_bridge_features_datapath_type(self):
+        """Test datapath_type bridge feature"""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        bridge_config = """
+        type: ovs_bridge
+        name: br-test
+        ovs_extra:
+          - "set bridge {name} datapath_type=netdev"
+        """
+
+        obj = objects.object_from_json(yaml.safe_load(bridge_config))
+        self.provider.add_bridge(obj)
+
+        # Verify datapath_type is handled correctly
+        bridge_data = self.provider.bridge_data['br-test']
+        self.assertIn('datapath',
+                      bridge_data['bridge']['options'])
+
+    def test_bridge_features_del_controller(self):
+        """Test del-controller command support"""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        bridge_config = """
+        type: ovs_bridge
+        name: br-test
+        ovs_extra:
+          - "del-controller {name}"
+        """
+
+        obj = objects.object_from_json(yaml.safe_load(bridge_config))
+        # Should parse successfully - del-controller has empty action list
+        self.provider.add_bridge(obj)
+
 
 class TestNmstateNetConfigApply(base.TestCase):
 
