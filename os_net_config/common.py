@@ -138,6 +138,11 @@ def logger_level(logger, verbose=False, debug=False):
     logger.setLevel(log_level)
 
 
+def get_timestamp():
+    """Return the current timestamp as a string in YYYYMMDD_HHMMSS format."""
+    return time.strftime("%Y%m%d_%H%M%S", time.localtime())
+
+
 def print_config(config, msg=""):
     cfg_dump = yaml.dump(config, default_flow_style=False,
                          allow_unicode=True, encoding=None)

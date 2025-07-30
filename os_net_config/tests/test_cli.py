@@ -23,6 +23,7 @@ import yaml
 
 import os_net_config
 from os_net_config import cli
+from os_net_config.cli import ExitCode
 from os_net_config import common
 from os_net_config.tests import base
 
@@ -74,7 +75,7 @@ class TestCli(base.TestCase):
         if os.path.isfile(common.SRIOV_CONFIG_FILE):
             os.remove(common.SRIOV_CONFIG_FILE)
 
-    def run_cli(self, argstr, exitcodes=(0,)):
+    def run_cli(self, argstr, exitcodes=(ExitCode.SUCCESS,)):
         for s in [sys.stdout, sys.stderr]:
             s.flush()
             s.truncate(0)
@@ -98,6 +99,11 @@ class TestCli(base.TestCase):
         return address_map.get(ifname, None)
 
     def test_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bond_yaml = os.path.join(SAMPLE_BASE, 'bond.yaml')
         bond_json = os.path.join(SAMPLE_BASE, 'bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -115,9 +121,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ivs_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ivs\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ivs.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ivs.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -135,9 +148,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ivs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_dhcp\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bridge_yaml = os.path.join(SAMPLE_BASE, 'bridge_dhcp.yaml')
         bridge_json = os.path.join(SAMPLE_BASE, 'bridge_dhcp.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=eni --noop '
@@ -153,9 +173,16 @@ class TestCli(base.TestCase):
                           'ovs_type OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         vlan_yaml = os.path.join(SAMPLE_BASE, 'bridge_vlan.yaml')
         vlan_json = os.path.join(SAMPLE_BASE, 'bridge_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -172,9 +199,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_interface_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'interface\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         interface_yaml = os.path.join(SAMPLE_BASE, 'interface.yaml')
         interface_json = os.path.join(SAMPLE_BASE, 'interface.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -190,6 +224,8 @@ class TestCli(base.TestCase):
                           'IPADDR=192.0.2.1']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_rootfs(self):
@@ -207,7 +243,8 @@ class TestCli(base.TestCase):
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
                                            '-c %s --detailed-exit-codes'
-                                           % interface_yaml, exitcodes=(2,))
+                                           % interface_yaml,
+                                           exitcodes=(ExitCode.FILES_CHANGED,))
 
     def test_interface_noop_detailed_exit_codes_no_changes(self):
         interface_yaml = os.path.join(SAMPLE_BASE, 'interface.yaml')
@@ -225,7 +262,8 @@ class TestCli(base.TestCase):
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
                                            '--exit-on-validation-errors '
                                            '-c %s --detailed-exit-codes'
-                                           % interface_yaml, exitcodes=(0,))
+                                           % interface_yaml,
+                                           exitcodes=(ExitCode.SUCCESS,))
 
     def test_sriov_noop_output(self):
         def test_get_vf_devname(device, vfid):
@@ -243,6 +281,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -271,6 +314,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_sriov_vf_with_dpdk_noop_output(self):
@@ -286,6 +331,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf_ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -312,9 +362,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk_bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -331,9 +388,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKBond']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nfvswitch_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'nfvswitch\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         nfvswitch_yaml = os.path.join(SAMPLE_BASE, 'nfvswitch.yaml')
         nfvswitch_json = os.path.join(SAMPLE_BASE, 'nfvswitch.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -351,9 +415,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=nfvswitch']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -370,6 +441,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nic_mapping_report_output(self):
@@ -409,6 +482,11 @@ class TestCli(base.TestCase):
         self.assertNotIn('em4', stdout_list.values())
 
     def test_contrail_vrouter_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -425,9 +503,16 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -444,6 +529,8 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_dpdk_noop_output(self):
@@ -504,7 +591,7 @@ class TestCli(base.TestCase):
             "", False, False, False
         )
 
-        self.assertEqual(2, ret_code)
+        self.assertEqual(ExitCode.FILES_CHANGED, ret_code)
 
     def test_config_provider_failure(self):
         """Test config_provider function with provider loading failure"""
@@ -523,7 +610,7 @@ class TestCli(base.TestCase):
             "", False, False, False
         )
 
-        self.assertEqual(1, ret_code)
+        self.assertEqual(ExitCode.ERROR, ret_code)
 
     def test_unconfig_provider_success(self):
         """Test unconfig_provider function with successful cleanup"""
@@ -548,7 +635,7 @@ class TestCli(base.TestCase):
         iface_array = [{"type": "interface", "name": "eth0"}]
         ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
 
-        self.assertEqual(0, ret_code)
+        self.assertEqual(ExitCode.SUCCESS, ret_code)
 
     def test_unconfig_provider_failure(self):
         """Test unconfig_provider function with provider loading failure"""
@@ -564,7 +651,7 @@ class TestCli(base.TestCase):
         iface_array = [{"type": "interface", "name": "eth0"}]
         ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
 
-        self.assertEqual(1, ret_code)
+        self.assertEqual(ExitCode.ERROR, ret_code)
 
     def test_get_iface_config_success(self):
         """Test successful config reading and validation"""
@@ -826,3 +913,92 @@ class TestCli(base.TestCase):
         finally:
             if os.path.exists(config_file):
                 os.remove(config_file)
+
+    def test_config_provider_success(self):
+        """Test config_provider function with successful configuration"""
+
+        class MockProvider(os_net_config.NetConfig):
+            def __init__(self, noop=False, root_dir=''):
+                super(MockProvider, self).__init__(noop, root_dir)
+                self.added_objects = []
+
+            def add_object(self, obj):
+                self.added_objects.append(obj)
+
+            def apply(self, cleanup=False, activate=True,
+                      config_rules_dns=True):
+                return {'/tmp/test_config': 'test content'}
+
+        def mock_load_provider(provider_name, noop, root_dir):
+            return MockProvider(noop, root_dir)
+
+        self.stub_out('os_net_config.cli.load_provider', mock_load_provider)
+
+        # Test successful configuration
+        iface_config = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.config_provider(
+            "iifcfg", "network_config", iface_config,
+            "", False, False, False
+        )
+
+        self.assertEqual(2, ret_code)
+
+    def test_config_provider_failure(self):
+        """Test config_provider function with provider loading failure"""
+
+        def mock_load_provider_fail(provider_name, noop, root_dir):
+            raise ImportError("Failed to load provider")
+
+        self.stub_out(
+            'os_net_config.cli.load_provider', mock_load_provider_fail
+        )
+
+        # Test provider loading failure
+        iface_config = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.config_provider(
+            "ifcfg", "network_config", iface_config,
+            "", False, False, False
+        )
+
+        self.assertEqual(1, ret_code)
+
+    def test_unconfig_provider_success(self):
+        """Test unconfig_provider function with successful cleanup"""
+
+        class MockProvider(os_net_config.NetConfig):
+            def __init__(self, noop=False, root_dir=''):
+                super(MockProvider, self).__init__(noop, root_dir)
+                self.deleted_objects = []
+
+            def del_object(self, obj):
+                self.deleted_objects.append(obj)
+
+            def destroy(self):
+                pass
+
+        def mock_load_provider(provider_name, noop, root_dir):
+            return MockProvider(noop, root_dir)
+
+        self.stub_out('os_net_config.cli.load_provider', mock_load_provider)
+
+        # Test successful cleanup
+        iface_array = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
+
+        self.assertEqual(0, ret_code)
+
+    def test_unconfig_provider_failure(self):
+        """Test unconfig_provider function with provider loading failure"""
+
+        def mock_load_provider_fail(provider_name, noop, root_dir):
+            raise ImportError("Failed to load purge provider")
+
+        self.stub_out(
+            'os_net_config.cli.load_provider', mock_load_provider_fail
+        )
+
+        # Test provider loading failure
+        iface_array = [{"type": "interface", "name": "eth0"}]
+        ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
+
+        self.assertEqual(1, ret_code)
