@@ -763,18 +763,17 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 first_v6 = v6_addresses[0]
                 data += "IPV6_AUTOCONF=no\n"
                 data += "IPV6_SET_SYSCTLS=yes\n"
+                data += "IPV6_FORCE_ACCEPT_RA=no\n"
                 data += "IPV6ADDR=%s\n" % first_v6.ip_netmask
                 if len(v6_addresses) > 1:
                     secondaries_v6 = " ".join(map(lambda a: a.ip_netmask,
                                                   v6_addresses[1:]))
                     data += "IPV6ADDR_SECONDARIES=\"%s\"\n" % secondaries_v6
-            if v6_addresses and not base_opt.defroute:
-                data += "IPV6_FORCE_ACCEPT_RA=no\n"
             for route in base_opt.routes:
                 if route.default or (route.ip_netmask == "::/0"):
                     if ":" in route.next_hop:
-                        data += "IPV6_DEFAULTGW={}\n".format(route.next_hop)
-                        data += "IPV6_DEFAULTDEV={}\n".format(base_opt.name)
+                        data += f"IPV6_DEFAULTGW={route.next_hop}\n"
+                        data += f"IPV6_DEFAULTDEV={base_opt.name}\n"
 
         if base_opt.hwaddr:
             data += "HWADDR=%s\n" % base_opt.hwaddr
