@@ -99,6 +99,11 @@ class TestCli(base.TestCase):
         return address_map.get(ifname, None)
 
     def test_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bond_yaml = os.path.join(SAMPLE_BASE, 'bond.yaml')
         bond_json = os.path.join(SAMPLE_BASE, 'bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -116,9 +121,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ivs_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ivs\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ivs.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ivs.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -136,9 +148,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ivs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_dhcp\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bridge_yaml = os.path.join(SAMPLE_BASE, 'bridge_dhcp.yaml')
         bridge_json = os.path.join(SAMPLE_BASE, 'bridge_dhcp.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=eni --noop '
@@ -154,9 +173,16 @@ class TestCli(base.TestCase):
                           'ovs_type OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         vlan_yaml = os.path.join(SAMPLE_BASE, 'bridge_vlan.yaml')
         vlan_json = os.path.join(SAMPLE_BASE, 'bridge_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -173,9 +199,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_interface_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'interface\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         interface_yaml = os.path.join(SAMPLE_BASE, 'interface.yaml')
         interface_json = os.path.join(SAMPLE_BASE, 'interface.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -191,6 +224,8 @@ class TestCli(base.TestCase):
                           'IPADDR=192.0.2.1']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_rootfs(self):
@@ -246,6 +281,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -274,6 +314,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_sriov_vf_with_dpdk_noop_output(self):
@@ -289,6 +331,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf_ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -315,9 +362,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk_bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -334,9 +388,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKBond']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nfvswitch_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'nfvswitch\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         nfvswitch_yaml = os.path.join(SAMPLE_BASE, 'nfvswitch.yaml')
         nfvswitch_json = os.path.join(SAMPLE_BASE, 'nfvswitch.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -354,9 +415,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=nfvswitch']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -373,6 +441,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nic_mapping_report_output(self):
@@ -412,6 +482,11 @@ class TestCli(base.TestCase):
         self.assertNotIn('em4', stdout_list.values())
 
     def test_contrail_vrouter_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -428,9 +503,16 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -447,6 +529,8 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_dpdk_noop_output(self):
