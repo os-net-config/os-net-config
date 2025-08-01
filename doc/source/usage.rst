@@ -63,8 +63,21 @@ the network configuration, but an alternate file can be used with the
 ``--config-file`` argument. The following arguments change the behaviour
 during configuration:
 
-- ``--detailed-exit-codes`` If enabled an exit code of ``FILES_CHANGED`` (2) means that
-  files were modified.
+- ``--detailed-exit-codes`` If enabled, returns detailed exit codes to indicate
+  specific configuration outcomes. When disabled, exit codes are simplified for
+  backward compatibility.
+
+  Exit code mapping:
+
+  ===================== ===================== ===================
+  Exit Code             Detailed Mode         Standard Mode
+  ===================== ===================== ===================
+  SUCCESS (0)           No changes            Success
+  ERROR (1)             Configuration failed  Error
+  FILES_CHANGED (2)     Files were modified   Success
+  FALLBACK_SUCCESS (3)  Fallback succeeded    Success
+  FALLBACK_ERROR (4)    Fallback failed       Error
+  ===================== ===================== ===================
 - ``--exit-on-validation-errors`` Exit with an error if configuration
   file validation fails.
 - ``--noop`` Return the configuration commands, without applying them.
