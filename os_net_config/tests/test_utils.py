@@ -1303,3 +1303,27 @@ dpdk {
         dpdk_map = yaml.safe_load(contents) if contents else []
         self.assertEqual(2, len(dpdk_map))
         self.assertListEqual(dpdk_test, dpdk_map)
+
+    def test_interface_maxmtu_exceed(self):
+        """Test interface_mtu_exceeded_max when MTU set exceeds max_mtu."""
+        def test_execute(*args, **kwargs):
+            json_output = '[{"ifname": "eth0", "max_mtu": 1500}]'
+            return json_output, None
+
+        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
+        common.set_noop(False)
+
+        result = utils.interface_mtu_exceeded_max('eth0', 9000)
+        self.assertTrue(result)
+
+    def test_interface_maxmtu_allowed(self):
+        """Test interface_mtu_exceeded_max when MTU set is within max_mtu."""
+        def test_execute(*args, **kwargs):
+            json_output = '[{"ifname": "eth0", "max_mtu": 9000}]'
+            return json_output, None
+
+        self.stub_out('oslo_concurrency.processutils.execute', test_execute)
+        common.set_noop(False)
+
+        result = utils.interface_mtu_exceeded_max('eth0', 1500)
+        self.assertFalse(result)
