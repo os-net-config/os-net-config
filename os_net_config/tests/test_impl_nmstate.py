@@ -3069,6 +3069,53 @@ class TestNmstateNetConfig(base.TestCase):
                           self.provider.add_sriov_vf,
                           vf)
 
+    def test_get_handled_ovs_extra_function(self):
+        """Test the new get_handled_ovs_extra helper function"""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        original_list = [
+            "set bridge {name} fail_mode=standalone",
+            "set bridge {name} other_config:mac-table-size=50000",
+            "set interface {name} external_ids:vm-id=12345",
+            "invalid command that fails"
+        ]
+
+        unhandled_list = [
+            "invalid command that fails"
+        ]
+
+        # Test the difference calculation
+        handled_commands = self.provider.get_handled_ovs_extra(
+            original_list, unhandled_list)
+
+        expected_handled = [
+            "set bridge {name} fail_mode=standalone",
+            "set bridge {name} other_config:mac-table-size=50000",
+            "set interface {name} external_ids:vm-id=12345"
+        ]
+
+        self.assertEqual(expected_handled, handled_commands)
+
+    def test_bridge_sequential_parsing_chain(self):
+        """Test the new sequential parsing chain: iface->ports->bridge"""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        # Mix of commands that should be separated into categories
+        bridge_config = """
+        type: ovs_bridge
+        name: br-test
+        ovs_extra:
+          - "set interface {name} external_ids:iface-cmd=test"
+          - "set port {name} tag=100"
+          - "set bridge {name} fail_mode=standalone"
+        """
+
+        obj = objects.object_from_json(yaml.safe_load(bridge_config))
+        # Should parse successfully - commands get distributed to parsers
+        self.provider.add_bridge(obj)
+
     def test_enhanced_ovs_interface_constructor(self):
         """Test enhanced OvsInterface constructor with ovs_extra parameter"""
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
@@ -3124,6 +3171,25 @@ class TestNmstateNetConfig(base.TestCase):
         obj = objects.object_from_json(yaml.safe_load(bridge_config))
         # Should parse successfully - del-controller has empty action list
         self.provider.add_bridge(obj)
+
+    def test_unhandled_command_tracking_edge_case(self):
+        """Test edge case where commands don't match any parser category"""
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        # Command that doesn't match interface, port, or bridge patterns
+        bridge_config = """
+        type: ovs_bridge
+        name: br-test
+        ovs_extra:
+          - "completely-invalid-command with bad syntax"
+        """
+
+        obj = objects.object_from_json(yaml.safe_load(bridge_config))
+
+        # Should raise ConfigurationError for completely unhandled command
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_bridge, obj)
 
 
 class TestNmstateNetConfigApply(base.TestCase):
