@@ -260,6 +260,10 @@ _ROUTES = """default via 192.168.1.1 dev em1 metric 10
 172.20.0.0/24 via 192.168.1.5 dev em1 metric 100
 """
 
+_ROUTES_DEV = """0.0.0.0/0 dev em1 metric 10
+172.19.0.0/24 dev em1
+"""
+
 _ROUTES_PF = """default via 192.168.1.1 dev enp3s0f0 metric 10
 172.19.0.0/24 via 192.168.1.1 dev enp3s0f0
 172.20.0.0/24 via 192.168.1.5 dev enp3s0f0 metric 100
@@ -297,6 +301,10 @@ _ROUTES_V6 = """default via 2001:db8:a::1 dev em1
 2001:db8:dead:beff::/64 via fd00:fd00:2000::1 dev em1 metric 100
 """
 
+_ROUTES_V6_DEV = """::/0 dev em1
+2001:db8:dead:beef:cafe::/56 dev em1
+2001:db8:dead:beff::/64 dev em1 metric 100
+"""
 
 _OVS_INTERFACE = _BASE_IFCFG + """DEVICETYPE=ovs
 TYPE=OVSPort
@@ -913,6 +921,17 @@ class TestIfcfgNetConfig(base.TestCase):
         self.assertEqual(_V4_IFCFG, self.get_interface_config())
         self.assertEqual(_ROUTES, self.get_route_config())
 
+    def test_network_with_routes_via_dev(self):
+        route1 = objects.Route('self', '0.0.0.0/0',
+                               route_options="metric 10")
+        route2 = objects.Route('self', '172.19.0.0/24')
+        v4_addr = objects.Address('192.168.1.2/24')
+        interface = objects.Interface('em1', addresses=[v4_addr],
+                                      routes=[route1, route2])
+        self.provider.add_interface(interface)
+        self.assertEqual(_V4_IFCFG, self.get_interface_config())
+        self.assertEqual(_ROUTES_DEV, self.get_route_config())
+
     def test_network_with_ipv6_routes(self):
         route1 = objects.Route('192.168.1.1', default=True,
                                route_options="metric 10")
@@ -933,6 +952,20 @@ class TestIfcfgNetConfig(base.TestCase):
         self.provider.add_interface(interface)
         self.assertEqual(_V4_V6_IFCFG, self.get_interface_config())
         self.assertEqual(_ROUTES_V6, self.get_route6_config())
+
+    def test_network_with_ipv6_routes_via_dev(self):
+        route1 = objects.Route('self', '::/0')
+        route2 = objects.Route('self',
+                               '2001:db8:dead:beef:cafe::/56')
+        route3 = objects.Route('self',
+                               '2001:db8:dead:beff::/64',
+                               route_options="metric 100")
+        v6_addr = objects.Address('2001:abc:a::/64')
+        interface = objects.Interface('em1', addresses=[v6_addr],
+                                      routes=[route1, route2, route3])
+        self.provider.add_interface(interface)
+        self.assertEqual(_V6_IFCFG, self.get_interface_config())
+        self.assertEqual(_ROUTES_V6_DEV, self.get_route6_config())
 
     def test_network_ovs_bridge_with_dhcp(self):
         interface = objects.Interface('em1')
