@@ -100,6 +100,11 @@ class TestCli(base.TestCase):
         return address_map.get(ifname, None)
 
     def test_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bond_yaml = os.path.join(SAMPLE_BASE, 'bond.yaml')
         bond_json = os.path.join(SAMPLE_BASE, 'bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -117,9 +122,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ivs_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ivs\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ivs.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ivs.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -137,9 +149,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ivs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_dhcp\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         bridge_yaml = os.path.join(SAMPLE_BASE, 'bridge_dhcp.yaml')
         bridge_json = os.path.join(SAMPLE_BASE, 'bridge_dhcp.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=eni --noop '
@@ -155,9 +174,16 @@ class TestCli(base.TestCase):
                           'ovs_type OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'bridge_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         vlan_yaml = os.path.join(SAMPLE_BASE, 'bridge_vlan.yaml')
         vlan_json = os.path.join(SAMPLE_BASE, 'bridge_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -174,9 +200,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=ovs']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_interface_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'interface\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         interface_yaml = os.path.join(SAMPLE_BASE, 'interface.yaml')
         interface_json = os.path.join(SAMPLE_BASE, 'interface.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -192,6 +225,8 @@ class TestCli(base.TestCase):
                           'IPADDR=192.0.2.1']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_bridge_noop_rootfs(self):
@@ -247,6 +282,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -275,6 +315,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSBridge']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_sriov_vf_with_dpdk_noop_output(self):
@@ -290,6 +332,11 @@ class TestCli(base.TestCase):
         def test_get_pci_device_driver(pci_address):
             return 'iavf'
 
+        timestamp_rex = re.compile(
+            (r'sriov_pf_ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         self.stub_out('os_net_config.utils.get_vf_devname',
                       test_get_vf_devname)
         self.stub_out('os_net_config.common.get_pci_address',
@@ -316,9 +363,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_bond_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk_bond\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk_bond.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -335,9 +389,16 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKBond']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nfvswitch_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'nfvswitch\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         nfvswitch_yaml = os.path.join(SAMPLE_BASE, 'nfvswitch.yaml')
         nfvswitch_json = os.path.join(SAMPLE_BASE, 'nfvswitch.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -355,9 +416,16 @@ class TestCli(base.TestCase):
                           'DEVICETYPE=nfvswitch']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_ovs_dpdk_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'ovs_dpdk\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         ivs_yaml = os.path.join(SAMPLE_BASE, 'ovs_dpdk.yaml')
         ivs_json = os.path.join(SAMPLE_BASE, 'ovs_dpdk.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -374,6 +442,8 @@ class TestCli(base.TestCase):
                           'TYPE=OVSDPDKPort']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_nic_mapping_report_output(self):
@@ -413,6 +483,11 @@ class TestCli(base.TestCase):
         self.assertNotIn('em4', stdout_list.values())
 
     def test_contrail_vrouter_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -429,9 +504,16 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_vlan_noop_output(self):
+        timestamp_rex = re.compile(
+            (r'contrail_vrouter_vlan\.(yaml|json)|^[\d]{4}-[\d]{2}-[\d]{2} '
+             r'[\d]{2}:[\d]{2}:[\d]{2}\.[\d]{3} '),
+            flags=re.M
+        )
         cvi_yaml = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.yaml')
         cvi_json = os.path.join(SAMPLE_BASE, 'contrail_vrouter_vlan.json')
         stdout_yaml, stderr = self.run_cli('ARG0 --provider=ifcfg --noop '
@@ -448,6 +530,8 @@ class TestCli(base.TestCase):
                           'TYPE=kernel_mode']
         for dev in sanity_devices:
             self.assertIn(dev, stdout_yaml)
+        stdout_yaml = timestamp_rex.sub('', stdout_yaml)
+        stdout_json = timestamp_rex.sub('', stdout_json)
         self.assertEqual(stdout_yaml, stdout_json)
 
     def test_contrail_vrouter_dpdk_noop_output(self):
@@ -830,3 +914,511 @@ class TestCli(base.TestCase):
         finally:
             if os.path.exists(config_file):
                 os.remove(config_file)
+
+    def test_safe_fallback_no_config(self):
+        """Test safe_fallback when no fallback_config is provided."""
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=None,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.ERROR)
+
+    def test_safe_fallback_empty_config(self):
+        """Test safe_fallback with empty fallback_config."""
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=[],
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.ERROR)
+
+    def test_safe_fallback_success(self):
+        """Test safe_fallback with valid config returns success."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        def mock_config_provider(*args, **kwargs):
+            return ExitCode.SUCCESS
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=fallback_config,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.FALLBACK_SUCCESS)
+
+    def test_safe_fallback_success_with_config_changed(self):
+        """Test safe_fallback when config_provider returns 2."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        def mock_config_provider(*args, **kwargs):
+            return ExitCode.FILES_CHANGED
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=fallback_config,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.FALLBACK_SUCCESS)
+
+    def test_safe_fallback_failure(self):
+        """Test safe_fallback when config_provider fails."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        def mock_config_provider(*args, **kwargs):
+            return ExitCode.ERROR
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=fallback_config,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.FALLBACK_ERROR)
+
+    def test_safe_fallback_calls_config_provider_correctly(self):
+        """Test that safe_fallback calls config_provider correctly."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        called_args = []
+
+        def mock_config_provider(*args, **kwargs):
+            called_args.extend(args)
+            return ExitCode.SUCCESS
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        cli.safe_fallback(
+            provider="nmstate",
+            fb_config=fallback_config,
+            no_activate=True,
+            root_dir="/tmp",
+            noop=True
+        )
+
+        expected_args = [
+            "nmstate",
+            "fallback_config",
+            fallback_config,
+            "/tmp",
+            True,
+            True,
+            False
+        ]
+        self.assertEqual(called_args, expected_args)
+
+    def test_get_iface_config_fallback_section(self):
+        """Test get_iface_config can extract fallback_config section."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_fallback_config.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            # Test extracting fallback_config
+            result = cli.get_iface_config(
+                'fallback_config', config_file, {}, False
+            )
+            expected = [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True,
+                    'nic_mapping': {},
+                    'persist_mapping': False,
+                }
+            ]
+            self.assertEqual(result, expected)
+
+            # Test extracting network_config still works
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False
+            )
+            expected = [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True,
+                    'nic_mapping': {},
+                    'persist_mapping': False,
+                }
+            ]
+            self.assertEqual(result, expected)
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_missing_fallback_section(self):
+        """Test get_iface_config returns empty list for missing fallback."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_missing_fallback.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'fallback_config', config_file, {}, False
+            )
+            self.assertEqual(result, [])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_with_fallback_on_failure(self):
+        """Test main function triggers fallback when network_config fails."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_fallback.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            if section == "network_config":
+                return ExitCode.ERROR  # Simulate failure
+            elif section == "fallback_config":
+                return ExitCode.SUCCESS  # Simulate success
+            return ExitCode.SUCCESS
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg',
+                '--detailed-exit-codes'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return FALLBACK_SUCCESS because fallback recovered
+            self.assertEqual(ret, ExitCode.FALLBACK_SUCCESS)
+
+            # Should have called config_provider twice: once for
+            # network_config, once for fallback
+            self.assertEqual(len(config_provider_calls), 2)
+
+            # First call should be for network_config
+            self.assertEqual(config_provider_calls[0][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+            # Second call should be for fallback_config
+            self.assertEqual(config_provider_calls[1][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[1][1], 'fallback_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_no_fallback_on_success(self):
+        """Test main function does not trigger fallback on success."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_no_fallback.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            return ExitCode.SUCCESS  # Always succeed
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return SUCCESS because network_config succeeded
+            self.assertEqual(ret, ExitCode.SUCCESS)
+
+            # Should have called config_provider only once for network_config
+            self.assertEqual(len(config_provider_calls), 1)
+
+            # Should be network_config only
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_fallback_without_fallback_config(self):
+        """Test main function when network_config fails but no fallback."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_no_fallback_section.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            if section == "network_config":
+                return ExitCode.ERROR  # Simulate failure
+            return ExitCode.SUCCESS
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return ERROR because network_config failed and
+            # fallback failed too
+            self.assertEqual(ret, ExitCode.ERROR)
+
+            # Should have called config_provider only once for network_config
+            # (fallback won't call config_provider if no fallback_config)
+            self.assertEqual(len(config_provider_calls), 1)
+
+            # Should be network_config only
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_fallback_fails_when_fallback_config_fails(self):
+        """Test main when both network_config and fallback_config fail."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_fallback_fails.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            # Both network_config and fallback_config fail
+            return ExitCode.ERROR
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg',
+                '--detailed-exit-codes'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return FALLBACK_ERROR because fallback also failed
+            self.assertEqual(ret, ExitCode.FALLBACK_ERROR)
+
+            # Should have called config_provider twice: once for
+            # network_config, once for fallback
+            self.assertEqual(len(config_provider_calls), 2)
+
+            # First call should be for network_config
+            self.assertEqual(config_provider_calls[0][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+            # Second call should be for fallback_config
+            self.assertEqual(config_provider_calls[1][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[1][1], 'fallback_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_exit_code_detailed_mode(self):
+        """Test get_exit_code returns actual codes when detailed mode on."""
+        # In detailed mode, return codes should pass through unchanged
+        self.assertEqual(cli.get_exit_code(True, ExitCode.SUCCESS),
+                         ExitCode.SUCCESS)
+        self.assertEqual(cli.get_exit_code(True, ExitCode.ERROR),
+                         ExitCode.ERROR)
+        self.assertEqual(cli.get_exit_code(True, ExitCode.FILES_CHANGED),
+                         ExitCode.FILES_CHANGED)
+        self.assertEqual(cli.get_exit_code(True, ExitCode.FALLBACK_SUCCESS),
+                         ExitCode.FALLBACK_SUCCESS)
+        self.assertEqual(cli.get_exit_code(True, ExitCode.FALLBACK_ERROR),
+                         ExitCode.FALLBACK_ERROR)
+
+    def test_get_exit_code_standard_mode(self):
+        """Test get_exit_code maps codes correctly when detailed mode off."""
+        # In standard mode, codes simplified for backward compatibility
+        self.assertEqual(cli.get_exit_code(False, ExitCode.SUCCESS),
+                         ExitCode.SUCCESS)
+        self.assertEqual(cli.get_exit_code(False, ExitCode.ERROR),
+                         ExitCode.ERROR)
+        self.assertEqual(cli.get_exit_code(False, ExitCode.FILES_CHANGED),
+                         ExitCode.SUCCESS)
+        self.assertEqual(cli.get_exit_code(False, ExitCode.FALLBACK_SUCCESS),
+                         ExitCode.SUCCESS)
+        self.assertEqual(cli.get_exit_code(False, ExitCode.FALLBACK_ERROR),
+                         ExitCode.ERROR)
