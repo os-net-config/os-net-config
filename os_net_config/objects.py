@@ -19,8 +19,10 @@
 #       schema.yaml to reflect changes to the schema of config files!
 #
 
+import glob
 import logging
 import netaddr
+from oslo_concurrency import processutils
 from oslo_utils import strutils
 
 import os_net_config
@@ -100,6 +102,8 @@ def object_from_json(json):
         return LinuxTap.from_json(json)
     elif obj_type == "dcb":
         return Dcb.from_json(json)
+    elif obj_type == "remove_net_device":
+        return RemoveNetDevice.from_json(json)
 
 
 def _get_required_field(json, name, object_name, datatype=None):
@@ -2192,3 +2196,84 @@ class LinuxTap(_BaseOpts):
          _domain) = opts = _BaseOpts.base_opts_from_json(json)
 
         return LinuxTap(name, *opts)
+
+
+class RemoveNetDevice(object):
+    """Base class for 'remove_net_device' os-net-config object
+
+    A device represents a network device reference with name and type,
+    supporting NIC mapping for abstract device names.
+    """
+
+    def __init__(self, dev_name, dev_type,
+                 dev_config_tool=None,
+                 nic_mapping=None):
+        """Initialize a RemoveNetDevice object.
+
+        :param dev_name: Device name (can be abstract name like 'nic1')
+        :param dev_type: Device type (must be from dev_type schema)
+        :param nic_mapping: Optional mapping dictionary for abstract names
+        """
+        # Validate device type (not needed - schema validate will handle)
+        # device_config_tool = [ "nmcli", "ifcfg" ]
+        self.original_name = dev_name
+        self.dev_name = dev_name
+        self.dev_type = dev_type
+        self.provider_config_tool = dev_config_tool
+        self.nic_mapping = nic_mapping or {}
+        self.mapped = False
+
+        # Apply NIC mapping if available
+        mapped_nic_names = mapped_nics(nic_mapping)
+        if dev_name in mapped_nic_names:
+            self.dev_name = mapped_nic_names[dev_name]
+            self.mapped = True
+        self.provider_config_tool = self.check_remove_net_device_tool(self)
+
+    @staticmethod
+    def from_json(json):
+        """Create this instance from JSON configuration.
+
+        :param json: JSON dictionary with device configuration
+        :returns: RemoveNetDevice object
+        :raises: InvalidConfigException for invalid configuration
+        """
+        dev_name = _get_required_field(json, 'dev_name', 'RemoveNetDevice')
+        dev_type = _get_required_field(json, 'dev_type', 'RemoveNetDevice')
+        remobj = RemoveNetDevice(dev_name, dev_type)
+        json.update({'mapped': remobj.mapped})
+        if remobj.mapped:
+            json.update({'dev_name': remobj.dev_name})
+        json.update({'provider_config_tool': remobj.provider_config_tool})
+        json.update({'original_name': remobj.original_name})
+        return remobj
+
+    @staticmethod
+    def check_remove_net_device_tool(self):
+
+        if not utils.get_interface(self.dev_name):
+            return None
+        # Then check in nmcli if a connection exists for it
+        try:
+            cmd = ['nmcli', '-t', '-f', 'DEVICE', 'connection', 'show']
+            nm_out, err = processutils.execute(*cmd)
+            if err:
+                logger.error("Failed to execute cmd : %s", err)
+                return None
+            if nm_out:
+                devices = nm_out.strip().splitlines()
+                if self.dev_name in devices:
+                    logger.debug("Interface %s has a NM conn", self.dev_name)
+                    self.provider_config_tool = "nmcli"
+                    return "nmcli"
+                else:
+                    path = f"/etc/sysconfig/network-scripts/ifcfg-{self.dev_name}"
+                    matches = glob.glob(path)
+                    if matches:
+                        logger.debug("Interface %s has an Ifcfg- conn", self.dev_name)
+                        self.provider_config_tool = "ifscript"
+                        return "ifscript"
+        except processutils.ProcessExecutionError as exc:
+            logger.error("Failed to get nmcli connections: %s", exc)
+            return None
+        None

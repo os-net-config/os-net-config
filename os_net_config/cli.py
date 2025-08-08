@@ -39,9 +39,10 @@ class ExitCode(IntEnum):
     Below values are returned when --detailed_exit_code is enabled in cli
     - FILES_CHANGED: Configuration successful and files were modified
     """
-    SUCCESS = 0          # Configuration successful
-    ERROR = 1            # Configuration failed
-    FILES_CHANGED = 2    # Configuration successful, files were modified
+    SUCCESS = 0              # Configuration successful
+    ERROR = 1                # Configuration failed
+    FILES_CHANGED = 2        # Configuration successful, files were modified
+    ERR_REMOVE_CONFIG = 6    # Error for remove_config
 
 
 logger = common.configure_logger()
@@ -221,6 +222,7 @@ def main(argv=sys.argv, main_logger=None):
     common.logger_level(main_logger, opts.verbose, opts.debug)
     main_logger.info("Using config file at: %s", opts.config_file)
     iface_array = []
+    remove_config = []
 
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
@@ -276,12 +278,38 @@ def main(argv=sys.argv, main_logger=None):
         main_logger.debug("Interface report requested, exiting after report.")
         print(json.dumps(reported_nics))
         return retval
+
+    # Parse the remove_config section first
+    try:
+        remove_config = get_iface_config(
+            "remove_config",
+            opts.config_file,
+            iface_mapping,
+            persist_mapping,
+            False,
+            strict_validate=opts.exit_on_validation_errors
+        )
+    except objects.InvalidConfigException as e:
+        main_logger.error("Schema validation failed for remove_config\n%s", e)
+        return ExitCode.ERR_REMOVE_CONFIG
+
+    if not remove_config:
+        remove_config = []
+    elif len(remove_config) > 0:
+        # To_do: Add hook here "Process remove_config section here"
+        for rem_json in remove_config:
+            rem_json.update({'type': "remove_net_device"})
+            removeobj = objects.object_from_json(rem_json)
+            main_logger.debug("%s: Parsed remove_config object", removeobj.dev_name)
+            # RemoveNetDevice.del_object(removeobj)
+
     try:
         iface_array = get_iface_config(
             "network_config",
             opts.config_file,
             iface_mapping,
             persist_mapping,
+            True,
             strict_validate=opts.exit_on_validation_errors,
         )
     except objects.InvalidConfigException as e:
@@ -532,6 +560,7 @@ def get_iface_config(
         config_file,
         iface_map,
         persist_map,
+        required=True,
         strict_validate=False):
     logger.info("Reading %s for %s section", config_file, config_name)
     # Read config file containing network configs to apply
@@ -551,15 +580,11 @@ def get_iface_config(
         return []
 
     if not isinstance(iface_array, list):
-        logger.error(
-            "No interfaces defined in config: %s", config_file
-        )
+        if required:
+            logger.error(
+                "No interfaces defined in config: %s", config_file
+            )
         return []
-
-    for iface_json in iface_array:
-        if iface_json.get('type') != 'route_table':
-            iface_json.update({'nic_mapping': iface_map})
-            iface_json.update({'persist_mapping': persist_map})
 
     validation_errors = validator.validate_config(iface_array)
     if validation_errors:
@@ -571,6 +596,13 @@ def get_iface_config(
         else:
             for e in validation_errors:
                 logger.warning(e)
+
+    # No need to validate nicmap
+    for iface_json in iface_array:
+        if iface_json.get('type') != 'route_table':
+            iface_json.update({'nic_mapping': iface_map})
+            iface_json.update({'persist_mapping': persist_map})
+
     return iface_array
 
 

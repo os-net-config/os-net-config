@@ -1033,3 +1033,30 @@ def set_accept_ra_sysctl(iface, noop):
         if os.path.exists(filename):
             with open(filename, 'w') as f:
                 f.write("0")
+
+
+def is_valid_interface(name):
+    """Check if requested interface exist/valid.
+
+    :param name: Interface name
+    :return: True, if valid
+    """
+    cmd = ['ip', '-d', '-j', 'link', 'list']
+    logger.info("%s: running %s", name, " ".join(cmd))
+    try:
+        out, err = processutils.execute(*cmd)
+        if err:
+            logger.error("Failed to execute cmd : %s", err)
+            return False
+        if out:
+            data = json.loads(out)
+            if not any(iface.get("ifname") == name for iface in data):
+                logger.debug("Interface %s NOT-found", name)
+                return False
+            # To_do: skip if name == "lo": ?
+    except processutils.ProcessExecutionError as exc:
+        logger.error("%s: Failed to execute cmnd %s\n%s", name, cmd, exc)
+        return False
+
+    logger.debug("Interface %s is available", name)
+    return True
