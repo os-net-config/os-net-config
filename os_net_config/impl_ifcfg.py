@@ -1514,11 +1514,11 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         for iface in self.remove_iface:
             logger.info("%s: Purging ", iface)
             self.purge(iface)
-        if self.remove_sriov_pfs:
-            sriov_config.reset_sriov_pfs()
         for sriov_dev in self.remove_sriov_pfs:
             logger.info("%s: Purging SR-IOV device", sriov_dev)
+            sriov_config.reset_sriov_pf(sriov_dev)
             self.purge(sriov_dev)
+            utils.remove_sriov_entries_for_pf(sriov_dev)
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.
@@ -2397,7 +2397,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
     def clean_migration(self):
         logger.info("Clean migration files")
-        sriov_config.wipe_sriov_udev_files()
 
     def _restore_ifcfg_files(self):
         logger.info('Restoring the ifcfg files')
