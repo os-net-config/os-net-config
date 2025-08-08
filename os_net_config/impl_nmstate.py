@@ -44,6 +44,7 @@ import yaml
 import os_net_config
 from os_net_config import common
 from os_net_config import objects
+from os_net_config import sriov_config
 from os_net_config import utils
 
 
@@ -2736,3 +2737,152 @@ class NmstateNetConfig(os_net_config.NetConfig):
             "Succesfully applied the network config with nmstate provider"
         )
         return updated_interfaces
+
+    def remove_devices(self, remove_device_list):
+        """Remove a list of devices using ordered processing.
+
+        This method processes RemoveNetDevice objects in the specified order:
+        dpdk -> linux_bond -> interface -> bridge -> sriov_pf
+
+        :param remove_device_list: List of RemoveNetDevice objects
+        :type remove_device_list: list[RemoveNetDevice]
+        """
+        if not remove_device_list:
+            return
+
+        logger.info('removing network devices....')
+
+        # Process devices in specific order
+        processing_order = ['ovs_dpdk_port', 'ovs_dpdk_bond', 'linux_bond',
+                            'interface', 'vlan', 'ovs_bridge', 'linux_bridge',
+                            'sriov_pf']
+
+        for device_type in processing_order:
+            devices_of_type = [device for device in remove_device_list
+                               if device.dev_type == device_type]
+
+            if devices_of_type:
+                for device in devices_of_type:
+                    self._process_device_removal(device)
+
+    def _process_device_removal(self, device):
+        """Process removal of a single device.
+
+        :param device: RemoveNetDevice object to process
+        """
+        logger.info("%s: removing %s", device.dev_name, device.dev_type)
+
+        if self.noop:
+            return
+
+        try:
+            # Determine cleanup type based on device type
+            if device.dev_type in ['ovs_dpdk_port', 'ovs_dpdk_bond']:
+                self._cleanup_dpdk_interface(device.dev_name)
+            elif device.dev_type == 'sriov_pf':
+                self._cleanup_sriov_interface(device.dev_name)
+
+            # Remove the interface using nmstate with proper type conversion
+            nmstate_type = self._convert_to_nmstate_type(device.dev_type)
+            self._remove_nmstate_interface_with_type(device.dev_name,
+                                                     nmstate_type)
+
+        except Exception as e:
+            msg = (f"{device.dev_name}: failed to remove {device.dev_type} "
+                   f"device: {e}")
+            logger.error(msg)
+            raise os_net_config.ConfigurationError(msg) from e
+
+    def _convert_to_nmstate_type(self, os_net_config_type):
+        """Convert os-net-config device type to nmstate interface type.
+
+        :param os_net_config_type: Device type from os-net-config
+        :return: Corresponding nmstate interface type
+        """
+        type_mapping = {
+            'interface': InterfaceType.ETHERNET,
+            'vlan': InterfaceType.VLAN,
+            'linux_bond': InterfaceType.BOND,
+            'linux_bridge': InterfaceType.LINUX_BRIDGE,
+            'ovs_bridge': OVSBridge.TYPE,
+            'ovs_interface': OVSInterface.TYPE,
+            'ovs_dpdk_port': OVSInterface.TYPE,
+            'ovs_dpdk_bond': OVSInterface.TYPE,
+            'ovs_patch_port': OVSInterface.TYPE,
+            'sriov_pf': InterfaceType.ETHERNET,
+            'sriov_vf': InterfaceType.ETHERNET,
+            'ib_interface': InterfaceType.INFINIBAND,
+            'ib_child_interface': InterfaceType.INFINIBAND,
+        }
+
+        return type_mapping.get(os_net_config_type, InterfaceType.ETHERNET)
+
+    def _remove_nmstate_interface_with_type(self, iface_name, nmstate_type):
+        """Remove an interface using nmstate with specified type.
+
+        :param iface_name: Interface name to remove
+        :param nmstate_type: nmstate interface type
+        """
+        try:
+            # Get current interface state
+            current_state = self.iface_state(iface_name)
+            if not current_state:
+                logger.debug("%s: Interface does not exist, skipping",
+                             iface_name)
+                return
+
+            # Create desired state with interface marked as absent
+            desired_state = {
+                Interface.KEY: [
+                    {
+                        Interface.NAME: iface_name,
+                        Interface.TYPE: nmstate_type,
+                        Interface.STATE: InterfaceState.ABSENT
+                    }
+                ]
+            }
+
+            # Apply the state change
+            logger.debug("%s: applying nmstate removal with type %s",
+                         iface_name, nmstate_type)
+            self.nmstate_apply(desired_state, verify=True)
+
+        except Exception as e:
+            msg = f"{iface_name}: failed to remove interface via nmstate: {e}"
+            logger.error(msg)
+            raise os_net_config.ConfigurationError(msg) from e
+
+    def _cleanup_dpdk_interface(self, iface_name):
+        """Clean up DPDK configuration for an interface if applicable.
+
+        Uses the DPDK cleanup APIs from the dependent patches.
+
+        :param iface_name: Interface name to check and clean up
+        """
+        try:
+            # Check if this interface exists in DPDK mapping and remove it
+            utils.remove_dpdk_interface(iface_name)
+        except Exception as e:
+            logger.debug("%s: no DPDK cleanup needed or failed: %s",
+                         iface_name, e)
+
+    def _cleanup_sriov_interface(self, iface_name):
+        """Clean up SR-IOV configuration for an interface if applicable.
+
+        Uses the SR-IOV cleanup APIs from the dependent patches.
+
+        :param iface_name: Interface name to check and clean up
+        """
+        try:
+            # Check if this is an SR-IOV PF by trying to reset it
+            # This will only succeed if it's actually an SR-IOV PF
+            sriov_config.reset_sriov_pf(iface_name)
+
+            # If we get here, it was an SR-IOV PF, so clean up the mappings
+            utils.remove_sriov_entries_for_pf(iface_name)
+
+            logger.debug("%s: cleaned up SR-IOV PF configuration", iface_name)
+
+        except Exception as e:
+            logger.debug("%s: no SR-IOV cleanup needed or failed: %s",
+                         iface_name, e)
