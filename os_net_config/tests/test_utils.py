@@ -1346,3 +1346,133 @@ dpdk {
 
         result = utils.get_interface_maxmtu("eth0")
         self.assertEqual(-1, result)
+
+    def test_detach_dpdk_interfaces_retry_mechanism(self):
+        """Test that detach retries when device is in use but succeeds"""
+        retry_count = 0
+
+        def fake_execute(*cmd):
+            nonlocal retry_count
+            retry_count += 1
+            if retry_count <= 3:
+                # First 3 attempts return "device in use" error
+                return "", ("Device '0000:03:00.0' is being used by the "
+                            "following interfaces: dpdk1. Remove them before "
+                            "detaching")
+            else:
+                # 4th attempt succeeds
+                return "", ""
+
+        def fake_sleep(seconds):
+            pass  # Mock sleep to avoid delays in tests
+
+        self.stub_out('oslo_concurrency.processutils.execute', fake_execute)
+        self.stub_out('time.sleep', fake_sleep)
+
+        result = utils.detach_dpdk_interfaces('0000:03:00.0')
+
+        # Should succeed after retries
+        self.assertEqual(0, result)
+        # Should have made 4 attempts (1 initial + 3 retries)
+        self.assertEqual(4, retry_count)
+
+    def test_detach_dpdk_interfaces_retry_mechanism_exception(self):
+        """Test retry mechanism when device in use error occurs."""
+        from oslo_concurrency import processutils
+        retry_count = 0
+
+        def fake_execute(*cmd):
+            nonlocal retry_count
+            retry_count += 1
+            if retry_count <= 2:
+                # First 2 attempts raise exception with "device in use" error
+                raise processutils.ProcessExecutionError(
+                    cmd=cmd,
+                    stderr="Device '0000:03:00.0' is being used by the "
+                           "following interfaces: dpdk1. Remove them before "
+                           "detaching"
+                )
+            else:
+                # 3rd attempt succeeds
+                return "", ""
+
+        def fake_sleep(seconds):
+            pass  # Mock sleep to avoid delays in tests
+
+        self.stub_out('oslo_concurrency.processutils.execute', fake_execute)
+        self.stub_out('time.sleep', fake_sleep)
+
+        result = utils.detach_dpdk_interfaces('0000:03:00.0')
+
+        # Should succeed after retries
+        self.assertEqual(0, result)
+        # Should have made 3 attempts (1 initial + 2 retries)
+        self.assertEqual(3, retry_count)
+
+    def test_detach_dpdk_interfaces_max_retries_exceeded_exception(self):
+        """Test returns error when max retries exceeded."""
+        from oslo_concurrency import processutils
+        retry_count = 0
+
+        def fake_execute(*cmd):
+            nonlocal retry_count
+            retry_count += 1
+            # Always raise exception with "device in use" error
+            raise processutils.ProcessExecutionError(
+                cmd=cmd,
+                stderr="Device '0000:03:00.0' is being used by the "
+                       "following interfaces: dpdk1. Remove them before "
+                       "detaching"
+            )
+
+        def fake_sleep(seconds):
+            pass  # Mock sleep to avoid delays in tests
+
+        self.stub_out('oslo_concurrency.processutils.execute', fake_execute)
+        self.stub_out('time.sleep', fake_sleep)
+
+        result = utils.detach_dpdk_interfaces('0000:03:00.0')
+
+        # Should fail after max retries
+        self.assertEqual(1, result)
+        # Should have made 6 attempts (1 initial + 5 retries)
+        self.assertEqual(6, retry_count)
+
+    def test_handle_dpdk_detach_error_device_not_found(self):
+        """Test _handle_dpdk_detach_error for device not found"""
+        result = utils._handle_dpdk_detach_error(
+            '0000:03:00.0', 'not found in DPDK', 0, 5, 2
+        )
+        self.assertEqual('success', result)
+
+    def test_handle_dpdk_detach_error_device_in_use_retry(self):
+        """Test for device in use within retry limit"""
+        def fake_sleep(seconds):
+            pass  # Mock sleep to avoid delays in tests
+
+        self.stub_out('time.sleep', fake_sleep)
+
+        result = utils._handle_dpdk_detach_error(
+            '0000:03:00.0',
+            "Device '0000:03:00.0' is being used by the following "
+            "interfaces: dpdk1",
+            0, 5, 2
+        )
+        self.assertEqual('retry', result)
+
+    def test_handle_dpdk_detach_error_device_in_use_max_retries(self):
+        """Test _handle_dpdk_detach_error for device in use at max retries"""
+        result = utils._handle_dpdk_detach_error(
+            '0000:03:00.0',
+            "Device '0000:03:00.0' is being used by the following "
+            "interfaces: dpdk1",
+            5, 5, 2
+        )
+        self.assertEqual('error', result)
+
+    def test_handle_dpdk_detach_error_other_error(self):
+        """Test _handle_dpdk_detach_error for other types of errors"""
+        result = utils._handle_dpdk_detach_error(
+            '0000:03:00.0', 'Some other error message', 0, 5, 2
+        )
+        self.assertEqual('error', result)

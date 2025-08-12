@@ -321,17 +321,89 @@ def remove_dpdk_interface(iface):
         logger.error("%s: could not find in dpdk_mapping.yaml", iface)
 
 
+def _handle_dpdk_detach_error(pci_address,
+                              error_msg,
+                              attempt,
+                              max_retries,
+                              retry_delay):
+    """Handle DPDK detach error message and return action.
+
+    :param pci_address: PCI address being processed
+    :param error_msg: Error message to analyze
+    :param attempt: Current attempt number
+    :param max_retries: Maximum retry attempts
+    :param retry_delay: Delay between retries in seconds
+    :returns: 'retry' to continue loop, 'success' for return 0,
+              'error' for return 1
+    """
+    # Device not found in DPDK
+    if "not found in DPDK" in error_msg:
+        logger.info("%s: Device is already detached", pci_address)
+        return 'success'
+
+    # Device is being used by interfaces
+    if "is being used by the following interfaces:" in error_msg:
+        if attempt < max_retries:
+            logger.warning(
+                "%s: Device is being used by other interfaces. "
+                "Retrying in %d seconds (attempt %d/%d)",
+                pci_address, retry_delay, attempt + 1, max_retries
+            )
+            time.sleep(retry_delay)
+            return 'retry'
+
+    # Other errors or max retries exceeded
+    logger.error("%s: Detach failed with error: %s", pci_address, error_msg)
+    return 'error'
+
+
 def detach_dpdk_interfaces(pci_address):
+    """Detach DPDK interface from OVS bridge.
+
+    :param pci_address: PCI address of the interface to detach
+    :returns: 0 on success, 1 on device in use
+    """
     cmd = ["ovs-appctl", "netdev-dpdk/detach", pci_address]
-    try:
-        logger.info("%s: running %s", pci_address, " ".join(cmd))
-        out, err = processutils.execute(*cmd)
-        if err:
-            return 1
-        return 0
-    except processutils.ProcessExecutionError as exc:
-        logger.error("%s: Failed to detach. Err: %s", pci_address, exc)
-        return -1
+    max_retries = 5
+    retry_delay = 2  # seconds
+
+    for attempt in range(max_retries + 1):  # 0 to 5 (6 total attempts)
+        try:
+            logger.info("%s: running %s", pci_address, " ".join(cmd))
+
+            out, err = processutils.execute(*cmd)
+            if err:
+                action = _handle_dpdk_detach_error(
+                    pci_address, err.strip(), attempt, max_retries, retry_delay
+                )
+                if action == 'success':
+                    return 0
+                elif action == 'retry':
+                    continue
+                elif action == 'error':
+                    return 1
+
+            logger.info("%s: Successfully detached from DPDK", pci_address)
+            return 0
+
+        except processutils.ProcessExecutionError as exc:
+            error_output = str(exc.stderr) if exc.stderr else str(exc)
+            action = _handle_dpdk_detach_error(
+                pci_address, error_output, attempt, max_retries, retry_delay
+            )
+            if action == 'success':
+                return 0
+            elif action == 'retry':
+                continue
+            elif action == 'error':
+                return 1
+
+    # If we exit the loop after max retries on stderr "device in use"
+    logger.error(
+        "%s: Device is still being used by other interfaces after %d retries",
+        pci_address, max_retries
+    )
+    return 1
 
 
 def translate_ifname_to_pci_address(ifname, noop):
