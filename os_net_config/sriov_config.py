@@ -256,33 +256,28 @@ def get_numvfs(ifname):
     return curr_numvfs
 
 
-def reset_sriov_pfs():
+def reset_sriov_pf(pf_name):
     """Reset the given PF
 
-    Reset the numvfs for all the PFs configured.
+    Reset the numvfs for the given PF.
     """
-    sriov_map = common.get_sriov_map()
+    sriov_map = common.get_sriov_map(pf_name)
     for item in sriov_map:
         if item['device_type'] == 'pf' and \
-            item.get('link_mode') == "legacy":
-            ifname = item['name']
-            logger.info("%s: Resetting the PF for numvfs", ifname)
-            sriov_numvfs_path = common.get_dev_path(ifname,
+            item.get('link_mode') == "legacy" and \
+            item['name'] == pf_name:
+            logger.info("%s: Reset the numvfs for PF", pf_name)
+            sriov_numvfs_path = common.get_dev_path(pf_name,
                                                     "sriov_numvfs")
             try:
                 with open(sriov_numvfs_path, "w") as f:
                     f.write("0")
             except IOError as exc:
                 logger.error(
-                    "%s: Unable to reset numvfs. Received %s", ifname, exc
+                    "%s: Unable to reset numvfs. Received %s", pf_name, exc
                 )
-
-
-def wipe_sriov_udev_files():
-    if os.path.exists(_UDEV_LEGACY_RULE_FILE):
-        logger.debug("Removing %s", _UDEV_LEGACY_RULE_FILE)
-        os.remove(_UDEV_LEGACY_RULE_FILE)
-        reload_udev_rules()
+            break
+    del_udev_rule_for_legacy_sriov_pf(pf_name)
 
 
 def set_numvfs(ifname, numvfs, autoprobe=True):
@@ -593,6 +588,38 @@ def add_udev_rule_for_legacy_sriov_pf(pf_name, numvfs):
 
     pattern = f'KERNEL=="{pf_name}", RUN+="/bin/os-net-config-sriov -n'
     return add_udev_rule(udev_line, _UDEV_LEGACY_RULE_FILE, pattern)
+
+
+def del_udev_rule_for_legacy_sriov_pf(pf_name):
+    """Remove the udev rule for a SR-IOV PF device from the udev rules file.
+
+    If, after ignoring comments, the file is empty, remove the rule file.
+    """
+    udev_file = _UDEV_LEGACY_RULE_FILE
+    pattern = f'KERNEL=="{pf_name}", RUN+="/bin/os-net-config-sriov -n'
+    if not os.path.exists(udev_file):
+        return
+    file_data = common.get_file_data(udev_file)
+    udev_lines = file_data.splitlines()
+    new_lines = [line for line in udev_lines if pattern not in line]
+    # Ignore comment lines and check if the file is empty
+    non_comment_lines = [
+        line for line in new_lines
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    # Remove the udev file when there are no udev rules.
+    if not non_comment_lines:
+        logger.info("removing %s since there are no udev rules", udev_file)
+        try:
+            os.remove(udev_file)
+        except OSError:
+            logger.warning("failed to remove %s", udev_file)
+            pass
+    else:
+        with open(udev_file, "w") as f:
+            for line in new_lines:
+                f.write(line + "\n")
+    reload_udev_rules()
 
 
 def add_udev_rule_for_vf_representors(pf_name):
