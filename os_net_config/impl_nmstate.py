@@ -1701,6 +1701,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :raises ConfigurationError: Invalid ovs_extra format
         """
         index = 0
+        match_found = False
         for a, b in zip(ovs_extra, cmd_map['command']):
             if not re.match(b, a, re.IGNORECASE):
                 return False
@@ -1727,11 +1728,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     if cfg["nm_config"]:
                         key = cfg["nm_config"]
                         config[key] = value
+                        match_found = True
                     elif cfg['nm_config_regex']:
                         m = re.search(cfg['nm_config_regex'], ovs_extra[index])
                         if m:
                             key = m.group(1)
                             config[key] = value
+                            match_found = True
                         else:
                             msg = (
                                 "ovs_extra: Invalid format detected.\n"
@@ -1744,6 +1747,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     logger.info(
                         "%s=%s", "->".join(cfg["sub_tree"] + [key]), value
                     )
+        return match_found
 
     def get_handled_ovs_extra(self, original_list, unhandled_list):
         """Get ovs_extra commands that were successfully handled.
@@ -1867,15 +1871,37 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # ovs-vsctl br-set-external-id $name key [value]
         # ovs-vsctl del-controller $name
 
+        unhandled_list = []
+
         for ovs_extra in ovs_extras:
             logger.info("%s: Parse - %s", name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
+
+            # Initialize unhandled flag to true before the for loop
+            unhandled_flag = True
+
             for cmd_map in cfg_eq_val_pair:
-                # TODO(arn): Handle return value (match_count,
-                # mismatch_count) for better error handling
-                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
-            for cmd_map in cfg_val_pair:
-                self._ovs_extra_cfg_val(ovs_extra_cmd, cmd_map, data)
+                mc, msc = self._ovs_extra_cfg_eq_val(
+                    ovs_extra_cmd, cmd_map, data)
+                # If no mismatches and there are matches, command was handled
+                if msc == 0 and mc > 0:
+                    unhandled_flag = False
+
+            # If unhandled_flag is true, execute the next for loop
+            if unhandled_flag:
+                for cmd_map in cfg_val_pair:
+                    match_found = self._ovs_extra_cfg_val(
+                        ovs_extra_cmd, cmd_map, data)
+                    # If match_found is set to true, unhandled_flag = false
+                    if match_found:
+                        unhandled_flag = False
+
+            # Check unhandled_flag and add to unhandled list
+            if unhandled_flag:
+                unhandled_list.append(ovs_extra)
+
+        # Just return unhandled list
+        return unhandled_list
 
     def parse_ovs_extra_for_dpdk(self, ovs_extras, dpdk_port, data):
         """Parse ovs extra for bridges, ports
@@ -1942,8 +1968,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             logger.info("%s: Parse - %s", iface_name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
 
-            # Initialize error flag to true before the for loop
-            error_flag = True
+            # Initialize unhandled flag to true before the for loop
+            unhandled_flag = True
 
             for cmd_map in cfg_eq_val_pair:
                 mc, msc = self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map,
@@ -1951,10 +1977,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 # If no mismatches and there are matches, command was
                 # handled successfully
                 if msc == 0 and mc > 0:
-                    error_flag = False
+                    unhandled_flag = False
 
-            # Check error_flag and add to unhandled list
-            if error_flag:
+            # Check unhandled_flag and add to unhandled list
+            if unhandled_flag:
                 unhandled_list.append(ovs_extra)
 
         # Return unhandled list
@@ -2017,13 +2043,29 @@ class NmstateNetConfig(os_net_config.NetConfig):
         cfg_eq_val_pair = [{'command': ['set', 'port',
                                         '({name}|%s)' % bridge_name],
                             'action': port_vlan_cfg}]
+
+        unhandled_list = []
+
         for ovs_extra in ovs_extras:
             logger.info("%s: Parse - %s", bridge_name, ovs_extra)
             ovs_extra_cmd = ovs_extra.split(' ')
+
+            # Initialize unhandled flag to true before the for loop
+            unhandled_flag = True
+
             for cmd_map in cfg_eq_val_pair:
-                # TODO(arn): Handle return value (match_count,
-                # mismatch_count) for better error handling
-                self._ovs_extra_cfg_eq_val(ovs_extra_cmd, cmd_map, data)
+                mc, msc = self._ovs_extra_cfg_eq_val(
+                    ovs_extra_cmd, cmd_map, data)
+                # If no mismatches and there are matches, command was handled
+                if msc == 0 and mc > 0:
+                    unhandled_flag = False
+
+            # Check unhandled_flag and add to unhandled list
+            if unhandled_flag:
+                unhandled_list.append(ovs_extra)
+
+        # Return unhandled list
+        return unhandled_list
 
     def add_bridge(self, bridge, dpdk=False):
         """Add an OvsBridge object to the net config object.
@@ -2043,6 +2085,29 @@ class NmstateNetConfig(os_net_config.NetConfig):
         else:
             mac = None
 
+        # Chain ovs_extra parsing to categorize commands by type
+        dummy_data = {}
+        unhandled_ovs_extra_iface = self.parse_ovs_extra_for_iface(
+            bridge.ovs_extra, bridge.name, dummy_data)
+        interface_ovs_extra = self.get_handled_ovs_extra(
+            bridge.ovs_extra, unhandled_ovs_extra_iface)
+
+        unhandled_ovs_extra_port = self.parse_ovs_extra_for_ports(
+            unhandled_ovs_extra_iface, bridge.name, dummy_data)
+        port_ovs_extra = self.get_handled_ovs_extra(
+            unhandled_ovs_extra_iface, unhandled_ovs_extra_port)
+
+        unhandled_ovs_extra = self.parse_ovs_extra_for_bridge(
+            unhandled_ovs_extra_port, bridge.name, dummy_data)
+        bridge_ovs_extra = self.get_handled_ovs_extra(
+            unhandled_ovs_extra_port, unhandled_ovs_extra)
+
+        # Check for completely unhandled commands
+        if unhandled_ovs_extra:
+            msg = (f"{bridge.name}: Unhandled ovs_extra commands: "
+                   f"{unhandled_ovs_extra}. Check the format")
+            raise os_net_config.ConfigurationError(msg)
+
         ovs_interface_port = objects.OvsInterface(
             ovs_port_name, use_dhcp=bridge.use_dhcp,
             use_dhcpv6=bridge.use_dhcpv6,
@@ -2052,13 +2117,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
             defroute=bridge.defroute, dhclient_args=bridge.dhclient_args,
             dns_servers=bridge.dns_servers,
             nm_controlled=None, onboot=bridge.onboot,
-            domain=bridge.domain, hwaddr=mac, ovs_extra=bridge.ovs_extra)
+            domain=bridge.domain, hwaddr=mac, ovs_extra=interface_ovs_extra)
         self.add_ovs_interface(ovs_interface_port)
 
         ovs_int_port = {'name': ovs_interface_port.name}
-        if bridge.ovs_extra:
-            self.parse_ovs_extra_for_ports(bridge.ovs_extra,
-                                           bridge.name, ovs_int_port)
+        if port_ovs_extra:
+            # Unhandled commands were already identified above.
+            # This call uses real interface data instead of the dummy_data
+            # used during extraction, so it's not redundant.
+            self.parse_ovs_extra_for_ports(port_ovs_extra, bridge.name,
+                                           ovs_int_port)
 
         logger.info("%s: adding bridge", bridge.name)
 
@@ -2099,13 +2167,23 @@ class NmstateNetConfig(os_net_config.NetConfig):
                            OvsDB.OTHER_CONFIG: {}}
         data[OVSBridge.CONFIG_SUBTREE][
             OVSBridge.ALLOW_EXTRA_PATCH_PORTS] = True
-        bridge.ovs_extra.append("set bridge %s other-config:mac-table-size=%d"
-                                % (bridge.name, common.MAC_TABLE_SIZE))
+        # Combine extracted bridge commands with auto-generated commands
+        bridge_ovs_extra.append(
+            "set bridge %s other-config:mac-table-size=%d"
+            % (bridge.name, common.MAC_TABLE_SIZE))
         if bridge.primary_interface_name:
             mac = self.interface_mac(bridge.primary_interface_name)
-            bridge.ovs_extra.append("set bridge %s other_config:hwaddr=%s" %
-                                    (bridge.name, mac))
-        self.parse_ovs_extra_for_bridge(bridge.ovs_extra, bridge.name, data)
+            bridge_ovs_extra.append(
+                "set bridge %s other_config:hwaddr=%s" %
+                (bridge.name, mac))
+        bridge_unhandled_list = self.parse_ovs_extra_for_bridge(
+            bridge_ovs_extra, bridge.name, data)
+
+        # Check for unhandled commands and raise error if any exist
+        if bridge_unhandled_list:
+            msg = (f"{bridge.name}: Unhandled ovs_extra commands: "
+                   f"{bridge_unhandled_list}. Check the format")
+            raise os_net_config.ConfigurationError(msg)
 
         if dpdk:
             ovs_bridge_options[OVSBridge.Options.DATAPATH] = 'netdev'
@@ -2276,8 +2354,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         # Parse ovs_extra commands for the interface
         if ovs_interface.ovs_extra:
-            self.parse_ovs_extra_for_iface(
+            unhandled_ovs_extra = self.parse_ovs_extra_for_iface(
                 ovs_interface.ovs_extra, ovs_interface.name, data)
+            if unhandled_ovs_extra:
+                msg = (f"{ovs_interface.name}: Unhandled ovs_extra commands: "
+                       f"{unhandled_ovs_extra}. Check the format")
+                raise os_net_config.ConfigurationError(msg)
 
         self.interface_data[ovs_interface.name + '-if'] = data
         self.__dump_config(data, msg=f"{ovs_interface.name}: Prepared config")
@@ -2510,15 +2592,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[Interface.ACCEPT_ALL_MAC_ADDRESSES] = True
 
         if sriov_vf.ovs_port and sriov_vf.ovs_extra:
-            unhandled_list = self.parse_ovs_extra_for_iface(
+            unhandled_ovs_extra = self.parse_ovs_extra_for_iface(
                 sriov_vf.ovs_extra,
                 sriov_vf.name,
                 data
             )
             # Check for unhandled commands and raise error if any exist
-            if unhandled_list:
+            if unhandled_ovs_extra:
                 msg = (f"{sriov_vf.name}: Unhandled ovs_extra commands: "
-                       f"{unhandled_list}. Check the format")
+                       f"{unhandled_ovs_extra}. Check the format")
                 raise os_net_config.ConfigurationError(msg)
 
         self.interface_data[sriov_vf.name] = data
