@@ -16,7 +16,6 @@
 
 
 import argparse
-from enum import IntEnum
 import importlib
 import json
 import os
@@ -24,24 +23,12 @@ import sys
 import yaml
 
 from os_net_config import common
+from os_net_config.exit_codes import ExitCode
+from os_net_config.exit_codes import get_exit_code
 from os_net_config import objects
 from os_net_config import utils
 from os_net_config import validator
 from os_net_config import version
-
-
-class ExitCode(IntEnum):
-    """Exit codes used by os-net-config.
-
-    These codes indicate the result of configuration operations:
-    - SUCCESS: Configuration completed successfully
-    - ERROR: Configuration failed due to an error
-    Below values are returned when --detailed_exit_code is enabled in cli
-    - FILES_CHANGED: Configuration successful and files were modified
-    """
-    SUCCESS = 0          # Configuration successful
-    ERROR = 1            # Configuration failed
-    FILES_CHANGED = 2    # Configuration successful, files were modified
 
 
 logger = common.configure_logger()
@@ -53,6 +40,8 @@ _PROVIDERS = {
     'iproute': 'IprouteNetConfig',
     'nmstate': 'NmstateNetConfig',
 }
+
+__all__ = ['ExitCode', 'get_exit_code']
 
 
 def parse_opts(argv):
@@ -341,22 +330,21 @@ def main(argv=sys.argv, main_logger=None):
         )
         ret_code = ExitCode.ERROR
 
-    if utils.is_dcb_config_required():
-        # Apply the DCB Config
-        try:
-            from os_net_config import dcb_config
-        except ImportError as e:
-            logger.error("cannot apply DCB configuration: %s", e)
-            return ExitCode.ERROR
+    # If the configuration is successful, apply the DCB config
+    if ret_code in (ExitCode.SUCCESS, ExitCode.FILES_CHANGED):
+        if utils.is_dcb_config_required():
+            # Apply the DCB Config
+            try:
+                from os_net_config import dcb_config
+            except ImportError as e:
+                logger.error("cannot apply DCB configuration: %s", e)
+                return ExitCode.ERROR
 
-        utils.configure_dcb_config_service()
-        dcb_apply = dcb_config.DcbApplyConfig()
-        dcb_apply.apply()
+            utils.configure_dcb_config_service()
+            dcb_apply = dcb_config.DcbApplyConfig()
+            dcb_apply.apply()
 
-    if opts.detailed_exit_codes or ret_code == ExitCode.ERROR:
-        return ret_code
-    else:
-        return ExitCode.SUCCESS
+    return get_exit_code(opts.detailed_exit_codes, ret_code)
 
 
 def unconfig_provider(provider_name,
