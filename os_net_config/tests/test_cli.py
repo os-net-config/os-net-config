@@ -652,7 +652,7 @@ class TestCli(base.TestCase):
         iface_array = [{"type": "interface", "name": "eth0"}]
         ret_code = cli.unconfig_provider("ifcfg", iface_array, "", False)
 
-        self.assertEqual(ExitCode.ERROR, ret_code)
+        self.assertEqual(ExitCode.PURGE_FAILED, ret_code)
 
     def test_get_iface_config_success(self):
         """Test successful config reading and validation"""
