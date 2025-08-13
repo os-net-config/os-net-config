@@ -333,6 +333,7 @@ def main(argv=sys.argv, main_logger=None):
         opts.cleanup,
     )
     if ret_code == ExitCode.ERROR:
+        onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
         logger.error(
             "%s: Failed to configure network_config. ",
             opts.provider,
