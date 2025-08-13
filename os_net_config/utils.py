@@ -300,38 +300,192 @@ def bind_dpdk_interfaces(ifname, driver, noop):
         raise common.OvsDpdkBindException(msg)
 
 
-def remove_dpdk_interface(iface):
-    dpdk_map = common.get_dpdk_map()
-    for dpdk_nic in dpdk_map:
-        if dpdk_nic["name"] == iface:
-            err = detach_dpdk_interfaces(dpdk_nic["pci_address"])
-            if err:
-                logger.warning(
-                    "%s: Failed to detach dpdk interface",
-                    dpdk_nic["name"],
-                )
-            err = unbind_dpdk_interfaces(dpdk_nic["pci_address"])
-            if err:
-                logger.error(
-                    "%s: Failed to unbind dpdk interface",
-                    dpdk_nic["name"],
-                )
-            break
+def is_pci_address_format(identifier):
+    """Check if identifier matches PCI address format.
+
+    PCI address format: DDDD:BB:DD.F
+    Where:
+    - DDDD: 4-digit domain (usually 0000)
+    - BB: 2-digit bus
+    - DD: 2-digit device
+    - F: 1-digit function
+
+    :param identifier: String to check
+    :returns: True if matches PCI address format, False otherwise
+    """
+    if not isinstance(identifier, str):
+        return False
+
+    # PCI address pattern: 4hex:2hex:2hex.1hex
+    pci_pattern = (r'^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:'
+                   r'[0-9a-fA-F]{2}\.[0-9a-fA-F]$')
+    return bool(re.match(pci_pattern, identifier))
+
+
+def remove_dpdk_interface(identifier):
+    """Remove a DPDK interface by name or PCI address.
+
+    Detach and unbind the interface if found.
+
+    :param identifier: Interface name or PCI address
+    """
+    logger.info("%s: Removing DPDK interface", identifier)
+    if is_pci_address_format(identifier):
+        pci_address = identifier
     else:
-        logger.error("%s: could not find in dpdk_mapping.yaml", iface)
+        pci_address = common.get_dpdk_pci_address(identifier)
+
+    if pci_address:
+        # Attempt to detach the interface
+        detach_result = detach_dpdk_interfaces(pci_address)
+        if detach_result == 1:
+            # Other detach error - log warning but continue
+            logger.warning(
+                "%s: Failed to detach dpdk interface, continuing with unbind",
+                identifier,
+            )
+        # detach_result == 0 means success (or device already detached),
+        # continue normally
+        # Attempt to unbind the interface
+        unbind_result = unbind_dpdk_interfaces(pci_address)
+        if unbind_result:
+            logger.error(
+                "%s: Failed to unbind dpdk interface",
+                identifier,
+            )
+            # Don't cleanup map entry if unbind failed
+            return
+
+        # Only cleanup map entry if unbind was successful
+        logger.info("%s: Successfully removed DPDK interface", identifier)
+        delete_dpdk_map_entry(identifier)
+    else:
+        logger.error("%s: could not find PCI address", identifier)
+
+
+def delete_dpdk_map_entry(identifier):
+    """Remove a DPDK mapping entry by interface name or PCI address.
+
+    If the resulting map is empty, remove the DPDK_MAPPING_FILE.
+
+    :param identifier: Interface name or PCI address to remove
+    """
+    dpdk_map = common.get_dpdk_map()
+    new_map = []
+    removed = False
+    for item in dpdk_map:
+        if (item.get("name") == identifier or
+                item.get("pci_address") == identifier):
+            logger.info(
+                "%s: Removing DPDK mapping entry (name: %s, pci: %s)",
+                identifier, item.get("name"), item.get("pci_address")
+            )
+            removed = True
+            continue  # Skip this entry
+        new_map.append(item)
+    if not new_map:
+        if os.path.exists(common.DPDK_MAPPING_FILE):
+            logger.info(
+                "DPDK mapping file %s is empty after removing '%s', "
+                "deleting the file.",
+                common.DPDK_MAPPING_FILE,
+                identifier,
+            )
+            os.remove(common.DPDK_MAPPING_FILE)
+    else:
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, new_map)
+    if not removed:
+        logger.warning(
+            "%s: No DPDK mapping entry found in the mapping file.",
+            identifier
+        )
+
+
+def _handle_dpdk_detach_error(pci_address,
+                              error_msg,
+                              attempt,
+                              max_retries,
+                              retry_delay):
+    """Handle DPDK detach error message and return action.
+
+    :param pci_address: PCI address being processed
+    :param error_msg: Error message to analyze
+    :param attempt: Current attempt number
+    :param max_retries: Maximum retry attempts
+    :param retry_delay: Delay between retries in seconds
+    :returns: 'retry' to continue loop, 'success' for return 0,
+              'error' for return 1
+    """
+    import time
+
+    # Device not found in DPDK
+    if "not found in DPDK" in error_msg:
+        logger.info("%s: Device is already detached", pci_address)
+        return 'success'
+
+    # Device is being used by interfaces
+    if "is being used by the following interfaces:" in error_msg:
+        if attempt < max_retries:
+            logger.warning(
+                "%s: Device is being used by other interfaces. "
+                "Retrying in %d seconds (attempt %d/%d)",
+                pci_address, retry_delay, attempt + 1, max_retries
+            )
+            time.sleep(retry_delay)
+            return 'retry'
+
+    # Other errors or max retries exceeded
+    logger.error("%s: Detach failed with error: %s", pci_address, error_msg)
+    return 'error'
 
 
 def detach_dpdk_interfaces(pci_address):
+    """Detach DPDK interface from OVS bridge.
+
+    :param pci_address: PCI address of the interface to detach
+    :returns: 0 on success, 1 on device in use
+    """
     cmd = ["ovs-appctl", "netdev-dpdk/detach", pci_address]
-    try:
-        logger.info("%s: running %s", pci_address, " ".join(cmd))
-        out, err = processutils.execute(*cmd)
-        if err:
-            return 1
-        return 0
-    except processutils.ProcessExecutionError as exc:
-        logger.error("%s: Failed to detach. Err: %s", pci_address, exc)
-        return -1
+    max_retries = 5
+    retry_delay = 2  # seconds
+
+    for attempt in range(max_retries + 1):  # 0 to 5 (6 total attempts)
+        try:
+            logger.info("%s: running %s", pci_address, " ".join(cmd))
+
+            out, err = processutils.execute(*cmd)
+            if err:
+                action = _handle_dpdk_detach_error(
+                    pci_address, err.strip(), attempt, max_retries, retry_delay
+                )
+                if action == 'success':
+                    return 0
+                elif action == 'retry':
+                    continue
+                elif action == 'error':
+                    return 1
+
+            logger.info("%s: Successfully detached from DPDK", pci_address)
+            return 0
+
+        except processutils.ProcessExecutionError as exc:
+            error_output = str(exc.stderr) if exc.stderr else str(exc)
+            action = _handle_dpdk_detach_error(
+                pci_address, error_output, attempt, max_retries, retry_delay
+            )
+            if action == 'success':
+                return 0
+            elif action == 'retry':
+                continue
+            elif action == 'error':
+                return 1
+
+    # If we exit the loop after max retries on stderr "device in use"
+    logger.error(
+        "%s: Device is still being used by other interfaces after %d retries",
+        pci_address, max_retries
+    )
+    return 1
 
 
 def translate_ifname_to_pci_address(ifname, noop):
@@ -414,6 +568,37 @@ def get_totalvfs(iface_name):
         "%s: sriov_totalvfs can't be read. SR-IOV is not enabled.", iface_name
     )
     return -1
+
+
+def remove_sriov_entries_for_pf(pfname):
+    """Remove all VF and PF entries for the PF device from the SR-IOV map.
+
+    If the resulting map is empty, remove the SRIOV_CONFIG_FILE.
+    """
+    sriov_map = common.get_sriov_map()
+    new_map = []
+    for item in sriov_map:
+        if (item["device_type"] == "vf" and
+                item["device"].get("name") == pfname):
+            logger.debug(
+                "%s: Removing VF %s from sriov_map", pfname, item["name"]
+            )
+            continue  # Skip this VF
+        if (item["device_type"] == "pf" and
+                item.get("name") == pfname):
+            logger.debug("%s: Removing PF from sriov_map", pfname)
+            continue  # Skip this PF
+        new_map.append(item)
+    # Remove the sriov_map file if it is empty
+    if not new_map:
+        logger.debug("Removing sriov_map file")
+        try:
+            os.remove(common.SRIOV_CONFIG_FILE)
+            disable_sriov_config_service()
+        except Exception as e:
+            logger.error("Failed to remove sriov_map file: %s", e)
+    else:
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, new_map)
 
 
 def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
@@ -596,6 +781,15 @@ def _configure_sriov_config_service():
     with open(_SRIOV_CONFIG_SERVICE_FILE, 'w') as f:
         f.write(_SRIOV_CONFIG_DEVICE_CONTENT)
     processutils.execute('systemctl', 'enable', 'sriov_config')
+
+
+def disable_sriov_config_service():
+    if common.get_noop():
+        return
+    try:
+        processutils.execute("systemctl", "disable", "sriov_config")
+    except processutils.ProcessExecutionError as e:
+        logger.warning("Failed to disable sriov_config service: %s", e)
 
 
 def configure_sriov_pfs(execution_from_cli=False, restart_openvswitch=False):

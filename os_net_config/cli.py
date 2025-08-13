@@ -16,7 +16,6 @@
 
 
 import argparse
-from enum import IntEnum
 import importlib
 import json
 import os
@@ -24,24 +23,12 @@ import sys
 import yaml
 
 from os_net_config import common
+from os_net_config.exit_codes import ExitCode
+from os_net_config.exit_codes import get_exit_code
 from os_net_config import objects
 from os_net_config import utils
 from os_net_config import validator
 from os_net_config import version
-
-
-class ExitCode(IntEnum):
-    """Exit codes used by os-net-config.
-
-    These codes indicate the result of configuration operations:
-    - SUCCESS: Configuration completed successfully
-    - ERROR: Configuration failed due to an error
-    Below values are returned when --detailed_exit_code is enabled in cli
-    - FILES_CHANGED: Configuration successful and files were modified
-    """
-    SUCCESS = 0          # Configuration successful
-    ERROR = 1            # Configuration failed
-    FILES_CHANGED = 2    # Configuration successful, files were modified
 
 
 logger = common.configure_logger()
@@ -53,6 +40,8 @@ _PROVIDERS = {
     'iproute': 'IprouteNetConfig',
     'nmstate': 'NmstateNetConfig',
 }
+
+__all__ = ['ExitCode', 'get_exit_code']
 
 
 def parse_opts(argv):
@@ -291,12 +280,29 @@ def main(argv=sys.argv, main_logger=None):
     if not iface_array:
         return ExitCode.ERROR
 
+    try:
+        min_config = get_iface_config(
+            "minimum_config",
+            opts.config_file,
+            iface_mapping,
+            persist_mapping,
+            strict_validate=opts.exit_on_validation_errors,
+        )
+    except objects.InvalidConfigException as e:
+        logger.error("Schema validation failed for minimum_config\n%s", e)
+        return ExitCode.ERROR
+
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
     if utils.is_dcb_config_required():
         common.reset_dcb_map()
 
     if opts.purge_provider:
+        if not min_config:
+            logger.error("Minimum configuration is not provided and hence "
+                         "migration is not started")
+            return ExitCode.MINIMUM_CONFIG_FAILED
+
         purge_ret = unconfig_provider(
             opts.purge_provider,
             iface_array,
@@ -322,6 +328,43 @@ def main(argv=sys.argv, main_logger=None):
                               "system.")
             return ExitCode.ERROR
 
+    # Apply minimum _config using the new provider.
+    try:
+        ret_code = minimum_config(
+            opts.provider,
+            min_config,
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop)
+    except Exception as e:
+        logger.error(
+            "%s: ***Failed to configure minimum_config***\n%s",
+            opts.provider,
+            e
+        )
+        return ExitCode.ERROR
+
+    if opts.purge_provider:
+        # For migration from old provider to new provider, the minimum_config
+        # needs to be defined. Any failure to configure minimum_config will be
+        # considered as a failure to migrate.
+        if ret_code != ExitCode.SUCCESS:
+            logger.error(
+                "%s: Failed to configure minimum_config. "
+                "First phase of migration failed",
+                opts.provider,
+            )
+            return ret_code
+        else:
+            logger.info(
+                "First phase of migration from %s -> %s is successful. "
+                "Run os-net-config --provider %s  to complete the migration",
+                opts.purge_provider,
+                opts.provider,
+                opts.provider
+            )
+            return ExitCode.SUCCESS
+
     try:
         logger.info("%s: Applying network_config section", opts.provider)
         ret_code = config_provider(
@@ -341,22 +384,21 @@ def main(argv=sys.argv, main_logger=None):
         )
         ret_code = ExitCode.ERROR
 
-    if utils.is_dcb_config_required():
-        # Apply the DCB Config
-        try:
-            from os_net_config import dcb_config
-        except ImportError as e:
-            logger.error("cannot apply DCB configuration: %s", e)
-            return ExitCode.ERROR
+    # If the configuration is successful, apply the DCB config
+    if ret_code in (ExitCode.SUCCESS, ExitCode.FILES_CHANGED):
+        if utils.is_dcb_config_required():
+            # Apply the DCB Config
+            try:
+                from os_net_config import dcb_config
+            except ImportError as e:
+                logger.error("cannot apply DCB configuration: %s", e)
+                return ExitCode.ERROR
 
-        utils.configure_dcb_config_service()
-        dcb_apply = dcb_config.DcbApplyConfig()
-        dcb_apply.apply()
+            utils.configure_dcb_config_service()
+            dcb_apply = dcb_config.DcbApplyConfig()
+            dcb_apply.apply()
 
-    if opts.detailed_exit_codes or ret_code == ExitCode.ERROR:
-        return ret_code
-    else:
-        return ExitCode.SUCCESS
+    return get_exit_code(opts.detailed_exit_codes, ret_code)
 
 
 def unconfig_provider(provider_name,
@@ -572,6 +614,34 @@ def get_iface_config(
             for e in validation_errors:
                 logger.warning(e)
     return iface_array
+
+
+def minimum_config(provider,
+                   min_config,
+                   no_activate,
+                   root_dir,
+                   noop):
+    if not min_config:
+        logger.warning("minimum_config is not provided")
+        return ExitCode.MINIMUM_CONFIG_FAILED
+
+    logger.info("%s: Running minimum config", provider)
+    ret = config_provider(
+        provider,
+        "minimum_config",
+        min_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == ExitCode.SUCCESS or ret == ExitCode.FILES_CHANGED:
+        logger.info("%s: minimum_config is completed", provider)
+        ret = ExitCode.SUCCESS
+    else:
+        logger.error("%s: failed to configure minimum_config", provider)
+        ret = ExitCode.MINIMUM_CONFIG_FAILED
+    return ret
 
 
 if __name__ == '__main__':
