@@ -3191,6 +3191,111 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertRaises(os_net_config.ConfigurationError,
                           self.provider.add_bridge, obj)
 
+    def test_get_dpdk_port_pci_address_multiple_ports(self):
+        # Test getting PCI addresses for multiple DPDK ports individually
+        running_yaml = """
+interfaces:
+  - name: dpdk0
+    type: ovs-interface
+    dpdk:
+      devargs: '0000:19:06.3'
+  - name: dpdk1
+    type: ovs-interface
+    dpdk:
+      devargs: '0000:19:0a.3'
+"""
+
+        full_state = yaml.safe_load(running_yaml)
+
+        # Stub iface_state(name) to return only the specific iface dict
+        def stub_iface_state(self, name=''):
+            if name:
+                for iface in full_state['interfaces']:
+                    if iface.get('name') == name:
+                        return iface
+                return None
+            return full_state['interfaces']
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state
+        )
+
+        # Test individual DPDK ports
+        pci_addr0 = self.provider._get_dpdk_port_pci_address('dpdk0')
+        self.assertEqual(['0000:19:06.3'], pci_addr0)
+
+        pci_addr1 = self.provider._get_dpdk_port_pci_address('dpdk1')
+        self.assertEqual(['0000:19:0a.3'], pci_addr1)
+
+    def test_get_dpdk_port_pci_address(self):
+        # YAML describing a single dpdk interface with devargs
+        running_yaml = """
+interfaces:
+  - name: dpdk9
+    type: ovs-interface
+    dpdk:
+      devargs: '0000:af:12.7'
+"""
+        state = yaml.safe_load(running_yaml)
+
+        def stub_iface_state(self, name=''):
+            if name:
+                for iface in state['interfaces']:
+                    if iface.get('name') == name:
+                        return iface
+                return None
+            return state['interfaces']
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state
+        )
+
+        # The method returns a list with the PCI address
+        self.assertEqual(['0000:af:12.7'],
+                         self.provider._get_dpdk_port_pci_address('dpdk9'))
+
+    def test_get_dpdk_port_pci_address_no_devargs(self):
+        # Test case where DPDK interface has no devargs
+        running_yaml = """
+interfaces:
+  - name: dpdk_no_devargs
+    type: ovs-interface
+    dpdk: {}
+"""
+        state = yaml.safe_load(running_yaml)
+
+        def stub_iface_state(self, name=''):
+            if name:
+                for iface in state['interfaces']:
+                    if iface.get('name') == name:
+                        return iface
+                return None
+            return state['interfaces']
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state
+        )
+
+        # Should return empty list when devargs is missing
+        self.assertEqual(
+            [],
+            self.provider._get_dpdk_port_pci_address('dpdk_no_devargs'))
+
+    def test_get_dpdk_port_pci_address_not_found(self):
+        # Test case where interface doesn't exist
+        def stub_iface_state(self, name=''):
+            return None
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state
+        )
+
+        # Should return empty list when interface not found
+        self.assertEqual(
+            [],
+            self.provider._get_dpdk_port_pci_address('nonexistent'))
+
 
 class TestNmstateNetConfigApply(base.TestCase):
 
