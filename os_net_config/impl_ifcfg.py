@@ -1505,6 +1505,46 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         % (id, route_tables[id])
         return data
 
+    def _get_dpdk_pci_addresses(self, dpdk_device_name):
+        """Parse ifcfg-dpdk file and extract PCI addresses from DPDK devargs.
+
+        :param dpdk_device_name: Device name of the DPDK port or bond
+        :returns: List of PCI addresses found in options:dpdk-devargs
+        """
+        pci_addresses = []
+
+        ifcfg_dpdk_file = self.root_dir + ifcfg_config_path(dpdk_device_name)
+        devargs_pattern = re.compile(r"options:dpdk-devargs=([0-9a-fA-F:.]+)")
+        try:
+            with open(ifcfg_dpdk_file, "r") as f:
+                for line in f:
+                    if line.strip().startswith("OVS_EXTRA="):
+                        # Remove OVS_EXTRA= and surrounding quotes
+                        line_parts = line.strip().split("=", 1)
+                        value = line_parts[1].strip().strip('"')
+                        # Split by '--' in case of multiple commands
+                        for part in value.split("--"):
+                            match = devargs_pattern.search(part)
+                            if match:
+                                pci_addresses.append(match.group(1))
+        except (IOError, OSError) as e:
+            logger.warning(
+                "Failed to read DPDK config file %s: %s", ifcfg_dpdk_file, e
+            )
+        return pci_addresses
+
+    def get_dpdk_port_pci_addresses(self, dpdk_port_name):
+        """Get the PCI address for a DPDK port."""
+        pci_addresses = self._get_dpdk_pci_addresses(dpdk_port_name)
+        if pci_addresses:
+            return pci_addresses[0]
+        else:
+            return ""
+
+    def get_dpdk_bond_pci_addresses(self, dpdk_bond_name):
+        """Get the PCI addresses for a DPDK bond."""
+        return self._get_dpdk_pci_addresses(dpdk_bond_name)
+
     def destroy(self):
         """Destroy the network configuration.
 
