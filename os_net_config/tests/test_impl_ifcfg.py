@@ -3170,3 +3170,451 @@ class TestIfcfgNetConfigApply(base.TestCase):
                           self.provider.apply)
         # Even though the first one failed, we should have attempted both
         self.assertEqual(2, len(self.provider.errors))
+
+
+class TestIfcfgNetConfigDeviceRemoval(base.TestCase):
+
+    def setUp(self):
+        super(TestIfcfgNetConfigDeviceRemoval, self).setUp()
+        self.temp_dir = tempfile.mkdtemp()
+        self.ifcfg_path = os.path.join(self.temp_dir, 'ifcfg-eth0')
+
+        # Create a temporary ifcfg file for testing
+        with open(self.ifcfg_path, 'w') as f:
+            f.write(_BASE_IFCFG)
+
+        self.provider = impl_ifcfg.IfcfgNetConfig(noop=True,
+                                                  root_dir=self.temp_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+        super(TestIfcfgNetConfigDeviceRemoval, self).tearDown()
+
+    def test_remove_devices_empty_list(self):
+        # Test with empty device list
+        self.provider.remove_devices([])
+        # Should not raise any exceptions
+
+    def test_remove_devices_noop_mode(self):
+        # Test noop mode
+        device = objects.RemoveNetDevice('eth0', 'interface')
+        self.provider.remove_devices([device])
+        # In noop mode, should not actually remove anything
+
+    def test_remove_devices_ordered_processing(self):
+        # Test multiple devices are processed in correct order
+        devices = [
+            objects.RemoveNetDevice('sriov-pf', 'sriov_pf'),
+            objects.RemoveNetDevice('bond0', 'linux_bond'),
+            objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port'),
+            objects.RemoveNetDevice('dpdkbond0', 'ovs_dpdk_bond'),
+            objects.RemoveNetDevice('ovsbond0', 'ovs_bond'),
+            objects.RemoveNetDevice('eth0', 'interface'),
+            objects.RemoveNetDevice('vlan10', 'vlan'),
+            objects.RemoveNetDevice('br0', 'ovs_bridge'),
+            objects.RemoveNetDevice('br-user', 'ovs_user_bridge'),
+            objects.RemoveNetDevice('vf0', 'sriov_vf')
+        ]
+
+        # Mock the processing method to track call order
+        processed_devices = []
+
+        def mock_process_device_removal(self, device):
+            processed_devices.append((device.remove_name, device.remove_type))
+            return
+
+        self.stub_out(
+            'os_net_config.impl_ifcfg.IfcfgNetConfig._process_device_removal',
+            mock_process_device_removal)
+
+        self.provider.remove_devices(devices)
+        # Verify devices were processed in correct order
+        expected_order = [
+            ('dpdk0', 'ovs_dpdk_port'),      # DPDK ports first
+            ('dpdkbond0', 'ovs_dpdk_bond'),  # DPDK bonds second
+            ('ovsbond0', 'ovs_bond'),        # Then OVS bonds
+            ('vlan10', 'vlan'),              # Then VLANs
+            ('eth0', 'interface'),           # Then interfaces
+            ('vf0', 'sriov_vf'),             # Then SR-IOV VFs
+            ('br0', 'ovs_bridge'),           # Then OVS bridges
+            ('br-user', 'ovs_user_bridge'),  # Then OVS user bridges
+            ('bond0', 'linux_bond'),         # Then linux bonds
+            ('sriov-pf', 'sriov_pf')         # Finally SR-IOV PFs
+        ]
+        self.assertEqual(processed_devices, expected_order)
+
+    def test_process_device_removal_interface(self):
+        # Test basic interface removal
+        device = objects.RemoveNetDevice('eth0', 'interface')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='eth0',
+            dev_type='interface',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-eth0'
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'eth0'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'eth0'
+
+        def mock_os_remove(file_path):
+            assert file_path == '/etc/sysconfig/network-scripts/ifcfg-eth0'
+
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_dpdk_port(self):
+        # Test DPDK port removal with cleanup
+        device = objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='dpdk0',
+            dev_type='ovs_dpdk_port',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-dpdk0',
+            pci_address=['0000:05:00.0']  # DPDK port needs PCI address
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'dpdk0'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'dpdk0'
+
+        def mock_os_remove(file_path):
+            assert file_path == '/etc/sysconfig/network-scripts/ifcfg-dpdk0'
+
+        def mock_remove_dpdk_interface(pci_address):
+            assert pci_address == '0000:05:00.0'
+
+        self.stub_out('os_net_config.utils.remove_dpdk_interface',
+                      mock_remove_dpdk_interface)
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_dpdk_bond(self):
+        # Test DPDK bond removal with cleanup
+        device = objects.RemoveNetDevice('dpdkbond0', 'ovs_dpdk_bond')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='dpdkbond0',
+            dev_type='ovs_dpdk_bond',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-dpdkbond0',
+            pci_address=['0000:05:00.0', '0000:06:00.0']
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'dpdkbond0'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'dpdkbond0'
+
+        def mock_os_remove(file_path):
+            expected_path = '/etc/sysconfig/network-scripts/'
+            assert file_path == expected_path + 'ifcfg-dpdkbond0'
+
+        # Track which PCI addresses were removed for the bond
+        removed_pci_addresses = []
+
+        def mock_remove_dpdk_interface(pci_address):
+            removed_pci_addresses.append(pci_address)
+
+        self.stub_out('os_net_config.utils.remove_dpdk_interface',
+                      mock_remove_dpdk_interface)
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_sriov_pf(self):
+        # Test SR-IOV PF removal with cleanup
+        device = objects.RemoveNetDevice('eth0', 'sriov_pf')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='eth0',
+            dev_type='sriov_pf',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-eth0'
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'eth0'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'eth0'
+
+        def mock_os_remove(file_path):
+            assert file_path == '/etc/sysconfig/network-scripts/ifcfg-eth0'
+
+        self.stub_out('os_net_config.sriov_config.reset_sriov_pf',
+                      lambda dev: None)
+        self.stub_out('os_net_config.utils.remove_entries_for_sriov_dev',
+                      lambda dev: None)
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_ovs_bridge(self):
+        # Test OVS bridge removal
+        device = objects.RemoveNetDevice('br0', 'ovs_bridge')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='br0',
+            dev_type='ovs_bridge',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-br0'
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'br0'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'br0'
+
+        def mock_os_remove(file_path):
+            assert file_path == '/etc/sysconfig/network-scripts/ifcfg-br0'
+
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_ovs_user_bridge(self):
+        # Test OVS user bridge removal
+        device = objects.RemoveNetDevice('br-user', 'ovs_user_bridge')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='br-user',
+            dev_type='ovs_user_bridge',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-br-user'
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'br-user'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'br-user'
+
+        def mock_os_remove(file_path):
+            assert file_path == '/etc/sysconfig/network-scripts/ifcfg-br-user'
+
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_ovs_bond(self):
+        # Test OVS bond removal
+        device = objects.RemoveNetDevice('ovsbond0', 'ovs_bond')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='ovsbond0',
+            dev_type='ovs_bond',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-ovsbond0'
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'ovsbond0'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'ovsbond0'
+
+        def mock_os_remove(file_path):
+            assert file_path == '/etc/sysconfig/network-scripts/ifcfg-ovsbond0'
+
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_vlan(self):
+        # Test VLAN removal
+        device = objects.RemoveNetDevice('vlan10', 'vlan')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='vlan10',
+            dev_type='vlan',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-vlan10'
+        )
+
+        def mock_ifdown(self, device_name):
+            assert device_name == 'vlan10'
+
+        def mock_remove_ifcfg_config(device_name):
+            assert device_name == 'vlan10'
+
+        def mock_os_remove(file_path):
+            assert file_path == '/etc/sysconfig/network-scripts/ifcfg-vlan10'
+
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.ifdown',
+                      mock_ifdown)
+        self.stub_out('os_net_config.impl_ifcfg.remove_ifcfg_config',
+                      mock_remove_ifcfg_config)
+        self.stub_out('os.remove', mock_os_remove)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_with_errors(self):
+        # Test error handling during device removal
+        device = objects.RemoveNetDevice('failing_device', 'interface')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_ifcfg import RemoveDeviceIfcfgData
+        device.provider_data = RemoveDeviceIfcfgData(
+            dev_name='failing_device',
+            dev_type='interface',
+            ifcfg_file='/etc/sysconfig/network-scripts/ifcfg-failing_device'
+        )
+
+        def mock_purge(self, device_name, force=False):
+            raise RuntimeError("Simulated purge failure")
+
+        self.stub_out('os_net_config.impl_ifcfg.IfcfgNetConfig.purge',
+                      mock_purge)
+
+        # Set noop to False for actual processing
+        self.provider.noop = False
+
+        # Should raise exception when purge fails
+        self.assertRaises(RuntimeError,
+                          self.provider._process_device_removal,
+                          device)
+
+    def test_remove_devices_with_backup(self):
+        # Test backup functionality when removing devices that require backup
+        devices = [
+            objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port'),
+            objects.RemoveNetDevice('eth0', 'sriov_pf')
+        ]
+
+        backup_called = False
+        backup_path_created = None
+
+        def mock_backup_map_files(backup_path):
+            nonlocal backup_called, backup_path_created
+            backup_called = True
+            backup_path_created = backup_path
+
+        def mock_makedirs(path, exist_ok=False):
+            pass
+
+        def mock_get_timestamp():
+            return "20240101_120000"
+
+        # Mock the backup functions
+        self.stub_out('os_net_config.utils.backup_map_files',
+                      mock_backup_map_files)
+        self.stub_out('os.makedirs', mock_makedirs)
+        self.stub_out('os_net_config.common.get_timestamp', mock_get_timestamp)
+
+        # Mock device processing to avoid actual operations
+        def mock_process_device_removal(self, device):
+            return
+        self.stub_out(
+            'os_net_config.impl_ifcfg.IfcfgNetConfig._process_device_removal',
+            mock_process_device_removal)
+
+        self.provider.noop = False
+        self.provider.remove_devices(devices)
+
+        # Verify backup was called
+        self.assertTrue(backup_called)
+        self.assertIn("20240101_120000", backup_path_created)
+
+    def test_remove_devices_no_backup_needed(self):
+        # Test no backup when devices don't require it
+        devices = [
+            objects.RemoveNetDevice('eth0', 'interface'),
+            objects.RemoveNetDevice('br0', 'ovs_bridge')
+        ]
+
+        backup_called = False
+
+        def mock_backup_map_files(backup_path):
+            nonlocal backup_called
+            backup_called = True
+
+        # Mock the backup function
+        self.stub_out('os_net_config.utils.backup_map_files',
+                      mock_backup_map_files)
+
+        # Mock device processing to avoid actual operations
+        def mock_process_device_removal(self, device):
+            return
+        self.stub_out(
+            'os_net_config.impl_ifcfg.IfcfgNetConfig._process_device_removal',
+            mock_process_device_removal)
+
+        self.provider.noop = False
+        self.provider.remove_devices(devices)
+
+        # Verify backup was NOT called
+        self.assertFalse(backup_called)
+
+    def test_remove_devices_backup_noop_mode(self):
+        # Test backup intent logged but not executed in noop mode
+        devices = [objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port')]
+
+        backup_called = False
+
+        def mock_backup_map_files(backup_path):
+            nonlocal backup_called
+            backup_called = True
+
+        # Mock the backup function
+        self.stub_out('os_net_config.utils.backup_map_files',
+                      mock_backup_map_files)
+
+        self.provider.noop = True
+        self.provider.remove_devices(devices)
+
+        # Verify backup was NOT called in noop mode
+        self.assertFalse(backup_called)
