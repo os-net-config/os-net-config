@@ -2736,3 +2736,80 @@ class NmstateNetConfig(os_net_config.NetConfig):
             "Succesfully applied the network config with nmstate provider"
         )
         return updated_interfaces
+
+    def _list_dpdk_ports_in_bond(self, bond_name):
+        """Return the list of DPDK port names that are members of a bond.
+
+        Inspect the current nmstate running config to locate an OVS bridge
+        that contains the specified bond as a port with link-aggregation,
+        then return the names of member ports that are DPDK interfaces.
+
+        :param bond_name: Name of the OVS/DPDK bond (Port name)
+        :returns: List of DPDK port interface names
+        """
+        dpdk_ports = []
+        # Use iface_state('') to get the list of interfaces
+        ifaces = self.iface_state('') or []
+
+        # Build a set of OVS DPDK interface names
+        dpdk_ifaces = set()
+        for iface in ifaces:
+            # DPDK port is an OVS interface with dpdk config
+            if (iface.get(Interface.TYPE) == OVSInterface.TYPE and
+                    OVSInterface.DPDK_CONFIG_SUBTREE in iface):
+                dpdk_ifaces.add(iface.get(Interface.NAME))
+
+        # Walk OVS bridges and find the bond port
+        for iface in ifaces:
+            # DPDK bond is a port in an OVS bridge that is a link aggregation
+            # group of DPDK ports.
+            if iface.get(Interface.TYPE) != OVSBridge.TYPE:
+                continue
+            cfg = iface.get(OVSBridge.CONFIG_SUBTREE, {})
+            ports_cfg = cfg.get(OVSBridge.PORT_SUBTREE, [])
+            for port in ports_cfg:
+                if (port.get(OVSBridge.Port.NAME) == bond_name and
+                        OVSBridge.Port.LINK_AGGREGATION_SUBTREE in port):
+                    lag = port[OVSBridge.Port.LINK_AGGREGATION_SUBTREE]
+                    members = lag.get(
+                        OVSBridge.Port.LinkAggregation.PORT_SUBTREE, [])
+                    for member in members:
+                        name = member.get(OVSBridge.Port.NAME)
+                        if name and name in dpdk_ifaces:
+                            dpdk_ports.append(name)
+
+        if dpdk_ports:
+            logger.debug(
+                "%s: DPDK member ports: %s", bond_name, " ".join(dpdk_ports)
+            )
+        else:
+            logger.debug("%s: No DPDK ports found for bond", bond_name)
+        return dpdk_ports
+
+    def get_dpdk_port_pci_address(self, dpdk_port_name):
+        """Return the dpdk-devargs (PCI address) for a DPDK port interface.
+
+        :param dpdk_port_name: Name of the DPDK port interface
+        :return: PCI address string or None
+        """
+        state = self.iface_state(dpdk_port_name)
+        if state:
+            dpdk_config = state.get("dpdk", {})
+            if dpdk_config:
+                return dpdk_config.get("devargs", "")
+        return ""
+
+    def get_dpdk_bond_pci_addresses(self, dpdk_bond_name):
+        """Return the PCI addresses for a DPDK bond
+
+        :param dpdk_bond_name: Name of the DPDK bond
+        :return: List of PCI addresses
+        """
+        # If the device is a DPDK bond, return the PCI addresses of the
+        # DPDK ports in the bond.
+        dpdk_ports = self._list_dpdk_ports_in_bond(dpdk_bond_name)
+        pci_addresses = [
+            addr for addr in [self.get_dpdk_port_pci_address(port)
+                              for port in dpdk_ports] if addr
+        ]
+        return pci_addresses

@@ -3125,6 +3125,78 @@ class TestNmstateNetConfig(base.TestCase):
         # Should parse successfully - del-controller has empty action list
         self.provider.add_bridge(obj)
 
+    def test_get_dpdk_bond_pci_address(self):
+        # Prepare a minimal running YAML with an dpdk bond and dpdk ports"""
+        running_yaml = """
+interfaces:
+  - name: br-dpdk
+    type: ovs-bridge
+    bridge:
+      port:
+        - name: dpdkbond0
+          link-aggregation:
+            port:
+              - name: dpdk0
+              - name: dpdk1
+        - name: br-dpdk
+  - name: dpdk0
+    type: ovs-interface
+    dpdk:
+      devargs: '0000:19:06.3'
+  - name: dpdk1
+    type: ovs-interface
+    dpdk:
+      devargs: '0000:19:0a.3'
+"""
+
+        full_state = yaml.safe_load(running_yaml)
+
+        # Stub iface_state(name) to return only the specific iface dict
+        def stub_iface_state(self, name=''):
+            if name:
+                for iface in full_state['interfaces']:
+                    if iface.get('name') == name:
+                        return iface
+                return None
+            return full_state['interfaces']
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state
+        )
+
+        ports = self.provider._list_dpdk_ports_in_bond('dpdkbond0')
+        self.assertEqual(['dpdk0', 'dpdk1'], ports)
+
+        pci_list = self.provider.get_dpdk_bond_pci_addresses('dpdkbond0')
+        self.assertEqual(['0000:19:06.3', '0000:19:0a.3'], pci_list)
+
+    def test_get_dpdk_port_pci_address(self):
+        # YAML describing a single dpdk interface with devargs
+        running_yaml = """
+interfaces:
+  - name: dpdk9
+    type: ovs-interface
+    dpdk:
+      devargs: '0000:af:12.7'
+"""
+        state = yaml.safe_load(running_yaml)
+
+        def stub_iface_state(self, name=''):
+            if name:
+                for iface in state['interfaces']:
+                    if iface.get('name') == name:
+                        return iface
+                return None
+            return state['interfaces']
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.iface_state',
+            stub_iface_state
+        )
+
+        self.assertEqual('0000:af:12.7',
+                         self.provider.get_dpdk_port_pci_address('dpdk9'))
+
 
 class TestNmstateNetConfigApply(base.TestCase):
 
