@@ -49,6 +49,17 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 PURGE_IFCFG_FILES = '/var/lib/os-net-config/ifcfg-purge/'
 NETWORK_SCRIPTS_PATH = '/etc/sysconfig/network-scripts/'
 
+_OVS_TYPE_MAP = {
+    "ovs_user_bridge": "OVSUserBridge",
+    "ovs_bridge": "OVSBridge",
+    "ovs_bond": "OVSBond",
+    "ovs_dpdk_bond": "OVSDPDKBond",
+    "ovs_interface": "OVSIntPort",
+    "ovs_dpdk_port": "OVSDPDKPort",
+    "ovs_tunnel": "OVSTunnel",
+    "ovs_patch_port": "OVSPatchPort"
+}
+
 
 def ifcfg_config_path(name):
     return "/etc/sysconfig/network-scripts/ifcfg-%s" % name
@@ -131,6 +142,25 @@ def stop_dhclient_process(interface):
             logger.error(
                 "Could not remove dhclient pid file '%s': %s", pid_file, err
             )
+
+
+class RemoveDeviceIfcfgData:
+    def __init__(self, dev_name, dev_type, ifcfg_file, pci_address=[],
+                 nm_controlled=True):
+        self.dev_name = dev_name
+        self.dev_type = dev_type
+        self.ifcfg_file = ifcfg_file
+        self.pci_address = pci_address
+        self.nm_controlled = nm_controlled
+
+    def __str__(self):
+        """Return a formatted string representation of the device data."""
+        pci_str = ', '.join(self.pci_address) if self.pci_address else 'None'
+        return (f"RemoveDeviceIfcfgData(dev_name='{self.dev_name}', "
+                f"dev_type='{self.dev_type}', "
+                f"ifcfg_file='{self.ifcfg_file}', "
+                f"pci_address=[{pci_str}], "
+                f"nm_controlled={self.nm_controlled})")
 
 
 class IfcfgNetConfig(os_net_config.NetConfig):
@@ -819,22 +849,22 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 # Route is an IPv4 route
                 if route.default:
                     first_line = "default via %s dev %s%s%s\n" % (
-                                 route.next_hop, interface_name,
-                                 table, options)
+                        route.next_hop, interface_name,
+                        table, options)
                 else:
                     data += "%s via %s dev %s%s%s\n" % (
-                            route.ip_netmask, route.next_hop,
-                            interface_name, table, options)
+                        route.ip_netmask, route.next_hop,
+                        interface_name, table, options)
             else:
                 # Route is an IPv6 route
                 if route.default:
                     first_line6 = "default via %s dev %s%s%s\n" % (
-                                  route.next_hop, interface_name,
-                                  table, options)
+                        route.next_hop, interface_name,
+                        table, options)
                 else:
                     data6 += "%s via %s dev %s%s%s\n" % (
-                             route.ip_netmask, route.next_hop,
-                             interface_name, table, options)
+                        route.ip_netmask, route.next_hop,
+                        interface_name, table, options)
         self.route_data[interface_name] = first_line + data
         self.route6_data[interface_name] = first_line6 + data6
         logger.debug(
@@ -2474,3 +2504,349 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 logger.info(
                     "%s: Device is not managed by ifcfg provider", iface_name
                 )
+
+    def _check_dpdk_port_in_bond(self, net_device, ifcfg_file):
+        """Check if a DPDK port is a member of a DPDK bond.
+
+        If dpdk ports are members of dpdk bonds, and the dpdk bonds are
+        managed by ifcfg provider, then the dpdk ports are also considered
+        to be managed by ifcfg provider. It is to be noted that when
+        dpdkbonds exists the ifcfg file would be present for the dpdkbonds
+        and the dpdk ports shall not have any ifcfg files
+
+        :param net_device: RemoveNetDevice object for the DPDK port
+        :param ifcfg_file: Path to the ifcfg file being checked
+        :returns: True if device is found as bond member, False otherwise
+        """
+        try:
+            with open(ifcfg_file, 'r') as f:
+                bond_ifaces_found = False
+                is_dpdk_bond = False
+                device_name = ""
+
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('DEVICE='):
+                        device_name = (line.split('=', 1)[1]
+                                       .strip().strip('"\''))
+                    elif (line.startswith('TYPE=') and
+                          'OVSDPDKBond' in line):
+                        is_dpdk_bond = True
+                    elif line.startswith('BOND_IFACES='):
+                        bond_ifaces_value = (line.split('=', 1)[1]
+                                             .strip().strip('"\''))
+                        # Parse bond interfaces (space or comma separated)
+                        bond_members = (bond_ifaces_value
+                                        .replace(',', ' ').split())
+                        if net_device.remove_name in bond_members:
+                            bond_ifaces_found = True
+
+                    # Exit if we found all the required data
+                    if (bond_ifaces_found and is_dpdk_bond and
+                            device_name):
+                        logger.warning(
+                            "The dpdk port %s is a member of dpdk bond %s."
+                            "Since dpdkbond is managed by ifcfg provider, "
+                            "marking %s also as managed by ifcfg provider",
+                            net_device.remove_name, device_name,
+                            net_device.remove_name)
+                        net_device.provider_data = None
+                        return True
+        except (IOError, OSError) as e:
+            logger.warning("Failed to read ifcfg file %s: %s", ifcfg_file, e)
+        return False
+
+    def _check_single_ifcfg_file(self, net_device, ifcfg_file):
+        """Check if net_device is managed by ifcfg.
+
+        There are few rules employed in identifying if the device is managed by
+        ifcfg provider
+        - Check if DEVICE name matches
+        - If UUID is present, its managed by NM and ifcfg shall not handle it
+        - Even if NM_CONTROLLED is yes or not present (defaulted to yes) ifcfg
+          is the preferred provider to handle the device.
+        :param net_device: RemoveNetDevice object
+        :param ifcfg_file: Path to the ifcfg file to check
+        :returns: True if device is found and configured, False otherwise
+        """
+        ovs_type_map = _OVS_TYPE_MAP
+        device_found = False
+        pci_address = None
+        nm_controlled = True
+
+        if net_device.remove_type in ovs_type_map:
+            if self._check_ifcfg_file_for_ovs_dev(net_device, ifcfg_file):
+                return True
+            else:
+                return False  # continue with next file
+
+        # For other device types (including sriov_vf), check DEVICE= field
+        try:
+            with open(ifcfg_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('DEVICE='):
+                        device_value = (line.split('=', 1)[1]
+                                        .strip().strip('"\''))
+                        if device_value == net_device.remove_name:
+                            device_found = True
+                        else:
+                            return False
+                    elif line.startswith("UUID="):
+                        # ifcfg file having UUID, is best handled by nmstate
+                        # provider
+                        return False
+                    elif line.upper().startswith("NM_CONTROLLED=NO"):
+                        nm_controlled = False
+        except (IOError, OSError) as e:
+            logger.warning("Failed to read ifcfg file %s: %s", ifcfg_file, e)
+
+        if device_found:
+            net_device.provider_data = RemoveDeviceIfcfgData(
+                net_device.remove_name,
+                net_device.remove_type,
+                ifcfg_file,
+                pci_address,
+                nm_controlled)
+
+            return True
+        else:
+            return False
+
+    def _check_if_device_attached_to_dpdk(self, net_device):
+        """Check if a device is attached to a DPDK port or bond.
+
+        If the sriov vf or interface device is bound with vfio-pci driver,
+        then most likely is attached to a DPDK port. So if the pci address
+        is present in dpdk map and the dpdk device is managed by ifcfg
+        provider, then the device shall also be listed as managed by ifcfg
+        provider.
+        But if its bound with default drivers, then the device name will be
+        available and the regular search for the ifcfg files will be followed.
+
+        :param net_device: RemoveNetDevice object
+        :returns: True if processing should continue, False if device not
+             found and None if its inconclusive
+        """
+        dev_name = net_device.remove_name
+        if net_device.remove_name.startswith("sriov:"):
+            vf_device = net_device.remove_name.split(":")
+            pf_device = vf_device[1]
+            vf_id = int(vf_device[2])
+            try:
+                dev_name = utils.get_vf_devname(pf_device, vf_id)
+                net_device.remove_name = dev_name
+            except common.SriovVfNotFoundException:
+                # This means that the VF is not used as part of NIC
+                # Partitioning.
+                # TODO(karthik): Should we handle removal of
+                # non nic partitioned VFs ?
+                logger.debug("%s-%d: SR-IOV VF not found", pf_device, vf_id)
+                return False
+
+        pci_address = common.get_dpdk_pci_address(dev_name)
+        if pci_address:
+            # look for ifcfg files with DPDK ports with the same pci address
+            return self._check_dpdk_files_for_pci_address(
+                net_device, dev_name, pci_address)
+
+        # device is not attached with dpdk port, so we need to check if it is
+        # present in the ifcfg files
+        return None
+
+    def _check_dpdk_files_for_pci_address(self, net_device, dev_name,
+                                          dev_pci_address):
+        """Check ifcfg files for DPDK ports/bonds matching device's PCI address.
+
+        :param net_device: RemoveNetDevice object for the SR-IOV VF/ interface
+        :param dev_name: Name of the VF/ interface to match
+        :param dev_pci_address: PCI address of the VF/ interface to match
+        :returns: True if matching DPDK configuration found, False otherwise
+        """
+        ifcfg_dir = self.root_dir + "/etc/sysconfig/network-scripts/"
+
+        if not os.path.exists(ifcfg_dir):
+            logger.debug("ifcfg directory %s does not exist", ifcfg_dir)
+            return False
+
+        try:
+            for filename in os.listdir(ifcfg_dir):
+                if filename.startswith('ifcfg-'):
+                    ifcfg_file = os.path.join(ifcfg_dir, filename)
+
+                    # Check if this is a DPDK port or DPDK bond configuration
+                    if self._is_dpdk_config_file(ifcfg_file):
+
+                        # Extract PCI addresses from this DPDK config
+                        dpdk_pci_addresses = self._get_dpdk_pci_addresses(
+                            ifcfg_file)
+
+                        # Check if device's PCI address matches any DPDK PCI
+                        # address
+                        if dev_pci_address in dpdk_pci_addresses:
+                            logger.debug("%s: attached to dpdk port with pci "
+                                         "address %s", net_device.remove_name,
+                                         dev_pci_address)
+                            return True
+        except (IOError, OSError) as e:
+            logger.warning("Failed to read ifcfg directory %s: %s",
+                           ifcfg_dir, e)
+        return False
+
+    def _is_dpdk_config_file(self, ifcfg_file):
+        """Check if an ifcfg file contains DPDK port or bond configuration.
+
+        :param ifcfg_file: Path to the ifcfg file to check
+        :returns: True if file contains DPDK configuration, False otherwise
+        """
+        type_value = ""
+        try:
+            with open(ifcfg_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('TYPE='):
+                        type_value = line.split('=', 1)[1].strip().strip('"\'')
+                    elif line.startswith('DEVICETYPE=ovs'):
+                        # Continue checking for DPDK types in OVS devices
+                        continue
+                    elif line.startswith("UUID="):
+                        # ifcfg file having UUID, is best handled by nmstate
+                        # provider
+                        return False
+                if type_value in ['OVSDPDKPort', 'OVSDPDKBond']:
+                    return True
+        except (IOError, OSError) as e:
+            logger.warning("Failed to read ifcfg file %s: %s", ifcfg_file, e)
+
+        return False
+
+    def _check_ifcfg_file_for_ovs_dev(self, net_device, ifcfg_file):
+        """Check if a OVS device is managed by the ifcfg provider.
+
+        Rules used in identifying if the device is managed by ifcfg
+        - Check device name
+        - compare device type
+        - presence of UUID indicates it is best handled by NM
+        For DPDK ports or bonds, the pci address of the ports are fetched
+        :param net_device: NetworkDevice object to check
+        :param ifcfg_file: Path to the ifcfg file being checked
+        :returns: True if device is found in ifcfg file, False otherwise
+        """
+
+        # Special case: Check if ovs_dpdk_port is member of bond
+        if net_device.remove_type == "ovs_dpdk_port":
+            if self._check_dpdk_port_in_bond(net_device, ifcfg_file):
+                return True
+
+        type_map = _OVS_TYPE_MAP
+        device_found = False
+        type_found = False
+        pci_address = None
+        ovs_dev_found = False
+        nm_controlled = True
+
+        with open(ifcfg_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('DEVICE='):
+                    device_value = (line.split('=', 1)[1]
+                                    .strip().strip('"\''))
+                    if device_value == net_device.remove_name:
+                        device_found = True
+                    else:
+                        # name checks are mandatory for all devices
+                        # if the name is not matching, we can break
+                        # the loop
+                        break
+                elif line.startswith('TYPE='):
+                    file_dev_type = (line.split('=', 1)[1]
+                                     .strip().strip('"\''))
+                    if file_dev_type == type_map.get(net_device.remove_type):
+                        # It is found that os-net-config redundantly adds
+                        # TYPE=OVSPort for ovs_bond. Hence we need to ignore
+                        # OVSPort and check for OVSBond.
+                        type_found = True
+                elif line.startswith("DEVICETYPE=ovs"):
+                    ovs_dev_found = True
+                elif line.startswith("UUID="):
+                    # ifcfg file having UUID, is best handled by nmstate
+                    # provider
+                    return False
+                elif line.upper().startswith("NM_CONTROLLED=NO"):
+                    nm_controlled = False
+
+            if (device_found and ovs_dev_found and type_found):
+                if net_device.remove_type in ["ovs_dpdk_port",
+                                              "ovs_dpdk_bond"]:
+                    pci_address = self._get_dpdk_pci_addresses(
+                        ifcfg_file)
+
+                net_device.provider_data = RemoveDeviceIfcfgData(
+                    net_device.remove_name,
+                    net_device.remove_type,
+                    ifcfg_file,
+                    pci_address,
+                    nm_controlled)
+
+                return True
+        return False
+
+    def _device_managed_status(self, net_device, result):
+        """Log the result of is_device_managed() with consistent format."""
+        if result:
+            net_device.provider = "ifcfg"
+            logger.info("%s: type=%s provider=ifcfg, data=%s",
+                        net_device.remove_name,
+                        net_device.remove_type,
+                        getattr(net_device, 'provider_data', 'None'))
+        else:
+            logger.debug("%s: type=%s provider=ifcfg, device not managed",
+                         net_device.remove_name,
+                         net_device.remove_type)
+        return result
+
+    def is_device_managed(self, net_device):
+        """Check if a device is managed by the ifcfg provider.
+
+        Searches all ifcfg-* files in /etc/sysconfig/network-scripts/
+        to find for evidence that the device is managed by ifcfg provider
+        :param net_device: NetworkDevice object to check
+        :returns: True if device is found in any ifcfg file with matching
+                  type, False otherwise
+        """
+        ifcfg_dir = self.root_dir + "/etc/sysconfig/network-scripts/"
+
+        if not os.path.exists(ifcfg_dir):
+            logger.debug("ifcfg directory %s does not exist, hence ruling out "
+                         "ifcfg provider for remove device %s",
+                         ifcfg_dir, net_device.remove_name)
+            return self._device_managed_status(net_device, False)
+
+        if net_device.remove_type == "sriov_vf" or \
+            net_device.remove_type == "interface":
+            rv = self._check_if_device_attached_to_dpdk(net_device)
+            # returns None when the VF is yet to be identified with the right
+            # provider
+            if rv is not None:
+                return self._device_managed_status(net_device, rv)
+
+        try:
+            # First, check the most likely file: ifcfg-{device_name}
+            likely_filename = f"ifcfg-{net_device.remove_name}"
+            likely_file_path = os.path.join(ifcfg_dir, likely_filename)
+
+            if os.path.exists(likely_file_path):
+                if self._check_single_ifcfg_file(net_device, likely_file_path):
+                    return self._device_managed_status(net_device, True)
+
+            # If not found in the expected file, check all other files
+            for filename in os.listdir(ifcfg_dir):
+                if (filename.startswith('ifcfg-') and
+                        filename != likely_filename):
+                    ifcfg_file = os.path.join(ifcfg_dir, filename)
+                    if self._check_single_ifcfg_file(net_device, ifcfg_file):
+                        return self._device_managed_status(net_device, True)
+
+        except (IOError, OSError):
+            pass
+        return self._device_managed_status(net_device, False)
