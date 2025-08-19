@@ -146,12 +146,14 @@ definitions:
         items:
             $ref: "#/definitions/address"
         minItems: 1
-    device:
+    remove_net_device:
         type: object
         properties:
-            dev_name:
+            type:
+                enum: ["remove_net_device"]
+            remove_name:
                 $ref: "#/definitions/string_or_param"
-            dev_type:
+            remove_type:
               enum:
                 - "interface"
                 - "sriov_pf"
@@ -167,8 +169,8 @@ definitions:
                 - "linux_bridge"
                 - "linux_bond"
         required:
-          - dev_name
-          - dev_type
+          - remove_name
+          - remove_type
         additionalProperties: False
     dscp2prio:
         type: object
