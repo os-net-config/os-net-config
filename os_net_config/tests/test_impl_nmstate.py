@@ -55,6 +55,9 @@ _BASE_IFACE_CFG = """
     addresses:
      - ip_netmask: 2001:abc:a::2/64
      - ip_netmask: 192.168.1.2/24
+    dispatch:
+        post-activation: |
+            /sbin/sysctl -w net.ipv6.conf.em1.keep_addr_on_down=1 #SYSCTL
 """
 
 _BASE_IFACE_CFG_APPLIED = """
@@ -92,6 +95,9 @@ _BASE_IFACE_CFG_APPLIED = """
       autoconf: false
       dhcp: false
       enabled: true
+    dispatch:
+        post-activation: |
+            /sbin/sysctl -w net.ipv6.conf.eno2.keep_addr_on_down=1 #SYSCTL
 """
 
 
@@ -166,12 +172,18 @@ _V4_V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """  ipv6:
   ethernet:
     sr-iov:
       total-vfs: 0
+  dispatch:
+      post-activation: |
+          /sbin/sysctl -w net.ipv6.conf.em1.keep_addr_on_down=1 #SYSCTL
 """
 
 _V6_NMCFG = _BASE_NMSTATE_IFACE_CFG + """
   ethernet:
     sr-iov:
       total-vfs: 0
+  dispatch:
+      post-activation: |
+          /sbin/sysctl -w net.ipv6.conf.em1.keep_addr_on_down=1 #SYSCTL
   ipv4:
     enabled: False
     dhcp: False
@@ -1242,7 +1254,10 @@ class TestNmstateNetConfig(base.TestCase):
             autoconf: false
             dhcp: false
             enabled: true
-        """
+        dispatch:
+            post-activation: |
+                /sbin/sysctl -w net.ipv6.conf.%s.keep_addr_on_down=1 #SYSCTL
+        """ % 'vlan502'
         v6_addr = objects.Address('2001:abc:a::/64')
         vlan1 = objects.Vlan('em2', 502, addresses=[v6_addr])
         self.provider.add_vlan(vlan1)
@@ -1267,7 +1282,10 @@ class TestNmstateNetConfig(base.TestCase):
             autoconf: false
             dhcp: false
             enabled: true
-        """
+        dispatch:
+            post-activation: |
+                /sbin/sysctl -w net.ipv6.conf.%s.keep_addr_on_down=1 #SYSCTL
+        """ % 'em2.502'
         v6_addr = objects.Address('2001:abc:a::/64')
         em2 = objects.Interface('em2.502', addresses=[v6_addr])
         self.provider.add_interface(em2)

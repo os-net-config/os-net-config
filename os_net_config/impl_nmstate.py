@@ -86,6 +86,8 @@ done
 
 ETHTOOL_SCRIPT = "{ethtool_cmd} {ethtool_opts} #ETHTOOL"
 
+SYSCTL_SCRIPT = "{sysctl_cmd} -w {sysctl_setting} #SYSCTL"
+
 _OS_NET_CONFIG_MANAGED = "# os-net-config managed table"
 
 _ROUTE_TABLE_DEFAULT = """# reserved values
@@ -1156,8 +1158,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         )
                     self.add_dispatch_script(
                         data, POST_ACTIVATION, ethtool_script
-                        )
-
+                    )
             else:
                 command_str = '-s ${DEVICE} ' + ethtool_opts
                 command = command_str.split()
@@ -1260,6 +1261,15 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     data[Interface.IPV6][InterfaceIPv6.ENABLED] = True
                     data[Interface.IPV6][InterfaceIPv6.ADDRESS].append(
                         v6ip_netmask)
+                # Set keep_addr_on_down sysctl when using static IPv6 IPs
+                _name = base_opt.name
+                sysctl_script = SYSCTL_SCRIPT.format(
+                    sysctl_cmd=utils.sysctl_path(),
+                    sysctl_setting=f"net.ipv6.conf.{_name}.keep_addr_on_down=1"
+                )
+                self.add_dispatch_script(
+                    data, POST_ACTIVATION, sysctl_script
+                )
 
         if base_opt.dhclient_args:
             msg = "DHCP Client args not supported in impl_nmstate, ignoring"
