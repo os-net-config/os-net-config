@@ -1,0 +1,91 @@
+# Sample remove config, with all supported type(s)
+
+remove_config:
+  - remove_type: interface
+    remove_name: nic1
+  - remove_type: vlan
+    remove_name: vlan153
+  # Kernel Bond and members  
+  - remove_type: linux_bond
+    remove_name: bond_api
+  - remove_type: interface
+    remove_name: nic2
+  # OvS Bond and members  
+  - remove_type: ovs_bond
+    remove_name: bond_tenant
+  - remove_type: interface
+    remove_name: nic3
+  # Bridge and bond
+  - remove_type: ovs_bridge
+    remove_name: br-storage
+  - remove_type: linux_bond
+    remove_name: bond_storage
+  - remove_type: interface
+    remove_name: nic1
+  # Bridge and dpdk port
+  - remove_type: ovs_user_bridge
+    remove_name: br-link0
+  - remove_type: ovs_dpdk_port
+    remove_name: dpdk0
+  - remove_type: ovs_dpdk_port
+    remove_name: dpdk1
+  # Bridge and dpdkbond + members
+  - remove_type: ovs_user_bridge
+    remove_name: br-dpdk1
+  - remove_type: ovs_dpdk_bond
+    remove_name: dpdkbond0
+  - remove_type: ovs_dpdk_port
+    remove-name: dpdk0
+  - remove_type: ovs_dpdk_port
+    remove-name: dpdk1
+  # SR-IOV pf 
+  - remove_type: sriov_pf
+    remove_name: ens1f2
+  # All SR-IOV vf(s)
+  - remove_type: sriov_vf
+    remove_name: sriov:ens1f3:0
+  - remove_type: sriov_vf
+    remove_name: sriov:ens1f3:1
+  - remove_type: sriov_vf
+    remove_name: sriov:nic2:0
+  - remove_type: sriov_vf
+    remove_name: sriov:nic2:1
+  # Nic partitioned DPDK bond
+  - remove_type: ovs_user_bridge
+    remove_name: br-link0
+  - remove_type: ovs_dpdk_bond
+    remove_name: dpdkbond0
+  - remove_type: sriov_vf
+    remove_name: sriov:ens2f0np0:0
+  - remove_type: sriov_vf
+    remove_name: sriov:ens2f0np0:1
+  - remove_type: sriov_vf
+    remove_name: ens2f1v0
+  - remove_type: sriov_vf
+    remove_name: ens2f1v1
+
+network_config:
+  -
+    type: ovs_user_bridge
+    name: br-link
+    members:
+      -
+        type: ovs_dpdk_bond
+        name: dpdkbond0
+        mtu: 9000
+        rx_queue: 4
+        members:
+            -
+              type: ovs_dpdk_port
+              name: dpdk0
+              members:
+                  -
+                    type: interface
+                    name: nic2
+            -
+              type: ovs_dpdk_port
+              name: dpdk1
+              members:
+                  -
+                    type: interface
+                    name: nic3

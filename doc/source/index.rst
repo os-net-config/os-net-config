@@ -15,6 +15,7 @@ Contents:
    installation
    usage
    config
+   remove_config
    examples
    contributing
 
