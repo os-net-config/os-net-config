@@ -730,7 +730,7 @@ def _get_vf_name_from_map(pf_name, vfid):
     for item in sriov_map:
         if (item['device_type'] == 'vf' and
            item['device'].get('name') == pf_name and
-           item['device'].get('vfid') == vfid):
+           str(item['device'].get('vfid')) == vfid):
             return item['name']
 
 
@@ -820,7 +820,7 @@ def get_vf_devname(pf_name, vfid):
     """
     # Fetch the name of the VF device from the sr-iov config map.
     # If the map does not have the VF name, then the sysfs shall be parsed.
-    vf_name = _get_vf_name_from_map(pf_name, vfid)
+    vf_name = _get_vf_name_from_map(pf_name, str(vfid))
     if vf_name is not None:
         return vf_name
     vf_path = common.get_dev_path(pf_name, f"virtfn{vfid}/net")
@@ -837,7 +837,7 @@ def get_vf_devname(pf_name, vfid):
             break
         time.sleep(1)
     else:
-        msg = "NIC %s with VF id: %d could not be found" % (pf_name, vfid)
+        msg = "NIC %s with VF id: %s could not be found" % (pf_name, vfid)
         raise common.SriovVfNotFoundException(msg)
 
     if os.path.isdir(vf_path):
