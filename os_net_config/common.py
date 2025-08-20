@@ -396,17 +396,17 @@ def get_pci_address(name):
     except OSError as exc:
         # for VFs the PCI address could always be identified from sysfs
         # using the PF device and the VF id even if the VF is bound with
-        # DPDK driver. So there is no ned to run through the DPDK map
+        # DPDK driver. So there is no need to run through the DPDK map
         # for retrieving the corresponding pci address
         if vfid:
             msg = f"{ifname}:{vfid} Unable to get pci address"
             raise SriovVfNotFoundException(msg)
         logger.info(
-            "%s: Unable to get pci address from sysfs. Err: %s", ifname, exc
+            "%s: Unable to get pci address from sysfs. Err: %s", name, exc
         )
         pci_addr = get_dpdk_pci_address(ifname)
 
-    logger.info("%s: pci address is %s", ifname, pci_addr)
+    logger.info("%s: pci address is %s", name, pci_addr)
     return pci_addr
 
 
