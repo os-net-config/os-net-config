@@ -1518,7 +1518,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             logger.info("%s: Purging SR-IOV device", sriov_dev)
             sriov_config.reset_sriov_pf(sriov_dev)
             self.purge(sriov_dev)
-            utils.remove_sriov_entries_for_pf(sriov_dev)
+            utils.remove_entries_for_sriov_dev(sriov_dev)
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
         """Apply the network configuration.

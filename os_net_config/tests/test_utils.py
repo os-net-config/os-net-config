@@ -1754,29 +1754,32 @@ dpdk {
         ]
         common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
 
-        utils.remove_sriov_entries_for_pf('eth1')
+        utils.remove_entries_for_sriov_dev('eth1')
 
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         remaining_map = yaml.safe_load(contents)
+        # eth1 and it's vf entries removed
         self.assertEqual(2, len(remaining_map))
         # Should only have eth2 entries left
         self.assertEqual('eth2', remaining_map[0]['name'])
         self.assertEqual('eth2', remaining_map[1]['device']['name'])
+        self.assertEqual('eth2_0', remaining_map[1]['name'])
 
-    def test_remove_sriov_entries_for_pf_empty_map(self):
+    def test_remove_sriov_entries_pciaddr_empty_map(self):
         def fake_disable_service():
             pass
         self.stub_out('os_net_config.utils.disable_sriov_config_service',
                       fake_disable_service)
 
-        sriov_map = [
-            {'device_type': 'pf', 'name': 'eth1', 'numvfs': 5},
-            {'device_type': 'vf', 'device': {'name': 'eth1', 'vfid': 0},
-             'name': 'eth1_0'}
-        ]
+        sriov_map = [{
+            'device_type': 'pf', 'link_mode': 'legacy',
+            'name': 'eth1', 'numvfs': 10, 'promisc': 'on',
+            'drivers_autoprobe': True, 'vdpa': False,
+            'pci_address': '0000:8a:07.1',
+            'mac_address': 'aa:bb:cc:dd:ee:ff'}]
         common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
 
-        utils.remove_sriov_entries_for_pf('eth1')
+        utils.remove_entries_for_sriov_dev('0000:8a:07.1')
 
         # File should be removed when map becomes empty
         self.assertFalse(os.path.exists(common.SRIOV_CONFIG_FILE))
@@ -1789,12 +1792,34 @@ dpdk {
         ]
         common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
 
-        utils.remove_sriov_entries_for_pf('eth999')
+        utils.remove_entries_for_sriov_dev('eth999')
 
         # Original map should remain unchanged
         contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
         remaining_map = yaml.safe_load(contents)
         self.assertEqual(2, len(remaining_map))
+
+    def test_remove_sriov_entries_for_vf_only(self):
+        sriov_map = [
+            {'device_type': 'pf', 'name': 'eth1', 'numvfs': 5},
+            {'device_type': 'vf', 'device': {'name': 'eth1', 'vfid': 0},
+             'name': 'eth1_0'},
+            {'device_type': 'vf', 'device': {'name': 'eth1', 'vfid': 1},
+             'name': 'eth1_1'},
+            {'device_type': 'pf', 'name': 'eth2', 'numvfs': 3},
+            {'device_type': 'vf', 'device': {'name': 'eth2', 'vfid': 0},
+             'name': 'eth2_0'}
+        ]
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, sriov_map)
+
+        utils.remove_entries_for_sriov_dev('sriov:eth1:0')
+
+        contents = common.get_file_data(common.SRIOV_CONFIG_FILE)
+        remaining_map = yaml.safe_load(contents)
+        self.assertEqual(4, len(remaining_map))
+        # Should only have eth2 and eth1 PF, eth1-vf0 entries left
+        self.assertEqual('eth1', remaining_map[0]['name'])
+        self.assertEqual('eth2', remaining_map[2]['name'])
 
     def test_disable_sriov_config_service_success(self):
         def fake_execute(*args, **kwargs):
