@@ -1,0 +1,83 @@
+# Sample remove config, with all supported type(s)
+
+remove_config:
+  - dev_type: interface
+    dev_name: nic1
+  - dev_type: vlan
+    dev_name: vlan153
+  # Kernel Bond and members  
+  - dev_type: linux_bond
+    dev_name: bond_api
+  - dev_type: interface
+    dev_name: nic2
+  # OvS Bond and members  
+  - dev_type: ovs_bond
+    dev_name: bond_tenant
+  - dev_type: interface
+    dev_name: nic3
+  # Bridge and bond
+  - dev_type: ovs_bridge
+    dev_name: br-storage
+  - dev_type: linux_bond
+    dev_name: bond_storage
+  # Bridge and dpdk port
+  - dev_type: ovs_user_bridge
+    dev_name: br-link0
+  - dev_type: ovs_dpdk_port
+    dev_name: dpdk0
+  - dev_type: ovs_dpdk_port
+    dev_name: dpdk1
+  # Bridge and dpdkbond
+  - dev_type: ovs_user_bridge
+    dev_name: br-dpdk1
+  - dev_type: ovs_dpdk_bond
+    dev_name: dpdkbond0
+  # SR-IOV pf 
+  - dev_type: sriov_pf
+    dev_name: ens1f2
+  # All SR-IOV vf(s)
+  - dev_type: sriov_vf
+    dev_name: sriov:ens1f3:0
+  - dev_type: sriov_vf
+    dev_name: sriov:ens1f3:1
+  - dev_type: sriov_vf
+    dev_name: sriov:ens1f3:2
+  # Nic partitioned DPDK bond
+  - dev_type: ovs_user_bridge
+    dev_name: br-link0
+  - dev_type: ovs_dpdk_bond
+    dev_name: dpdkbond0
+  - dev_type: sriov_vf
+    dev_name: sriov:ens2f0np0:0
+  - dev_type: sriov_vf
+    dev_name: sriov:ens2f0np0:1
+  - dev_type: sriov_vf
+    dev_name: ens2f1v0
+  - dev_type: sriov_vf
+    dev_name: ens2f1v1
+
+network_config:
+  -
+    type: ovs_user_bridge
+    name: br-link
+    members:
+      -
+        type: ovs_dpdk_bond
+        name: dpdkbond0
+        mtu: 9000
+        rx_queue: 4
+        members:
+            -
+              type: ovs_dpdk_port
+              name: dpdk0
+              members:
+                  -
+                    type: interface
+                    name: nic2
+            -
+              type: ovs_dpdk_port
+              name: dpdk1
+              members:
+                  -
+                    type: interface
+                    name: nic3
