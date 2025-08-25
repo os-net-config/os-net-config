@@ -46,7 +46,7 @@ _ROUTE_TABLE_DEFAULT = """# reserved values
 #
 #1\tinr.ruhep\n"""
 
-PURGE_IFCFG_FILES = '/var/lib/os-net-config/ifcfg-purge/'
+BACKUP_IFCFG_FILES_PATH = '/var/lib/os-net-config/ifcfg-purge/'
 NETWORK_SCRIPTS_PATH = '/etc/sysconfig/network-scripts/'
 
 
@@ -2366,25 +2366,25 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         route6_file = route6_config_path(iface_name)
         rule_file = route_rule_config_path(iface_name)
 
-        if not os.path.exists(PURGE_IFCFG_FILES):
-            os.makedirs(PURGE_IFCFG_FILES)
+        if not os.path.exists(BACKUP_IFCFG_FILES_PATH):
+            os.makedirs(BACKUP_IFCFG_FILES_PATH)
         if os.path.exists(ifcfg_file):
-            new_ifcfg_file = os.path.join(PURGE_IFCFG_FILES,
+            new_ifcfg_file = os.path.join(BACKUP_IFCFG_FILES_PATH,
                                           f'ifcfg-{iface_name}')
             logger.info("Moving %s -> %s", ifcfg_file, new_ifcfg_file)
             shutil.move(ifcfg_file, new_ifcfg_file)
         if os.path.exists(route_file):
-            new_route_file = os.path.join(PURGE_IFCFG_FILES,
+            new_route_file = os.path.join(BACKUP_IFCFG_FILES_PATH,
                                           f'route-{iface_name}')
             logger.info("Moving %s -> %s", route_file, new_route_file)
             shutil.move(route_file, new_route_file)
         if os.path.exists(route6_file):
-            new_route6_file = os.path.join(PURGE_IFCFG_FILES,
+            new_route6_file = os.path.join(BACKUP_IFCFG_FILES_PATH,
                                            f'route6-{iface_name}')
             logger.info("Moving %s - %s", route6_file, new_route6_file)
             shutil.move(route6_file, new_route6_file)
         if os.path.exists(rule_file):
-            new_rule_file = os.path.join(PURGE_IFCFG_FILES,
+            new_rule_file = os.path.join(BACKUP_IFCFG_FILES_PATH,
                                          f'rule-{iface_name}')
             logger.info("Moving %s -> %s", rule_file, new_rule_file)
             shutil.move(rule_file, new_rule_file)
@@ -2400,12 +2400,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
     def _restore_ifcfg_files(self):
         logger.info('Restoring the ifcfg files')
-        for file in os.listdir(PURGE_IFCFG_FILES):
+        for file in os.listdir(BACKUP_IFCFG_FILES_PATH):
             if file.startswith('ifcfg-') or \
                 file.startswith('rule-') or \
                 file.startswith('route-') or \
                 file.startswith('route6-'):
-                file_path = os.path.join(PURGE_IFCFG_FILES, file)
+                file_path = os.path.join(BACKUP_IFCFG_FILES_PATH, file)
                 new_file_path = os.path.join(NETWORK_SCRIPTS_PATH, file)
                 try:
                     shutil.copy(file_path, new_file_path)
@@ -2444,3 +2444,99 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 logger.info(
                     "%s: Device is not managed by ifcfg provider", iface_name
                 )
+
+    def remove_devices(self, remove_device_list):
+        """Remove a list of devices using ordered processing.
+
+        This method processes RemoveNetDevice objects in the specified order:
+        ovs_dpdk_port -> ovs_dpdk_bond -> ovs_bond -> linux_bond ->
+        vlan -> interface -> sriov_vf -> ovs_bridge -> ovs_user_bridge ->
+        sriov_pf
+
+        :param remove_device_list: List of RemoveNetDevice objects
+        :type remove_device_list: list[RemoveNetDevice]
+        """
+        if not remove_device_list:
+            logger.debug("remove_devices: No devices to remove")
+            return
+
+        common.print_config(remove_device_list,
+                            msg="removing with ifcfg provider")
+
+        # Check if we need to backup files for certain device types
+        backup_required_types = ['ovs_dpdk_port', 'ovs_dpdk_bond',
+                                 'sriov_vf', 'sriov_pf']
+        needs_backup = any(device.dev_type in backup_required_types
+                           for device in remove_device_list)
+        if needs_backup:
+            logger.info("Backing up configuration files before device removal")
+            if not self.noop:
+                # Create a backup folder with the current timestamp
+                backup_path = os.path.join(BACKUP_IFCFG_FILES_PATH,
+                                           common.get_timestamp())
+                os.makedirs(backup_path, exist_ok=True)
+                utils.backup_map_files(backup_path)
+
+        # Process devices in specific order
+        processing_order = ['ovs_dpdk_port', 'ovs_dpdk_bond', 'ovs_bond',
+                            'linux_bond', 'vlan', 'interface', 'sriov_vf',
+                            'ovs_bridge', 'ovs_user_bridge', 'sriov_pf']
+        rc = 0
+        for device_type in processing_order:
+            devices_of_type = [device for device in remove_device_list
+                               if device.dev_type == device_type]
+
+            if devices_of_type:
+                for device in devices_of_type:
+                    rc += self._process_device_removal(device)
+        return rc
+
+    def _process_device_removal(self, device):
+        """Process the removal of a single device.
+
+        :param device: RemoveNetDevice object to remove
+        :returns: 0 if successful, 1 if failed
+        """
+        logger.info("%s: removing %s", device.dev_name, device.dev_type)
+
+        if self.noop:
+            return 0
+        if device.provider_data is None:
+            logger.warning("%s: device is managed by ifcfg provider, but "
+                           "cannot be removed", device.dev_name)
+            return 0
+
+        try:
+            # For all other device types: just bring down interface
+            self.ifdown(device.dev_name)
+            # Device-specific cleanup
+            if device.dev_type in ['ovs_dpdk_port', 'ovs_dpdk_bond']:
+                # Get PCI addresses based on device type
+                pci_addresses = device.provider_data.pci_address
+                # Remove all DPDK interfaces
+                for pci_address in pci_addresses:
+                    if common.is_vf(pci_address):
+                        utils.remove_entries_for_sriov_dev(pci_address)
+                    utils.remove_dpdk_interface(pci_address)
+            elif device.dev_type == 'sriov_pf':
+                # For SR-IOV: Reset, clean up entries
+                sriov_config.reset_sriov_pf(device.dev_name)
+                utils.remove_entries_for_sriov_dev(device.dev_name)
+            elif device.dev_type == 'sriov_vf':
+                utils.remove_entries_for_sriov_dev(device.dev_name)
+
+            # Remove ifcfg configuration file
+            try:
+                os.remove(device.provider_data.ifcfg_file)
+            except OSError:
+                logger.warning(
+                    "%s: ifcfg file %s not found",
+                    device.dev_name,
+                    device.provider_data.ifcfg_file
+                )
+            return 0
+
+        except Exception as e:
+            logger.error("%s: failed to remove %s device: %s",
+                         device.dev_name, device.dev_type, e)
+            return 1
