@@ -546,13 +546,13 @@ class TestBridge(base.TestCase):
                      'vlan_id': 111, 'qos': 1,
                      'min_tx_rate': 0, 'max_tx_rate': 0,
                      'spoofcheck': 'off', 'trust': 'on',
-                     'promisc': 'on'},
+                     'promisc': 'on', 'pci_address': '0000:79:10.2'},
                     {'device_type': 'vf', 'name': 'em2_1',
                      'device': {'name': 'em2', 'vfid': 1},
                      'vlan_id': 111, 'qos': 1,
                      'min_tx_rate': 0, 'max_tx_rate': 0,
                      'spoofcheck': 'off', 'trust': 'on',
-                     'promisc': 'on'}]
+                     'promisc': 'on', 'pci_address': '0000:79:10.2'}]
 
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
@@ -617,13 +617,15 @@ class TestBridge(base.TestCase):
                      'vlan_id': 111, 'qos': 1,
                      'min_tx_rate': 0, 'max_tx_rate': 0,
                      'spoofcheck': 'on', 'trust': 'off',
-                     'promisc': 'off'},
+                     'promisc': 'off',
+                     'pci_address': '0000:79:10.2'},
                     {'device_type': 'vf', 'name': 'em2_1',
                      'device': {'name': 'em2', 'vfid': 1},
                      'vlan_id': 111, 'qos': 1,
                      'min_tx_rate': 0, 'max_tx_rate': 0,
                      'spoofcheck': 'on', 'trust': 'off',
-                     'promisc': 'off'}]
+                     'promisc': 'off',
+                     'pci_address': '0000:79:10.2'}]
 
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)
