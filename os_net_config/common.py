@@ -519,6 +519,31 @@ def wait_for_vf_driver_binding(pf, vfs, req_driver):
                 )
 
 
+def _has_driverctl_override(pci_address):
+    """Check if a PCI address has a driver override set.
+
+    :param pci_address: PCI address to check
+    :returns: True if override exists, False otherwise
+    """
+    try:
+        cmd = ["driverctl", "list-overrides"]
+        logger.debug("%s: running %s", pci_address, " ".join(cmd))
+        out, err = processutils.execute(*cmd)
+
+        # Parse the output to check if our PCI address is listed
+        for line in out.splitlines():
+            if line.strip().startswith(pci_address):
+                return True
+        return False
+    except processutils.ProcessExecutionError as exc:
+        logger.warning(
+            "%s: Failed to check driver override status: %s",
+            pci_address, exc
+        )
+        # If we can't check, assume override exists to be safe
+        return True
+
+
 def unset_driverctl_override(pci_address):
     cmd = ["driverctl", "unset-override", pci_address]
     try:
@@ -529,8 +554,21 @@ def unset_driverctl_override(pci_address):
             return 1
         return 0
     except processutils.ProcessExecutionError as exc:
+        # Treat "failed to bind device" as success since the device is
+        # already unbound. When driver autoprobing is disabled, driverctl
+        # could not bind the device to the previous driver, leading to the
+        # exception. Lets check if the override was actually removed.
+        if not _has_driverctl_override(pci_address):
+            logger.info(
+                "%s: Driver override successfully removed despite driverctl "
+                "error (likely bind-back failure when "
+                "sriov_drivers_autoprobe=0)",
+                pci_address
+            )
+            return 0
+
         logger.error(
-            "%s: Failed to bind interface with dpdk. %s", pci_address, exc
+            "%s: Failed to remove driver override. %s", pci_address, exc
         )
         return 1
 
