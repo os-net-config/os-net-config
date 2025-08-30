@@ -1260,6 +1260,7 @@ class OvsBond(_BaseOpts):
                                   spoofcheck=iface.spoofcheck,
                                   trust=iface.trust, state=iface.state,
                                   macaddr=iface.macaddr, promisc=iface.promisc,
+                                  pci_address=iface.pci_address,
                                   min_tx_rate=iface.min_tx_rate,
                                   max_tx_rate=iface.max_tx_rate,
                                   driver=None)
