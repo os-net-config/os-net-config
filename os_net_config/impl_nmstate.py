@@ -496,7 +496,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             # FIXME: The comparison of the current state vs desired state needs
             # to be performed in nmstate.
             # JIRA: https://issues.redhat.com/browse/RHEL-67120
-            cur_state = self.iface_state(pf_name)
+            cur_state = self.iface_state(name=pf_name)
             self.remove_empty_dispatch_scripts(cur_state, pf_state)
             if not is_dict_subset(cur_state, pf_state):
                 if not self.noop and activate:
@@ -566,7 +566,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     Ethernet.CONFIG_SUBTREE][
                     Ethernet.SRIOV_SUBTREE][
                     Ethernet.SRIOV.VFS_SUBTREE] = required_vfs
-                cur_state = self.iface_state(pf_state['name'])
+                cur_state = self.iface_state(name=pf_state['name'])
                 # compare the desired state with the current state
                 # FIXME: The comparison of the desired state and current
                 # state shall be managed by nmstate itself.
@@ -692,21 +692,32 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         f"{_OS_NET_CONFIG_MANAGED}\n"
         return data
 
-    def iface_state(self, name=''):
+    def iface_state(self, name='', type=None):
         """Return the current interface state according to nmstate.
 
         Return the current state of all interfaces, or the named interface.
+        When both name and type are given then the interface of specific name
+        and given type is returned
         :param name: name of the interface to return state, otherwise all.
+        :param type: type of the interface to return state, otherwise all.
         :returns: list state of all interfaces when name is not specified, or
                   the state of the specific interface when name is specified
         """
         ifaces = netinfo.show_running_config()[Interface.KEY]
+        if type is not None:
+            ifaces = [iface for iface in ifaces
+                      if iface[Interface.TYPE] == type]
         if name != '':
             for iface in ifaces:
                 if iface[Interface.NAME] != name:
                     continue
                 self.__dump_config(iface, msg=f"{name}: Present state")
                 return iface
+        elif type is not None:
+            self.__dump_config(
+                ifaces, msg=f"Present state for all interfaces of type {type}"
+            )
+            return ifaces
         else:
             self.__dump_config(ifaces, msg="Present state for all interfaces")
             return ifaces
@@ -950,7 +961,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param iface: name of the interface for which mac address is required
         """
-        iface_data = self.iface_state(iface)
+        iface_data = self.iface_state(name=iface)
         if iface_data and Interface.MAC in iface_data:
             return iface_data[Interface.MAC]
 
@@ -1542,7 +1553,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         else:
             data[Interface.TYPE] = InterfaceType.ETHERNET
             data[Ethernet.CONFIG_SUBTREE] = {}
-            int_data = self.iface_state(interface.name)
+            int_data = self.iface_state(name=interface.name)
             try:
                 cur_numvfs = int_data['ethernet']['sr-iov']['total-vfs']
             except (KeyError, TypeError):
@@ -2705,7 +2716,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for interface_name, iface_data in self.interface_data.items():
             all_iface_names.append(interface_name)
-            iface_state = self.iface_state(interface_name)
+            iface_state = self.iface_state(name=interface_name)
             self.remove_empty_dispatch_scripts(iface_state, iface_data)
             if not is_dict_subset(iface_state, iface_data):
                 updated_interfaces[interface_name] = iface_data
@@ -2717,7 +2728,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for bridge_name, bridge_data in self.bridge_data.items():
             all_iface_names.append(bridge_name)
-            bridge_state = self.iface_state(bridge_name)
+            bridge_state = self.iface_state(name=bridge_name)
             self.remove_empty_dispatch_scripts(bridge_state, bridge_data)
             if not is_dict_subset(bridge_state, bridge_data):
                 updated_interfaces[bridge_name] = bridge_data
@@ -2730,7 +2741,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for bond_name, bond_data in self.linuxbond_data.items():
             all_iface_names.append(bond_name)
-            bond_state = self.iface_state(bond_name)
+            bond_state = self.iface_state(name=bond_name)
             self.remove_empty_dispatch_scripts(bond_state, bond_data)
             if not is_dict_subset(bond_state, bond_data):
                 updated_interfaces[bond_name] = bond_data
@@ -2742,7 +2753,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         for vlan_name, vlan_data in self.vlan_data.items():
             all_iface_names.append(vlan_name)
-            vlan_state = self.iface_state(vlan_name)
+            vlan_state = self.iface_state(name=vlan_name)
             self.remove_empty_dispatch_scripts(vlan_state, vlan_data)
             if not is_dict_subset(vlan_state, vlan_data):
                 updated_interfaces[vlan_name] = vlan_data
