@@ -1232,3 +1232,35 @@ def set_accept_ra_sysctl(iface, noop):
         if os.path.exists(filename):
             with open(filename, 'w') as f:
                 f.write("0")
+
+
+def write_bonding_masters(bond_name, action="add"):
+    """Write to /sys/class/net/bonding_masters to create or remove bond
+
+    :param bond_name: Name of the bonding interface (e.g. bond0)
+    :param action: Action to perform - "add" to create, "remove" to delete
+    """
+    bonding_masters_path = "/sys/class/net/bonding_masters"
+    if action == "add":
+        write_value = bond_name
+        logger.info("Creating bonding interface: %s", bond_name)
+    elif action == "remove":
+        write_value = "-%s" % bond_name
+        logger.info("Removing bonding interface: %s", bond_name)
+    else:
+        raise ValueError("Action must be 'add' or 'remove', got: %s" % action)
+
+    if not common.get_noop():
+        try:
+            with open(bonding_masters_path, 'w') as f:
+                f.write(write_value)
+            logger.debug("Successfully wrote '%s' to %s",
+                         write_value, bonding_masters_path)
+        except FileNotFoundError:
+            logger.warning("Bonding masters file not found: %s",
+                           bonding_masters_path)
+        except (IOError, OSError) as e:
+            logger.error("Failed to write to %s: %s", bonding_masters_path, e)
+    else:
+        logger.info("NOOP: Would write '%s' to %s",
+                    write_value, bonding_masters_path)
