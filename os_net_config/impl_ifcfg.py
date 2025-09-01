@@ -57,9 +57,22 @@ def ifcfg_config_path(name):
 def remove_ifcfg_config(ifname):
     if re.match(r'[\w-]+$', ifname):
         ifcfg_file = ifcfg_config_path(ifname)
-        if os.path.exists(ifcfg_file):
-            logger.info("removing existing ifcfg script for intf: %s", ifname)
-            os.remove(ifcfg_file)
+        route_file = route_config_path(ifname)
+        route6_file = route6_config_path(ifname)
+        rule_file = route_rule_config_path(ifname)
+
+        src_files = [
+            ifcfg_file,
+            route_file,
+            route6_file,
+            rule_file
+        ]
+        for src in src_files:
+            if os.path.exists(src):
+                logger.info("%s: removing file %s", ifname, src)
+                os.remove(src)
+            else:
+                logger.warning("%s: not found", src)
 
 
 # NOTE(dprince): added here for testability
@@ -2444,3 +2457,142 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 logger.info(
                     "%s: Device is not managed by ifcfg provider", iface_name
                 )
+
+    def nm_unmanage_devices(self, remove_device_list):
+        """Unmanage a devices by modifying NM_CONTROLLED=NO in ifcfg file."""
+        reload_required = False
+        for device in remove_device_list:
+            if (device.provider_data is not None and
+                    device.provider_data.nm_controlled):
+                reload_required = True
+                changed_nm = False
+                logger.info("%s: File %s is changed to NM_CONTROLLED=NO",
+                            device.dev_name, device.provider_data.ifcfg_file)
+                # Change NM_CONTROLLED= in the ifcfg file to NO
+                with open(device.provider_data.ifcfg_file, 'r') as f:
+                    lines = f.readlines()
+                with open(device.provider_data.ifcfg_file, 'w') as f:
+                    for line in lines:
+                        if line.startswith('NM_CONTROLLED='):
+                            f.write('NM_CONTROLLED=NO\n')
+                            changed_nm = True
+                        else:
+                            f.write(line)
+                    if not changed_nm:
+                        f.write('NM_CONTROLLED=NO\n')
+        if reload_required:
+            self.execute("Reloading network", "nmcli", "connection", "reload")
+
+    def remove_devices(self, remove_device_list):
+        """Remove a list of devices using ordered processing.
+
+        This method processes RemoveNetDevice objects in the specified order:
+        ovs_dpdk_port -> ovs_dpdk_bond -> ovs_bond -> vlan -> interface ->
+        sriov_vf -> ovs_bridge -> ovs_user_bridge -> linux_bond -> sriov_pf
+
+        :param remove_device_list: List of RemoveNetDevice objects
+        :type remove_device_list: list[RemoveNetDevice]
+        """
+        if not remove_device_list:
+            logger.debug("remove_devices: No devices to remove")
+            return
+
+        common.print_config(remove_device_list,
+                            msg="removing with ifcfg provider")
+
+        self.nm_unmanage_devices(remove_device_list)
+
+        # Check if we need to backup files for certain device types
+        backup_required_types = ['ovs_dpdk_port', 'ovs_dpdk_bond',
+                                 'sriov_vf', 'sriov_pf']
+        needs_backup = any(device.dev_type in backup_required_types
+                           for device in remove_device_list)
+        if needs_backup:
+            logger.info("Backing up configuration files before device removal")
+            if not self.noop:
+                # Create a backup folder with the current timestamp
+                backup_path = os.path.join(PURGE_IFCFG_FILES,
+                                           common.get_timestamp())
+                os.makedirs(backup_path, exist_ok=True)
+                utils.backup_map_files(backup_path)
+
+        # Process devices in specific order
+        processing_order = ['ovs_dpdk_port', 'ovs_dpdk_bond', 'ovs_bond',
+                            'vlan', 'interface', 'sriov_vf', 'ovs_bridge',
+                            'ovs_user_bridge', 'linux_bond', 'sriov_pf']
+        rc = 0
+        for device_type in processing_order:
+            devices_of_type = [device for device in remove_device_list
+                               if device.dev_type == device_type]
+
+            if devices_of_type:
+                for device in devices_of_type:
+                    rc += self._process_device_removal(device)
+        return rc
+
+    def phy_dev_up(self, interface):
+        """Bring up a physical device.
+
+        :param interface: Name of the interface to bring up
+        """
+        msg = f"bringing up {interface}"
+        self.execute(msg, '/sbin/ip',
+                     'link', 'set', 'dev', interface, 'up')
+
+    def _process_device_removal(self, device):
+        """Process the removal of a single device.
+
+        :param device: RemoveNetDevice object to remove
+        :returns: 0 if successful, 1 if failed
+        """
+        logger.info("%s: removing %s", device.dev_name, device.dev_type)
+
+        if self.noop:
+            return 0
+        if device.provider_data is None:
+            logger.warning("%s: device is managed by ifcfg provider, but "
+                           "cannot "
+                           "be removed due to a probable dependency on other "
+                           "devices", device.dev_name)
+            return 0
+
+        try:
+            # For all other device types: just bring down interface
+            self.ifdown(device.dev_name)
+            # Device-specific cleanup
+            if device.dev_type in ['ovs_dpdk_port', 'ovs_dpdk_bond']:
+                # Get PCI addresses based on device type
+                pci_addresses = device.provider_data.pci_address
+                # Remove all DPDK interfaces
+                for pci_address in pci_addresses:
+                    if common.is_vf(pci_address):
+                        utils.remove_entries_for_sriov_dev(pci_address)
+                    utils.remove_dpdk_interface(pci_address)
+            elif device.dev_type == 'sriov_pf':
+                # For SR-IOV: Reset, clean up entries
+                sriov_config.reset_sriov_pf(device.dev_name)
+                utils.remove_entries_for_sriov_dev(device.dev_name)
+                self.phy_dev_up(device.dev_name)
+            elif device.dev_type == 'sriov_vf':
+                utils.remove_entries_for_sriov_dev(device.dev_name)
+            elif device.dev_type == 'linux_bond':
+                utils.write_bonding_masters(device.dev_name, "remove")
+            elif device.dev_type == 'interface':
+                self.phy_dev_up(device.dev_name)
+
+            # Remove ifcfg configuration file
+            try:
+                os.remove(device.provider_data.ifcfg_file)
+                remove_ifcfg_config(device.dev_name)
+            except OSError:
+                logger.warning(
+                    "%s: ifcfg file %s not found",
+                    device.dev_name,
+                    device.provider_data.ifcfg_file
+                )
+            return 0
+
+        except Exception as e:
+            logger.error("%s: failed to remove %s device: %s",
+                         device.dev_name, device.dev_type, e)
+            return 1
