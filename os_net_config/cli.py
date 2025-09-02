@@ -47,93 +47,145 @@ __all__ = ['ExitCode', 'get_exit_code', 'has_failures']
 
 def parse_opts(argv):
     parser = argparse.ArgumentParser(
-        description='Configure host network interfaces using a JSON'
-        ' config file format.')
-    parser.add_argument('-c', '--config-file', metavar='CONFIG_FILE',
-                        help="""path to the configuration file.""",
-                        default='/etc/os-net-config/config.yaml')
-    parser.add_argument('-m', '--mapping-file', metavar='MAPPING_FILE',
-                        help="""path to the interface mapping file.""",
-                        default='/etc/os-net-config/mapping.yaml')
-    parser.add_argument('-i', '--interfaces', metavar='INTERFACES',
-                        help="""Identify the real interface for a nic name. """
-                        """If a real name is given, it is returned if live. """
-                        """If no value is given, display full NIC mapping. """
-                        """Exit after printing, ignoring other parameters. """,
-                        nargs='*', default=None)
-    parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
-                        help="""The root directory of the filesystem.""",
-                        default='')
-    parser.add_argument('-p', '--provider', metavar='PROVIDER',
-                        help="""The provider to use. """
-                        """One of: ifcfg, eni, nmstate, iproute.""",
-                        choices=_PROVIDERS.keys(),
-                        default=None)
-    parser.add_argument('--purge-provider', metavar='PURGE_PROVIDER',
-                        help="""Cleans the network configurations created """
-                        """by the specified provider. There shall be no """
-                        """change in the input network config.yaml during """
-                        """the purge operation. One of: ifcfg, nmstate.""",
-                        choices=_PROVIDERS.keys(),
-                        default=None)
-    parser.add_argument('--detailed-exit-codes',
-                        action='store_true',
-                        help="""Enable detailed exit codes. """
-                        """If enabled an exit code of FILES_CHANGED means """
-                        """that files were modified. """
-                        """Disabled by default.""",
-                        default=False)
+        description=(
+            "Configure host network interfaces using a JSON config file "
+            "format."
+        )
+    )
+    parser.add_argument(
+        '-c', '--config-file',
+        metavar='CONFIG_FILE',
+        help="path to the configuration file.",
+        default='/etc/os-net-config/config.yaml',
+    )
+    parser.add_argument(
+        '-m', '--mapping-file',
+        metavar='MAPPING_FILE',
+        help="path to the interface mapping file.",
+        default='/etc/os-net-config/mapping.yaml',
+    )
+    parser.add_argument(
+        '-i', '--interfaces',
+        metavar='INTERFACES',
+        help=(
+            "Identify the real interface for a nic name. If a real name is "
+            "given, it is returned if live. If no value is given, display "
+            "full NIC mapping. Exit after printing, ignoring other "
+            "parameters."
+        ),
+        nargs='*',
+        default=None,
+    )
+    parser.add_argument(
+        '-r', '--root-dir',
+        metavar='ROOT_DIR',
+        help="The root directory of the filesystem.",
+        default='',
+    )
+    parser.add_argument(
+        '-p', '--provider',
+        metavar='PROVIDER',
+        help=(
+            "The provider to use. One of: ifcfg, eni, nmstate, iproute."
+        ),
+        choices=_PROVIDERS.keys(),
+        default=None,
+    )
+    parser.add_argument(
+        '--purge-provider',
+        metavar='PURGE_PROVIDER',
+        help=(
+            "Cleans the network configurations created by the specified "
+            "provider. There shall be no change in the input network "
+            "config.yaml during the purge operation. One of: ifcfg, nmstate."
+        ),
+        choices=_PROVIDERS.keys(),
+        default=None,
+    )
+    parser.add_argument(
+        '--detailed-exit-codes',
+        action='store_true',
+        help=(
+            "Enable detailed exit codes. If enabled an exit code of "
+            "FILES_CHANGED means that files were modified. Disabled by "
+            "default."
+        ),
+        default=False,
+    )
+    parser.add_argument(
+        '--no-network-config',
+        dest="no_network_config",
+        help=(
+            "Disable applying network_config section of the config.yaml file."
+        ),
+        default=False,
+        action='store_true',
+    )
 
     parser.add_argument(
         '--exit-on-validation-errors',
         action='store_true',
-        help="Exit with an error if configuration file validation fails. "
-             "Without this option, just log a warning and continue.",
-        default=False)
+        help=(
+            "Exit with an error if configuration file validation fails. "
+            "Without this option, just log a warning and continue."
+        ),
+        default=False,
+    )
 
     parser.add_argument(
         '-d', '--debug',
         dest="debug",
         action='store_true',
         help="Print debugging output.",
-        required=False)
+        required=False,
+    )
     parser.add_argument(
         '-v', '--verbose',
         dest="verbose",
         action='store_true',
         help="Print verbose output.",
-        required=False)
+        required=False,
+    )
 
-    parser.add_argument('--version', action='version',
-                        version=version.version_info.version_string())
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=version.version_info.version_string(),
+    )
     parser.add_argument(
         '--noop',
         dest="noop",
         action='store_true',
         help="Return the configuration commands, without applying them.",
-        required=False)
+        required=False,
+    )
 
     parser.add_argument(
         '--no-activate',
         dest="no_activate",
         action='store_true',
         help="Install the configuration but don't start/stop interfaces.",
-        required=False)
+        required=False,
+    )
 
     parser.add_argument(
         '--cleanup',
         dest="cleanup",
         action='store_true',
         help="Cleanup unconfigured interfaces.",
-        required=False)
+        required=False,
+    )
 
     parser.add_argument(
         '--persist-mapping',
         dest="persist_mapping",
         action='store_true',
-        help="Make aliases defined in the mapping file permanent "
-             "(WARNING, permanently renames nics).",
-        required=False)
+        help=(
+            "Make aliases defined in the mapping file permanent (WARNING, "
+            "permanently renames nics)."
+        ),
+        required=False,
+    )
 
     opts = parser.parse_args(argv[1:])
 
@@ -203,7 +255,6 @@ def is_nmstate_available():
 
 def main(argv=sys.argv, main_logger=None):
     onc_ret_code = ExitCode.SUCCESS
-
     opts = parse_opts(argv)
 
     common.set_noop(opts.noop)
@@ -318,32 +369,37 @@ def main(argv=sys.argv, main_logger=None):
             main_logger.error("Unable to set provider for this operating "
                               "system.")
             return (onc_ret_code | ExitCode.ERROR)
-    logger.info("%s: Applying network_config section", opts.provider)
-    ret_code = config_provider(
-        opts.provider,
-        "network_config",
-        iface_array,
-        opts.root_dir,
-        opts.noop,
-        opts.no_activate,
-        opts.cleanup,
-    )
-    if ret_code == ExitCode.ERROR:
-        onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
-        logger.error(
-            "%s: Failed to configure network_config. ",
+
+    if opts.no_network_config is False and iface_array:
+        main_logger.info("%s: Applying network_config section", opts.provider)
+        ret_code = config_provider(
             opts.provider,
+            "network_config",
+            iface_array,
+            opts.root_dir,
+            opts.noop,
+            opts.no_activate,
+            opts.cleanup,
         )
+        if ret_code == ExitCode.ERROR:
+            onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
+            logger.error(
+                "%s: Failed to configure network_config. ",
+                opts.provider,
+            )
+        else:
+            # if files were changed, set the files_changed bit
+            # This is done by OR-ing the return code with the onc_ret_code
+            onc_ret_code |= ret_code
+            main_logger.info(
+                "%s: Configured network_config successfully", opts.provider
+            )
     else:
-        main_logger.info(
-            "%s: Configured network_config successfully", opts.provider
-        )
+        main_logger.info("Skipping network_config section")
 
     # If the configuration is successful, apply the DCB config
-    if has_failures(ret_code) is False:
+    if has_failures(onc_ret_code) is False:
         if utils.is_dcb_config_required():
-            common.reset_dcb_map()
-
             # Apply the DCB Config
             try:
                 from os_net_config import dcb_config
@@ -355,7 +411,7 @@ def main(argv=sys.argv, main_logger=None):
             dcb_apply = dcb_config.DcbApplyConfig()
             dcb_apply.apply()
 
-    return get_exit_code(opts.detailed_exit_codes, ret_code)
+    return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
 
 
 def unconfig_provider(provider_name,
