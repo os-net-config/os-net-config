@@ -2818,3 +2818,18 @@ class NmstateNetConfig(os_net_config.NetConfig):
             "Succesfully applied the network config with nmstate provider"
         )
         return updated_interfaces
+
+    def _get_dpdk_port_pci_address(self, dpdk_port_name):
+        """Return the dpdk-devargs (PCI address) for a DPDK port interface.
+
+        :param dpdk_port_name: Name of the DPDK port interface
+        :return: List containing PCI address, or empty list if not found
+        """
+        state = self.iface_state(name=dpdk_port_name)
+        if state:
+            dpdk_config = state.get("dpdk", {})
+            if dpdk_config:
+                devargs = dpdk_config.get("devargs")
+                if devargs:
+                    return [devargs]
+        return []
