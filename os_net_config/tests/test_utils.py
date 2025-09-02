@@ -1816,3 +1816,112 @@ dpdk {
 
         # Should log warning but not raise exception
         utils.disable_sriov_config_service()
+
+    def test_unset_driverctl_override_success(self):
+        """Test successful unset_driverctl_override operation."""
+        def fake_execute(*args, **kwargs):
+            return ('', '')
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+
+        result = common.unset_driverctl_override('0000:03:00.0')
+        self.assertEqual(0, result)
+
+    def test_unset_driverctl_override_error_but_override_removed(self):
+        """Test unset_driverctl_override succeeds when override removed."""
+        from oslo_concurrency import processutils
+
+        call_count = [0]
+
+        def fake_execute(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call (unset-override) fails
+                raise processutils.ProcessExecutionError(
+                    'driverctl: failed to bind device 0000:03:00.0 to '
+                    'driver i40e')
+            else:
+                # Second call (list-override) shows no override exists
+                return ('', '')
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+
+        # Mock logger to verify the info message is logged
+        mocked_logger = mock.Mock()
+        self.stub_out('os_net_config.common.logger.info', mocked_logger)
+
+        result = common.unset_driverctl_override('0000:03:00.0')
+        self.assertEqual(0, result)
+
+        # Verify the expected log message was called
+        expected_calls = [
+            mock.call('%s: running %s', '0000:03:00.0',
+                      'driverctl unset-override 0000:03:00.0'),
+            mock.call('%s: Driver override successfully removed despite '
+                      'driverctl error (likely bind-back failure when '
+                      'sriov_drivers_autoprobe=0)', '0000:03:00.0')
+        ]
+        mocked_logger.assert_has_calls(expected_calls)
+
+    def test_unset_driverctl_override_error_and_override_still_exists(self):
+        """Test unset_driverctl_override fails when override exists."""
+        from oslo_concurrency import processutils
+
+        call_count = [0]
+
+        def fake_execute(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call (unset-override) fails
+                raise processutils.ProcessExecutionError(
+                    'driverctl: some other error occurred')
+            else:
+                # Second call (list-override) shows override still exists
+                return ('0000:03:00.0 vfio-pci\n', '')
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+
+        # Mock logger to verify the error message is logged
+        mocked_logger = mock.Mock()
+        self.stub_out('os_net_config.common.logger.error', mocked_logger)
+
+        result = common.unset_driverctl_override('0000:03:00.0')
+        self.assertEqual(1, result)
+
+        # Verify the error was logged
+        expected_msg = '%s: Failed to remove driver override. %s'
+        mocked_logger.assert_called_with(expected_msg, '0000:03:00.0',
+                                         mock.ANY)
+
+    def test_unset_driverctl_override_list_command_fails(self):
+        """Test unset_driverctl_override when list-override command fails."""
+        from oslo_concurrency import processutils
+
+        call_count = [0]
+
+        def fake_execute(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call (unset-override) fails
+                raise processutils.ProcessExecutionError(
+                    'driverctl: failed to bind device')
+            else:
+                # Second call (list-override) also fails
+                raise processutils.ProcessExecutionError(
+                    'driverctl: list command failed')
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+
+        # Mock logger
+        mocked_logger = mock.Mock()
+        self.stub_out('os_net_config.common.logger.warning', mocked_logger)
+        mocked_error_logger = mock.Mock()
+        self.stub_out('os_net_config.common.logger.error', mocked_error_logger)
+
+        result = common.unset_driverctl_override('0000:03:00.0')
+        self.assertEqual(1, result)
+
+        # Verify warning was logged for list-override failure
+        self.assertTrue(mocked_logger.called)
+        # Verify error was logged for overall failure
+        self.assertTrue(mocked_error_logger.called)
