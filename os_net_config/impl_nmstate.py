@@ -992,39 +992,39 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if iface_data and Interface.MAC in iface_data:
             return iface_data[Interface.MAC]
 
-    def get_ovs_ports(self, members):
+    def get_ovs_ports(self, bridge_name, members):
         """Get the ovs ports in nmstate schema format
 
+        :param bridge_name: The name of the ovs/ovs-user bridge
         :param members: The members of the ovs/ovs-user bridges
         :returns: The Bridge ports in nmstate schema
         """
         bps = []
         for member in members:
+            port = {OVSBridge.Port.NAME: member}
+            vlan_id = None
             if member.startswith('vlan'):
                 vlan_id = int(member.strip('vlan'))
-                port = {
-                    OVSBridge.Port.NAME: member,
-                    OVSBridge.Port.VLAN_SUBTREE: {
-                        OVSBridge.Port.Vlan.MODE: 'access',
-                        OVSBridge.Port.Vlan.TAG: vlan_id
-                    }
-                }
-                bps.append(port)
             # if the member is of type interface but a vlan
             # like eth0.605
             elif re.match(r'\w+\.\d+$', member):
-                vlan_id = int(member.split('.')[1])
-                port = {
-                    OVSBridge.Port.NAME: member,
-                    OVSBridge.Port.VLAN_SUBTREE: {
-                        OVSBridge.Port.Vlan.MODE: 'access',
-                        OVSBridge.Port.Vlan.TAG: vlan_id
-                    }
+                vlan_dev = member.split('.')[0]
+                if vlan_dev == bridge_name:
+                    # add vlan ids when the vlans are created on the bridge
+                    vlan_id = int(member.split('.')[1])
+                else:
+                    logger.info(
+                        "%s: vlan device in attached to ovs bridge %s, "
+                        "will not add vlan id",
+                        member,
+                        bridge_name
+                    )
+            if vlan_id:
+                port[OVSBridge.Port.VLAN_SUBTREE] = {
+                    OVSBridge.Port.Vlan.MODE: 'access',
+                    OVSBridge.Port.Vlan.TAG: vlan_id
                 }
-                bps.append(port)
-            else:
-                port = {'name': member}
-                bps.append(port)
+            bps.append(port)
         return bps
 
     def add_ethtool_subtree(self, data, sub_config, command):
@@ -2309,7 +2309,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     ovs_port = True
                     members.append(member.name)
             if members:
-                bps = self.get_ovs_ports(members)
+                bps = self.get_ovs_ports(bridge.name, members)
             else:
                 msg = f"{bridge.name}: no member added to ovs bridge"
                 raise os_net_config.ConfigurationError(msg)
