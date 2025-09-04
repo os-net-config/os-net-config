@@ -954,7 +954,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if iface_data and Interface.MAC in iface_data:
             return iface_data[Interface.MAC]
 
-    def get_ovs_ports(self, members):
+    def get_ovs_ports(self, bridge_name, members):
         """Get the ovs ports in nmstate schema format
 
         :param members: The members of the ovs/ovs-user bridges
@@ -976,13 +976,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
             # like eth0.605
             elif re.match(r'\w+\.\d+$', member):
                 vlan_id = int(member.split('.')[1])
+                vlan_dev = member.split('.')[0]
                 port = {
-                    OVSBridge.Port.NAME: member,
-                    OVSBridge.Port.VLAN_SUBTREE: {
+                    OVSBridge.Port.NAME: member
+                }
+                logger.info("%s: vlan device in ovs bridge", vlan_dev)
+                if vlan_dev == bridge_name:
+                    port[OVSBridge.Port.VLAN_SUBTREE]: {
                         OVSBridge.Port.Vlan.MODE: 'access',
                         OVSBridge.Port.Vlan.TAG: vlan_id
                     }
-                }
                 bps.append(port)
             else:
                 port = {'name': member}
@@ -2254,7 +2257,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     ovs_port = True
                     members.append(member.name)
             if members:
-                bps = self.get_ovs_ports(members)
+                bps = self.get_ovs_ports(bridge.name, members)
             else:
                 msg = f"{bridge.name}: no member added to ovs bridge"
                 raise os_net_config.ConfigurationError(msg)
