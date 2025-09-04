@@ -606,6 +606,89 @@ def remove_sriov_entries_for_pf(pfname):
         common.write_yaml_config(common.SRIOV_CONFIG_FILE, new_map)
 
 
+def get_sriov_dev_from_pci_address(pci_address):
+    sriov_map = common.get_sriov_map()
+    for item in sriov_map:
+        if item['pci_address'] == pci_address:
+            return item
+    return None
+
+
+def get_sriov_dev_from_name(dev_name):
+    sriov_map = common.get_sriov_map()
+    for item in sriov_map:
+        if item['name'] == dev_name:
+            return item
+    return None
+
+
+def remove_entries_for_sriov_dev(identifier):
+    """Remove SR-IOV mapping entries for a PF and/or VF.
+
+    - If a VF is identifier is given, remove only the VF entry from sriovmap
+    - If only a PF is identifier is specified, remove that PF entry
+      and all its VF entries.
+    - Additionally, if the resulting SR-IOV map becomes empty, delete
+      `common.SRIOV_CONFIG_FILE` and disable the `sriov_config` systemd
+      service.
+
+    :param identifier: PF/VF selector string in one of the formats
+
+    - "sriov:<pf_name>:<vf_id>" to remove a specific VF entry
+    - PCI address (DDDD:BB:DD.F) of PF/VF (to resolve from the SR-IOV map)
+    - PF name or VF name (as stored in the SR-IOV map)
+    """
+    vf_id = None
+    dev_item = None
+    pf_name = None
+    if identifier.startswith("sriov:"):
+        pf_name = identifier.split(":")[1]
+        vf_id = int(identifier.split(":")[2])
+    elif is_pci_address_format(identifier):
+        dev_item = get_sriov_dev_from_pci_address(identifier)
+    else:
+        dev_item = get_sriov_dev_from_name(identifier)
+
+    if dev_item:
+        if dev_item["device_type"] == "vf":
+            vf_id = int(dev_item.get("device", {}).get("vfid"))
+            pf_name = dev_item["device"]["name"]
+        else:
+            pf_name = dev_item["name"]
+
+    sriov_map = common.get_sriov_map()
+    new_map = []
+    for item in sriov_map:
+        if (item["device_type"] == "vf" and
+                item["device"]["name"] == pf_name and
+                (vf_id is None or (
+                int(item.get("device", {}).get("vfid")) == vf_id))):
+            logger.debug(
+                "%s: Removing VF %s from sriov_map", pf_name, item["name"]
+            )
+            continue  # Skip this VF
+        if (item["device_type"] == "pf" and
+                vf_id is None and item["name"] == pf_name):
+            logger.debug("%s: Removing PF from sriov_map", pf_name)
+            continue  # Skip this PF
+        new_map.append(item)
+
+    # Remove the sriov_map file if it is empty
+    if not new_map:
+        logger.debug(
+            "sriov map file is empty and hence removing %s",
+            common.SRIOV_CONFIG_FILE
+        )
+        try:
+            os.remove(common.SRIOV_CONFIG_FILE)
+        except OSError:
+            logger.error("Failed to remove sriov map file")
+            pass
+        disable_sriov_config_service()
+    else:
+        common.write_yaml_config(common.SRIOV_CONFIG_FILE, new_map)
+
+
 def update_sriov_pf_map(ifname, numvfs, noop, promisc=None,
                         link_mode='legacy', vdpa=False, steering_mode=None,
                         lag_candidate=None, drivers_autoprobe=True,
