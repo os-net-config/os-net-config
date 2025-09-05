@@ -457,6 +457,14 @@ class NetConfig(object):
         raise NotImplementedError(
             "add_linux_tap is not implemented.")
 
+    def is_device_managed(self, remobj):
+        """Check if given remove device is managed by this provider
+
+        :param remobj: Device to be removed
+        """
+        raise NotImplementedError(
+            "is_device_managed is not implemented.")
+
     def apply(self, cleanup=False):
         """Apply the network configuration.
 
