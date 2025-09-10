@@ -2610,3 +2610,30 @@ class TestLinuxTap(base.TestCase):
         linux_tap = objects.object_from_json(json.loads(data))
         self.assertEqual("tap0", linux_tap.name)
         self.assertEqual(False, linux_tap.nm_controlled)
+
+
+class TestRemoveNetDevice(base.TestCase):
+    def setUp(self):
+        super(TestRemoveNetDevice, self).setUp()
+        common.set_noop(True)
+
+    def test_print_attributes(self):
+        """Debug test: create device and print all attributes."""
+        dev = objects.RemoveNetDevice('bond1', 'linux_bond')
+
+        # Assertions (real test)
+        self.assertEqual('bond1', dev.remove_name)
+        self.assertEqual('linux_bond', dev.remove_type)
+        self.assertEqual({}, dev.nic_mapping)
+        self.assertIsNone(dev.provider_data)
+
+        # Print attributes for debug (not required, but useful)
+        print("\n[DEBUG] RemoveNetDevice attributes:")
+        for attr, value in vars(dev).items():
+            print(f"  {attr}: {value}")
+
+    def test_get_mapped_nic_passthrough(self):
+        self.assertEqual(
+            'eth2',
+            objects.RemoveNetDevice.get_mapped_nic('eth2', {'nic1': 'eno1'})
+        )

@@ -100,6 +100,8 @@ def object_from_json(json):
         return LinuxTap.from_json(json)
     elif obj_type == "dcb":
         return Dcb.from_json(json)
+    elif obj_type == "remove_net_device":
+        return RemoveNetDevice.from_json(json)
 
 
 def _get_required_field(json, name, object_name, datatype=None):
@@ -2193,3 +2195,70 @@ class LinuxTap(_BaseOpts):
          _domain) = opts = _BaseOpts.base_opts_from_json(json)
 
         return LinuxTap(name, *opts)
+
+
+class RemoveNetDevice(object):
+    """Base class for 'remove_net_device' os-net-config object
+
+    A device represents a network device reference with name and type,
+    supporting NIC mapping for abstract device names.
+    """
+
+    def __init__(self, remove_name, remove_type,
+                 nic_mapping=None):
+        """Initialize a RemoveNetDevice object.
+
+        :param remove_name: Device name (can be abstract name like 'nic1' or
+                        SR-IOV pattern like 'sriov:nic4:7')
+        :param remove_type: Device type (must be from remove_type schema)
+        :param nic_mapping: Optional mapping dictionary for abstract names
+        """
+        # Check if remove_name has SR-IOV pattern "sriov:pf_name:vf_id"
+        if remove_name.startswith('sriov:'):
+            name = self.resolve_sriov_name(remove_name, nic_mapping)
+        else:
+            name = self.get_mapped_nic(remove_name, nic_mapping)
+
+        self.remove_name = name
+        self.remove_type = remove_type
+        self.nic_mapping = nic_mapping or {}
+        self.provider_data = None
+
+    def __repr__(self):
+        """Return a clean string representation for logging."""
+        provider_info = ""
+        if self.provider_data:
+            provider_info = f" (provider: {type(self.provider_data).__name__})"
+        return (
+            f"RemoveNetDevice(name='{self.remove_name}', "
+            f"type='{self.remove_type}'{provider_info})"
+        )
+
+    @staticmethod
+    def get_mapped_nic(remove_name, nic_mapping):
+        # Apply NIC mapping if available
+        mapped_nic_names = mapped_nics(nic_mapping)
+        if remove_name in mapped_nic_names:
+            return mapped_nic_names[remove_name]
+        else:
+            return remove_name
+
+    @staticmethod
+    def resolve_sriov_name(remove_name, nic_mapping):
+        device = remove_name.split(":")
+        pf_name = RemoveNetDevice.get_mapped_nic(device[1], nic_mapping)
+        return f"sriov:{pf_name}:{device[2]}"
+
+    @staticmethod
+    def from_json(json):
+        """Create this instance from JSON configuration.
+
+        :param json: JSON dictionary with device configuration
+        :returns: RemoveNetDevice object
+        :raises: InvalidConfigException for invalid configuration
+        """
+        remove_name = _get_required_field(json,
+                                          'remove_name', 'RemoveNetDevice')
+        remove_type = _get_required_field(json,
+                                          'remove_type', 'RemoveNetDevice')
+        return RemoveNetDevice(remove_name, remove_type)
