@@ -2222,16 +2222,19 @@ class RemoveNetDevice(object):
         self.remove_name = name
         self.remove_type = remove_type
         self.nic_mapping = nic_mapping or {}
+        self.provider = None
         self.provider_data = None
+        self.is_removed = False
 
-    def __repr__(self):
+    def __str__(self):
         """Return a clean string representation for logging."""
         provider_info = ""
         if self.provider_data:
             provider_info = f" (provider: {type(self.provider_data).__name__})"
         return (
             f"RemoveNetDevice(name='{self.remove_name}', "
-            f"type='{self.remove_type}'{provider_info})"
+            f"type='{self.remove_type}', is_removed='{self.is_removed}', "
+            f"provider='{self.provider}', {provider_info})"
         )
 
     @staticmethod
