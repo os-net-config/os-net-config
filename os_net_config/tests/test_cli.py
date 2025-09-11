@@ -914,3 +914,65 @@ class TestCli(base.TestCase):
         finally:
             if os.path.exists(config_file):
                 os.remove(config_file)
+
+    def test_get_iface_config_for_rmconfig_validation_failure(self):
+        """Test remove_config with invalid config raises exception"""
+        config_data = {
+            'remove_config': [
+                {'remove_type': 'interface', 'invalid_field': 'value'}
+            ],
+            'network_config': [
+                {'type': 'interface', 'name': 'nic1'}
+            ]
+        }
+        config_file = '/tmp/test_strict_invalid.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        # Mock validator to return errors
+        def mock_validate_config(config):
+            return ['Validation error 1', 'Validation error 2']
+        self.stub_out('os_net_config.validator.validate_config',
+                      mock_validate_config)
+        self.assertRaises(
+            os_net_config.objects.InvalidConfigException,
+            cli.get_iface_config,
+            'remove_config',
+            config_file,
+            {},
+            False,
+            strict_validate=True
+        )
+        if os.path.exists(config_file):
+            os.remove(config_file)
+
+    def test_remove_config_entry(self):
+        # Create a invalid network_config entry to trigger validator message
+        cfg = {
+            'remove_config': [
+                {'remove_type': 'interface', 'remove_name': 'eth1'},
+                {'remove_type': 'interface', 'remove_name': 'lo'}
+            ],
+            'network_config': [
+                {'type': 'interface', 'name': 'nic1'}
+            ]
+        }
+        temp_path = '/tmp/test_strict_invalid.yaml'
+
+        def dummy_mapped_nics(nic_mapping=None):
+            return nic_mapping
+        self.stub_out('os_net_config.objects.mapped_nics', dummy_mapped_nics)
+
+        with open(temp_path, 'w') as f:
+            yaml.dump(cfg, f)
+
+        rm_cfg = os_net_config.cli.get_iface_config(
+            "remove_config",
+            temp_path, {},
+            False, True
+        )
+
+        self.assertEqual(len(rm_cfg), 2)
+        if os.path.exists(temp_path):
+            os.remove(temp_path)

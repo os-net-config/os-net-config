@@ -2222,7 +2222,9 @@ class RemoveNetDevice(object):
         self.remove_name = name
         self.remove_type = remove_type
         self.nic_mapping = nic_mapping or {}
+        self.provider = None
         self.provider_data = None
+        self.is_removed = False
 
     def __repr__(self):
         """Return a clean string representation for logging."""
@@ -2231,7 +2233,8 @@ class RemoveNetDevice(object):
             provider_info = f" (provider: {type(self.provider_data).__name__})"
         return (
             f"RemoveNetDevice(name='{self.remove_name}', "
-            f"type='{self.remove_type}'{provider_info})"
+            f"type='{self.remove_type}'{provider_info}), "
+            f"provider='{self.provider}'"
         )
 
     @staticmethod
