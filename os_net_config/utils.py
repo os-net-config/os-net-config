@@ -571,41 +571,6 @@ def get_totalvfs(iface_name):
     return -1
 
 
-def remove_sriov_entries_for_pf(pfname):
-    """Remove all VF and PF entries for the PF device from the SR-IOV map.
-
-    If the resulting map is empty, remove the SRIOV_CONFIG_FILE.
-    """
-    sriov_map = common.get_sriov_map()
-    new_map = []
-    for item in sriov_map:
-        if (item["device_type"] == "vf" and
-                item["device"].get("name") == pfname):
-            logger.debug(
-                "%s: Removing VF %s from sriov_map", pfname, item["name"]
-            )
-            continue  # Skip this VF
-        if (item["device_type"] == "pf" and
-                item.get("name") == pfname):
-            logger.debug("%s: Removing PF from sriov_map", pfname)
-            continue  # Skip this PF
-        new_map.append(item)
-    # Remove the sriov_map file if it is empty
-    if not new_map:
-        logger.debug(
-            "sriov map file is empty and hence removing %s",
-            common.SRIOV_CONFIG_FILE
-        )
-        try:
-            os.remove(common.SRIOV_CONFIG_FILE)
-        except OSError:
-            logger.error("Failed to remove sriov map file")
-            pass
-        disable_sriov_config_service()
-    else:
-        common.write_yaml_config(common.SRIOV_CONFIG_FILE, new_map)
-
-
 def get_sriov_dev_from_pci_address(pci_address):
     sriov_map = common.get_sriov_map()
     for item in sriov_map:
