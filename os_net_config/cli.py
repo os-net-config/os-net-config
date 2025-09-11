@@ -213,6 +213,7 @@ def main(argv=sys.argv, main_logger=None):
     common.logger_level(main_logger, opts.verbose, opts.debug)
     main_logger.info("Using config file at: %s", opts.config_file)
     iface_array = []
+    remove_config = []
 
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
@@ -267,6 +268,34 @@ def main(argv=sys.argv, main_logger=None):
         main_logger.debug("Interface report requested, exiting after report.")
         print(json.dumps(reported_nics))
         return onc_ret_code
+
+    # Parse the remove_config section first
+    try:
+        remove_config = get_iface_config(
+            "remove_config",
+            opts.config_file,
+            iface_mapping,
+            persist_mapping,
+            strict_validate=opts.exit_on_validation_errors
+        )
+    except objects.InvalidConfigException as e:
+        main_logger.error("Schema validation failed for remove_config\n%s", e)
+        return get_exit_code(
+            opts.detailed_exit_codes,
+            onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED
+        )
+
+    if remove_config:
+        ret_code = apply_remove_config(remove_config, opts.root_dir, opts.noop)
+        if ret_code == ExitCode.REMOVE_CONFIG_FAILED:
+            main_logger.error("Failed to apply remove_config")
+            return get_exit_code(
+                opts.detailed_exit_codes,
+                onc_ret_code | ExitCode.REMOVE_CONFIG_FAILED
+            )
+        else:
+            main_logger.info("remove_config applied successfully")
+
     try:
         iface_array = get_iface_config(
             "network_config",
@@ -361,6 +390,95 @@ def main(argv=sys.argv, main_logger=None):
             dcb_apply.apply()
 
     return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
+
+
+def apply_remove_config(remove_config, root_dir, noop):
+    """Remove given network devices using the appropriate backend method.
+
+    - Classify each requested device by provider (ifcfg or nmstate)
+    - Invoke the corr provider removal method. Aggregates success/failure.
+    - Handle excpetion of provider initialisation
+
+    :param remove_config: List of remove entries (dicts)
+    :param root_dir: Filesystem root prefix for provider operations
+    :param noop: If True, perform a dry run without applying changes
+    :returns: ExitCode, which is updated based on remove_devices() status
+    """
+
+    nmstate_remove_config = []
+    ifcfg_remove_config = []
+
+    try:
+        rm_ifcfg_provider = load_provider("ifcfg", noop, root_dir)
+    except ImportError as e:
+        logger.error("ifcfg: cannot load provider, error %s", e)
+        rm_ifcfg_provider = None
+
+    try:
+        rm_nmstate_provider = load_provider("nmstate", noop, root_dir)
+    except ImportError as e:
+        logger.error("nmstate: cannot load provider, error %s", e)
+        rm_nmstate_provider = None
+
+    for rem_json in remove_config:
+        rem_json.update({"type": "remove_net_device"})
+        removeobj = objects.object_from_json(rem_json)
+        # Skip loopback interface
+        if removeobj.remove_name == 'lo':
+            logger.info("Skipping loopback interface \'lo\'")
+            continue
+
+        logger.info(
+            "%s: type=%s provider=?",
+            removeobj.remove_name,
+            removeobj.remove_type
+        )
+        if rm_ifcfg_provider and \
+            rm_ifcfg_provider.is_device_managed(removeobj):
+            logger.info(
+                "%s: type=%s provider=ifcfg",
+                removeobj.remove_name,
+                removeobj.remove_type
+            )
+            ifcfg_remove_config.append(removeobj)
+        elif rm_nmstate_provider and \
+            rm_nmstate_provider.is_device_managed(removeobj):
+            logger.info(
+                "%s: type=%s provider=nmstate",
+                removeobj.remove_name,
+                removeobj.remove_type
+            )
+            nmstate_remove_config.append(removeobj)
+        else:
+            logger.info(
+                "%s: type=%s device not found",
+                removeobj.remove_name,
+                removeobj.remove_type
+            )
+
+    success = True
+    if ifcfg_remove_config:
+        ret_code = rm_ifcfg_provider.remove_devices(ifcfg_remove_config)
+        if ret_code != ExitCode.SUCCESS:
+            logger.error("ifcfg: Failed to remove interfaces")
+            success = False
+        else:
+            logger.info(
+                "%s: removed %s interfaces using ifcfg", "ifcfg",
+                len(ifcfg_remove_config)
+            )
+
+    if nmstate_remove_config:
+        ret_code = rm_nmstate_provider.remove_devices(nmstate_remove_config)
+        if ret_code != ExitCode.SUCCESS:
+            logger.error("nmstate: Failed to remove interfaces")
+            success = False
+        else:
+            logger.info(
+                "%s: removed %s interfaces using nmstate", "nmstate",
+                len(nmstate_remove_config)
+            )
+    return ExitCode.SUCCESS if success else ExitCode.REMOVE_CONFIG_FAILED
 
 
 def unconfig_provider(provider_name,
