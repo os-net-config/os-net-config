@@ -110,6 +110,20 @@ LOOPBACK = "lo"
 CONFIG_RULES_FILE = '/var/lib/os-net-config/nmstate_files/rules.yaml'
 
 
+class RemoveDeviceNmstateData:
+    def __init__(self, dev_name, dev_type, pci_address=[]):
+        self.dev_name = dev_name
+        self.dev_type = dev_type
+        self.pci_address = pci_address
+
+    def __str__(self):
+        """Return a formatted string representation of the device data."""
+        pci_str = ', '.join(self.pci_address) if self.pci_address else 'None'
+        return (f"RemoveDeviceNmstateData(dev_name='{self.dev_name}', "
+                f"dev_type='{self.dev_type}', "
+                f"pci_address=[{pci_str}])")
+
+
 def route_table_config_path():
     return "/etc/iproute2/rt_tables"
 
@@ -2844,3 +2858,304 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if devargs:
                     return [devargs]
         return []
+
+    def _is_nm_unhandled_state(self, device):
+        """Check if the state is unhandled
+
+        :param device: The device object
+        :returns: True if the device is in unhandled state, False otherwise
+        """
+        return device.get(Interface.STATE) == InterfaceState.IGNORE or \
+            device.get(Interface.STATE) == InterfaceState.UNKNOWN
+
+    def _device_managed_status(self, net_device, result):
+        """Log the result of is_device_managed()"""
+        if result:
+            net_device.provider = "nmstate"
+            logger.info("%s: type=%s provider=nmstate, data=%s",
+                        net_device.remove_name,
+                        net_device.remove_type,
+                        getattr(net_device, 'provider_data', 'None'))
+        else:
+            logger.debug("%s: type=%s provider=nmstate, device not managed",
+                         net_device.remove_name,
+                         net_device.remove_type)
+        return result
+
+    def is_device_managed(self, net_device):
+        """Check if a device is managed by the nmstate provider.
+
+        Queries the current nmstate configuration to find if the device exists
+        and matches the specified type. Certain device specific data are added
+        in the provider_data field of the net_device object.
+
+        :param net_device: RemoveNetDevice object
+        :returns: True if device is found with matching type, False otherwise
+        """
+
+        # split the handling of devices into two categories:
+        # 1. type_map: devices that have a direct 1:1 mapping between
+        #    os-net-config device types and nmstate types
+        # 2. special_device_handlers: devices that needs further
+        #    classification or handling before being considered as managed
+        #    by nmstate are handled by dedicated handlers
+        type_map = {
+            "sriov_pf": InterfaceType.ETHERNET,
+            "sriov_vf": InterfaceType.ETHERNET,
+            "interface": InterfaceType.ETHERNET,
+            "linux_bond": InterfaceType.BOND,
+        }
+        # Device type specific handlers
+        special_handlers = {
+            "sriov_vf": self._check_device_attached_to_dpdk,
+            "interface": self._check_device_attached_to_dpdk,
+            "ovs_dpdk_port": self._check_dpdk_port,
+            "ovs_bond": self._check_ovs_bond,
+            "ovs_dpdk_bond": self._check_ovs_bond,
+            "ovs_bridge": self._check_ovs_bridge,
+            "ovs_user_bridge": self._check_ovs_bridge,
+            "vlan": self._check_vlan,
+        }
+
+        # Check for unsupported device types
+        if (net_device.remove_type not in type_map and
+                net_device.remove_type not in special_handlers):
+            logger.debug("%s: Unsupported device type %s for nmstate provider",
+                         net_device.remove_name, net_device.remove_type)
+            return False
+
+        # Handle special device types with dedicated handlers
+        if net_device.remove_type in special_handlers:
+            result = special_handlers[net_device.remove_type](net_device)
+
+            # sriov_vf or interface can return None to continue to generic
+            # handling
+            if result is not None:
+                return self._device_managed_status(net_device, result)
+
+        # for other device types, check if the device is listed by nmstate
+        expected_type = type_map[net_device.remove_type]
+        # Get current interface state
+        device_state = self.iface_state(name=net_device.remove_name,
+                                        type=expected_type)
+        if not device_state or self._is_nm_unhandled_state(device_state):
+            return self._device_managed_status(net_device, False)
+
+        net_device.provider_data = RemoveDeviceNmstateData(
+            net_device.remove_name, expected_type)
+        return self._device_managed_status(net_device, True)
+
+    def _check_vlan(self, net_device):
+        """Check if a device is a VLAN and is configured by nmstate.
+
+        The vlan device could be a port in an OVS bridge or a standalone
+        vlan device. Check if the given vlan device belongs to these types
+        and if these are managed by
+        nmstate, then return True.
+        :param net_device: RemoveNetDevice object
+        :returns: True if device is a VLAN, False otherwise
+        """
+        vlan_cfg = self.iface_state(name=net_device.remove_name,
+                                    type=InterfaceType.VLAN)
+        if vlan_cfg:
+            if self._is_nm_unhandled_state(vlan_cfg):
+                return False
+            net_device.provider_data = RemoveDeviceNmstateData(
+                net_device.remove_name, InterfaceType.VLAN)
+            return True
+        vlan_cfg = self.iface_state(name=net_device.remove_name,
+                                    type=OVSInterface.TYPE)
+        if vlan_cfg:
+            if self._is_nm_unhandled_state(vlan_cfg):
+                return False
+            net_device.provider_data = RemoveDeviceNmstateData(
+                net_device.remove_name, OVSInterface.TYPE)
+            return True
+        return False
+
+    def _check_device_port_for_dpdk_config(self, pci_address):
+        """Check if a VF / interface is attached to a DPDK port
+
+        :param pci_address: PCI address of the DPDK port
+        :returns: True if the VF / interface is attached to the DPDK port,
+                  False otherwise
+        """
+        ovs_ports = self.iface_state(type=OVSInterface.TYPE) or []
+        for port in ovs_ports:
+            if self._is_nm_unhandled_state(port):
+                continue
+            dpdk_config = port.get(OVSInterface.DPDK_CONFIG_SUBTREE, {})
+            devargs = dpdk_config.get(OVSInterface.Dpdk.DEVARGS, "")
+            if dpdk_config and devargs == pci_address:
+                return True
+        return False
+
+    def _check_device_attached_to_dpdk(self, net_device):
+        """Check if a device is attached to a DPDK port or bond.
+
+        If the sriov vf / interface device is bound with vfio-pci driver, then
+        most likely is used as a DPDK port. So if the pci address is present
+        in dpdk map and the dpdk device is managed by nmstate provider, then
+        the device shall also be listed as managed by nmstate provider. But if
+        its bound with default drivers, then the device name will be available
+        and the regular search for the nmstate configs will be followed.
+        :param net_device: RemoveNetDevice object for the SR-IOV VF / interface
+        :returns: True if processing should continue, False if device not found
+            and None if its inconclusive
+        """
+        dev_name = net_device.remove_name
+        if net_device.remove_name.startswith("sriov:"):
+            vf_device = net_device.remove_name.split(":")
+            pf_device = vf_device[1]
+            vf_id = int(vf_device[2])
+            try:
+                dev_name = utils.get_vf_devname(pf_device, vf_id)
+            except common.SriovVfNotFoundException:
+                # This means that the VF is not used as part of NIC
+                # Partitioning.
+                # TODO(ksundara): Should we handle removal of non nic
+                # partitioned VFs ?
+                logger.debug("%s-%d: SR-IOV VF not found", pf_device, vf_id)
+                return False
+
+        net_device.remove_name = dev_name
+        pci_address = common.get_dpdk_pci_address(dev_name)
+        if pci_address:
+            # look for VF with DPDK ports using the pci address
+
+            rv = self._check_device_port_for_dpdk_config(pci_address)
+            if rv:
+                net_device.provider_data = RemoveDeviceNmstateData(
+                    net_device.remove_name, InterfaceType.ETHERNET)
+                return True
+            else:
+                return False
+
+        # VF is not attached with dpdk port, so we need to check if it is
+        # present in the nmstate configs
+        return None
+
+    def _check_ovs_bridge(self, net_device):
+        """Check if a device is an OVS bridge and is configured by NM.
+
+        :param net_device: RemoveNetDevice object
+        :returns: True if device is an OVS bridge, False otherwise
+        """
+        ovs_bridge_cfg = self.iface_state(
+            name=net_device.remove_name, type=OVSBridge.TYPE
+        )
+        if not ovs_bridge_cfg or self._is_nm_unhandled_state(ovs_bridge_cfg):
+            return False
+
+        bridge_cfg = ovs_bridge_cfg.get(OVSBridge.CONFIG_SUBTREE, {})
+        br_options = bridge_cfg.get(OVSBridge.OPTIONS_SUBTREE, {})
+        data_path = br_options.get(OVSBridge.Options.DATAPATH, "")
+
+        # from nmstate perspective, the ovs bridge is a bridge device
+        # so we need to return True if the device is an OVS bridge
+        # and the data path is either system or empty
+        # The ovs_user_bridge is a bridge device that is same as ovs_bridge
+        # just that the data_path is netdev
+
+        if net_device.remove_type == "ovs_bridge" and \
+            (data_path in ["system", ""]):
+            net_device.provider_data = RemoveDeviceNmstateData(
+                net_device.remove_name, OVSBridge.TYPE)
+            return True
+        elif net_device.remove_type == "ovs_user_bridge" and \
+            data_path == "netdev":
+            net_device.provider_data = RemoveDeviceNmstateData(
+                net_device.remove_name, OVSBridge.TYPE)
+            return True
+        else:
+            return False
+
+    def _check_ovs_bond(self, net_device):
+        """Check if a device is an OVS bond and is configured by NM.
+
+        :param net_device: RemoveNetDevice object
+        :returns: True if device is an OVS bond, False otherwise
+        """
+        # Get all bridges to search for OVS bonds
+        all_bridges = self.iface_state(type=OVSBridge.TYPE) or []
+
+        for bridge_cfg in all_bridges:
+            if self._is_nm_unhandled_state(bridge_cfg):
+                continue
+
+            bridge_cfg = bridge_cfg.get(OVSBridge.CONFIG_SUBTREE, {})
+            options = bridge_cfg.get(OVSBridge.OPTIONS_SUBTREE, {})
+            data_path = options.get(OVSBridge.Options.DATAPATH, "")
+            # the default data path is system
+            ports = bridge_cfg.get(OVSBridge.PORT_SUBTREE, [])
+            for port in ports:
+                # Check if this port has link aggregation (bond)
+                link_agg = port.get(
+                    OVSBridge.Port.LINK_AGGREGATION_SUBTREE, [])
+                if not link_agg:
+                    # if its not a bond, then skip
+                    continue
+                if port.get(OVSBridge.Port.NAME) != net_device.remove_name:
+                    # if port name does not match the remove_name then skip
+                    continue
+                if net_device.remove_type == "ovs_dpdk_bond" and \
+                    data_path == "netdev":
+                    pci_address = []
+                    bond_ports = link_agg.get(
+                        OVSBridge.Port.LinkAggregation.PORT_SUBTREE, []
+                    )
+                    for member in bond_ports:
+                        member_name = member.get(OVSBridge.Port.NAME)
+                        pci_address.extend(
+                            self._get_dpdk_port_pci_address(member_name)
+                        )
+                    net_device.provider_data = RemoveDeviceNmstateData(
+                        net_device.remove_name, None,
+                        pci_address=pci_address)
+                    return True
+                elif net_device.remove_type == "ovs_bond" and \
+                    data_path in ["system", ""]:
+                    net_device.provider_data = RemoveDeviceNmstateData(
+                        net_device.remove_name, None)
+                    return True
+                else:
+                    return False
+        # could not find in any of the bridges
+        else:
+            return False
+
+    def _check_dpdk_port(self, net_device):
+        """Check if a device is a DPDK port and is configured by nmstate.
+
+        :param net_device: RemoveNetDevice object
+        :returns: True if device is a DPDK port, False otherwise
+        """
+        # Fetch all the devices of type OVSInterface.
+        ovs_ports = self.iface_state(type=OVSInterface.TYPE) or []
+        for port in ovs_ports:
+            # Check if the device name matches the given device name
+            if port.get(Interface.NAME) == net_device.remove_name:
+                # Check if the device has a DPDK configuration
+
+                if self._is_nm_unhandled_state(port):
+                    return False
+
+                dpdk_config = port.get(OVSInterface.DPDK_CONFIG_SUBTREE, {})
+                if dpdk_config:
+                    pci_address = dpdk_config.get(
+                        OVSInterface.Dpdk.DEVARGS, "")
+                    # If the DPDK configuration has devargs, then
+                    # the device is a DPDK port and the devargs are the
+                    # PCI address of the device
+                    if pci_address:
+                        net_device.provider_data = RemoveDeviceNmstateData(
+                            net_device.remove_name, OVSInterface.TYPE,
+                            pci_address=[pci_address])
+                        return True
+                    else:
+                        # If the DPDK configuration has no devargs, then
+                        # the device is not a DPDK port
+                        return False
+                else:
+                    return False
+        return False
