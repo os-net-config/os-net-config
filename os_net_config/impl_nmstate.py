@@ -571,8 +571,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 # FIXME: The comparison of the desired state and current
                 # state shall be managed by nmstate itself.
                 # JIRA: https://issues.redhat.com/browse/RHEL-67120
+                apply_dispatcher_script = False
+                if common.is_vf_driver_change_required(
+                    pf, linux_vfs, dpdk_vfs
+                    ):
+                    logger.info(
+                        "%s: VFs are not bound with the required drivers", pf
+                    )
+                    apply_dispatcher_script = True
 
-                if not is_dict_subset(cur_state, pf_state):
+                if not is_dict_subset(cur_state, pf_state) or \
+                        apply_dispatcher_script:
                     if not self.noop and activate:
                         logger.debug(
                             "%s: Applying the VF parameters",
