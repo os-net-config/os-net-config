@@ -914,3 +914,65 @@ class TestCli(base.TestCase):
         finally:
             if os.path.exists(config_file):
                 os.remove(config_file)
+
+    def test_get_iface_config_for_removeconfig_validation_failure(self):
+        """Test remove_config with invalid config raises exception"""
+        config_data = {
+            'remove_config': [
+                {'remove_type': 'interface', 'invalid_field': 'value'}
+            ],
+            'network_config': [
+                {'type': 'interface', 'name': 'nic1'}
+            ]
+        }
+        config_file = '/tmp/test_strict_invalid.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        # Mock validator to return errors
+        def mock_validate_config(config):
+            return ['Validation error 1', 'Validation error 2']
+        self.stub_out('os_net_config.validator.validate_config',
+                      mock_validate_config)
+        self.assertRaises(
+            os_net_config.objects.InvalidConfigException,
+            cli.get_iface_config,
+            'remove_config',
+            config_file,
+            {},
+            False,
+            strict_validate=True
+        )
+        if os.path.exists(config_file):
+            os.remove(config_file)
+
+    def test_network_config_invalid_entry_error_message(self):
+        # Create a invalid network_config entry to trigger validator message
+        cfg = {
+            'remove_config': [
+                {'rem_type': 'interface', 'rem_name': 'eth1'}
+            ],
+            'network_config': [
+                {'type': 'interface', 'name': 'nic1'}
+            ]
+        }
+        temp_path = '/tmp/test_strict_invalid.yaml'
+
+        with open(temp_path, 'w') as f:
+            yaml.dump(cfg, f)
+        # Call get_iface_config to raise InvalidConfigException
+        try:
+            self.assertRaises(
+                os_net_config.objects.InvalidConfigException,
+                cli.get_iface_config,
+                'remove_config', temp_path, {}, False, strict_validate=True
+            )
+        except os_net_config.objects.InvalidConfigException as ctx:
+            # Verify the message contains schema validation error
+            error_msg = str(ctx.exception)
+            self.assertIn("Config file failed schema validation", error_msg)
+            self.assertIn("remove_config/0", error_msg)
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
