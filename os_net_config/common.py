@@ -519,6 +519,38 @@ def wait_for_vf_driver_binding(pf, vfs, req_driver):
                 )
 
 
+def is_vf_driver_change_required(pf, linux_vfs, dpdk_vfs):
+    """Check if the driver binding is correct for the given VFs
+
+    :param pf: The PF name
+    :param linux_vfs: The list of Linux VFs
+    :param dpdk_vfs: The list of DPDK VFs
+    :returns: True if driver change required, False otherwise
+    """
+    if linux_vfs:
+        lnx_driver = get_default_vf_driver(
+            pf, linux_vfs[0]
+        )
+        for vf in linux_vfs:
+            pci_address = get_pci_address(f"sriov:{pf}:{vf}")
+            driver = get_pci_device_driver(pci_address)
+            if driver != lnx_driver:
+                logger.info("%s-%s: driver expected: %s , actual: %s",
+                            pf, vf, lnx_driver, driver)
+                return True
+    if dpdk_vfs:
+        for vf in dpdk_vfs:
+            pci_address = get_pci_address(f"sriov:{pf}:{vf}")
+            driver = get_pci_device_driver(pci_address)
+            if driver != "vfio-pci":
+                logger.error(
+                    "%s-%s: driver expected: vfio-pci, actual: %s ",
+                    pf, vf, driver
+                )
+                return True
+    return False
+
+
 def _has_driverctl_override(pci_address):
     """Check if a PCI address has a driver override set.
 
