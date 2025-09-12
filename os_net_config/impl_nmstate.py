@@ -43,6 +43,7 @@ import yaml
 
 import os_net_config
 from os_net_config import common
+from os_net_config.exit_codes import ExitCode
 from os_net_config import objects
 from os_net_config import utils
 
@@ -108,6 +109,7 @@ POST_DEACTIVATION = 'post-deactivation'
 DISPATCH = 'dispatch'
 LOOPBACK = "lo"
 CONFIG_RULES_FILE = '/var/lib/os-net-config/nmstate_files/rules.yaml'
+BACKUP_NMSTATE_FILES_PATH = '/var/lib/os-net-config/nmstate_files'
 
 
 def route_table_config_path():
@@ -1148,7 +1150,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
                       Interface.STATE: InterfaceState.ABSENT}
         absent_state_config = {Interface.KEY: [iface_data]}
         self.__dump_key_config(absent_state_config, msg=f"{name}: Cleaning")
-        netapplier.apply(absent_state_config, verify_change=True)
+        if not self.noop:
+            try:
+                netapplier.apply(absent_state_config, verify_change=True)
+            except error.NmstateVerificationError as exc:
+                logger.error("**** Verification Error during cleanup *****")
+                logger.error("Exception received: %s", exc)
+
+            except error.NmstateError as exc:
+                logger.error("**** Nmstate Error during cleanup *****")
+                logger.error("Exception received: %s", exc)
 
     def enable_migration(self):
         """Enable migration from other providers to nmstate"""
@@ -2844,3 +2855,85 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 if devargs:
                     return [devargs]
         return []
+
+    def remove_devices(self, remove_device_list):
+        """Remove a list of devices using ordered processing.
+
+        This method processes RemoveNetDevice objects in the specified order:
+        ovs_dpdk_port -> ovs_dpdk_bond -> ovs_bond -> vlan -> interface ->
+        sriov_vf -> ovs_bridge -> ovs_user_bridge -> linux_bond -> sriov_pf
+
+        :param remove_device_list: List of RemoveNetDevice objects
+        :type remove_device_list: list[RemoveNetDevice]
+        :returns: 0 if successful, > 0 if failed
+        """
+        if not remove_device_list:
+            logger.debug("remove_devices: No devices to remove")
+            return 0
+
+        common.print_config(remove_device_list,
+                            msg="removing with nmstate provider")
+
+        # Check if we need to backup files for certain device types
+        backup_required_types = ['ovs_dpdk_port', 'ovs_dpdk_bond',
+                                 'sriov_vf', 'sriov_pf']
+        needs_backup = any(device.remove_type in backup_required_types
+                           for device in remove_device_list)
+        if needs_backup:
+            logger.info("Backing up configuration files before device removal")
+            if not self.noop:
+                backup_path = os.path.join(BACKUP_NMSTATE_FILES_PATH,
+                                           common.get_timestamp())
+                os.makedirs(backup_path, exist_ok=True)
+                utils.backup_map_files(backup_path)
+
+        # Process devices in specific order
+        processing_order = ['ovs_dpdk_port', 'ovs_dpdk_bond', 'ovs_bond',
+                            'vlan', 'interface', 'sriov_vf', 'ovs_bridge',
+                            'ovs_user_bridge', 'linux_bond', 'sriov_pf']
+
+        for device_type in processing_order:
+            devices_of_type = [device for device in remove_device_list
+                               if device.remove_type == device_type]
+
+            if devices_of_type:
+                for device in devices_of_type:
+                    self._process_device_removal(device)
+        return ExitCode.SUCCESS
+
+    def _process_device_removal(self, device):
+        """Process removal of a single device.
+
+        :param device: RemoveNetDevice object to process
+        """
+        logger.info("%s: removing %s", device.remove_name, device.remove_type)
+
+        if self.noop:
+            return
+
+        # Step 1: Get PCI addresses for DPDK devices (before cleaning)
+        if device.remove_type in ['ovs_dpdk_port', 'ovs_dpdk_bond'] and \
+            device.provider_data is not None:
+            pci_addresses = device.provider_data.pci_address
+        else:
+            pci_addresses = []
+
+        # Step 2: Remove interface using nmstate with type conversion
+        if device.provider_data is not None and \
+            device.provider_data.dev_type is not None:
+            self._clean_iface(
+                device.remove_name, device.provider_data.dev_type
+            )
+
+        # Step 3: Clean up DPDK interfaces or SR-IOV entries
+        if device.remove_type in ['ovs_dpdk_port', 'ovs_dpdk_bond']:
+            # For DPDK: use the PCI addresses we collected earlier
+            for pci_address in pci_addresses:
+                utils.remove_dpdk_interface(pci_address)
+        elif device.remove_type == 'sriov_pf':
+            utils.remove_entries_for_sriov_dev(device.remove_name)
+        elif device.remove_type == 'sriov_vf':
+            utils.remove_entries_for_sriov_dev(device.remove_name)
+        elif device.remove_type == 'linux_bond':
+            utils.write_bonding_masters(device.remove_name, "remove")
+        return
