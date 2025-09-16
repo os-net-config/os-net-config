@@ -63,14 +63,54 @@ the network configuration, but an alternate file can be used with the
 ``--config-file`` argument. The following arguments change the behaviour
 during configuration:
 
-- ``--detailed-exit-codes`` If enabled an exit code of ``FILES_CHANGED`` (2) means that
-  files were modified.
+- ``--detailed-exit-codes`` If enabled, returns detailed exit codes using a
+  bitmask design. If disabled, simplifies to standard SUCCESS (0) or ERROR (1).
 - ``--exit-on-validation-errors`` Exit with an error if configuration
   file validation fails.
 - ``--noop`` Return the configuration commands, without applying them.
 - ``--no-activate`` Install the configuration but don't start/stop
   interfaces.
 - ``--cleanup`` Cleanup unconfigured interfaces.
+
+Exit Codes
+----------
+
+The os-net-config tool uses a bitmask-based exit code system that allows
+combining multiple operation results efficiently. Each bit represents a
+specific operation outcome:
+
+**Detailed Exit Codes (--detailed-exit-codes enabled):**
+
+============================ ===== =============================================
+Exit Code                    Value Description
+============================ ===== =============================================
+SUCCESS                      0     All operations successful
+ERROR                        1     General error
+FILES_CHANGED                2     Files were modified (success indicator)
+NETWORK_CONFIG_FAILED        4     Network configuration failed
+FALLBACK_FAILED              8     Fallback configuration failed
+MINIMUM_CONFIG_FAILED        16    Minimum configuration failed
+REMOVE_CONFIG_FAILED         32    Remove configuration failed
+PURGE_FAILED                 64    Purge operation failed
+DCB_CONFIG_FAILED            128   DCB configuration failed
+SCHEMA_VALIDATION_FAILED     256   Schema validation failed
+============================ ===== =============================================
+
+**Standard Exit Codes (--detailed-exit-codes disabled):**
+
+=========== ===== ==============================================
+Exit Code   Value Description
+=========== ===== ==============================================
+SUCCESS     0     All operations successful or only files changed
+ERROR       1     Any operation failed
+=========== ===== ==============================================
+
+Exit codes can be combined using bitwise OR operations. For example, if both
+network configuration fails and fallback configuration fails, the exit code would be
+4 | 8 = 12.
+
+The ``FILES_CHANGED`` (2) code is a success indicator showing that the tool
+made modifications to the system configuration files.
 
 Python Library
 --------------
