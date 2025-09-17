@@ -1267,6 +1267,18 @@ def ethtool_path():
     return ethtoolcmd
 
 
+def sysctl_path():
+    """Find 'sysctl' executable."""
+    if os.access('/sbin/sysctl', os.X_OK):
+        sysctlcmd = '/sbin/sysctl'
+    elif os.access('/usr/sbin/sysctl', os.X_OK):
+        sysctlcmd = '/usr/sbin/sysctl'
+    else:
+        logger.warning("Could not execute /sbin/sysctl or /usr/sbin/sysctl")
+        return False
+    return sysctlcmd
+
+
 def set_accept_ra_sysctl(iface, noop):
     """Set /proc/sys/net/ipv6/conf/<iface>/accept_ra """
     filename = "/proc/sys/net/ipv6/conf/{}/accept_ra".format(iface)
