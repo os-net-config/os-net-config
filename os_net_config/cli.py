@@ -20,6 +20,7 @@ import importlib
 import json
 import os
 import sys
+import traceback
 import yaml
 
 from os_net_config import common
@@ -286,6 +287,20 @@ def main(argv=sys.argv, main_logger=None):
         return get_exit_code(opts.detailed_exit_codes,
                              onc_ret_code | ExitCode.ERROR)
 
+    try:
+        fb_config = get_iface_config(
+            "fallback_config",
+            opts.config_file,
+            iface_mapping,
+            persist_mapping,
+            strict_validate=opts.exit_on_validation_errors,
+        )
+    except objects.InvalidConfigException as e:
+        main_logger.error(
+            "Schema validation failed for fallback_config\n%s", e)
+        return get_exit_code(opts.detailed_exit_codes,
+                             onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED)
+
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
     if utils.is_dcb_config_required():
@@ -337,8 +352,16 @@ def main(argv=sys.argv, main_logger=None):
             "%s: Failed to configure network_config. ",
             opts.provider,
         )
-        return get_exit_code(opts.detailed_exit_codes,
-                             onc_ret_code | ExitCode.NETWORK_CONFIG_FAILED)
+        onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
+        ret_code = safe_fallback(
+            opts.provider,
+            fb_config,
+            opts.no_activate,
+            opts.root_dir,
+            opts.noop
+        )
+        onc_ret_code |= ret_code
+        return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
     else:
         onc_ret_code |= ret_code
         main_logger.info(
@@ -512,10 +535,11 @@ def config_provider(provider_name,
 
     except Exception as e:
         logger.error(
-            "%s: ***Failed to configure %s ***\n%s",
+            "%s: ***Failed to configure %s ***\n%s\n%s",
             provider_name,
             config_name,
-            e
+            e,
+            traceback.format_exc()
         )
         return ExitCode.ERROR
 
@@ -577,6 +601,33 @@ def get_iface_config(
             for e in validation_errors:
                 logger.warning(e)
     return iface_array
+
+
+def safe_fallback(provider,
+                  fb_config,
+                  no_activate,
+                  root_dir,
+                  noop):
+    if not fb_config:
+        logger.warning("fallback_config is not provided")
+        return ExitCode.FALLBACK_FAILED
+
+    logger.info("%s: Running safe fallback", provider)
+    ret = config_provider(
+        provider,
+        "fallback_config",
+        fb_config,
+        root_dir,
+        noop,
+        no_activate,
+        False,
+    )
+    if ret == ExitCode.ERROR:
+        logger.error("%s: failed to configure fallback_config", provider)
+        return ExitCode.FALLBACK_FAILED
+    else:
+        logger.info("%s: fallback_config is completed", provider)
+        return ExitCode.SUCCESS
 
 
 if __name__ == '__main__':
