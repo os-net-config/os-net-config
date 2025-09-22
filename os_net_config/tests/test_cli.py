@@ -986,7 +986,7 @@ class TestCli(base.TestCase):
             root_dir="",
             noop=False
         )
-        self.assertEqual(ret, ExitCode.SUCCESS)
+        self.assertEqual(ret, ExitCode.FALLBACK_FAILED)
 
     def test_safe_fallback_empty_config(self):
         """Test safe_fallback with empty fallback_config."""
@@ -997,7 +997,7 @@ class TestCli(base.TestCase):
             root_dir="",
             noop=False
         )
-        self.assertEqual(ret, ExitCode.SUCCESS)
+        self.assertEqual(ret, ExitCode.FALLBACK_FAILED)
 
     def test_safe_fallback_long_config(self):
         """Test safe_fallback with empty fallback_config."""
