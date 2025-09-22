@@ -72,6 +72,12 @@ SRIOV_CONFIG_FILE = '/var/lib/os-net-config/sriov_config.yaml'
 
 DCB_CONFIG_FILE = '/var/lib/os-net-config/dcb_config.yaml'
 
+# Directory to write sysctl settings to
+# Format of the file shall be
+# net.ipv6.conf.default.keep_addr_on_down=1
+# net.ipv6.conf.all.keep_addr_on_down=1
+SYSCTLD_CONF_DIR = '/usr/lib/sysctl.d'
+
 _SYS_BUS_PCI_DEV = '/sys/bus/pci/devices'
 SYS_CLASS_NET = '/sys/class/net'
 _LOG_FILE = '/var/log/os-net-config.log'
@@ -190,6 +196,21 @@ def write_yaml_config(filepath, data):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, 'w') as f:
         yaml.safe_dump(data, f, default_flow_style=False)
+
+
+def write_sysctld_conf(filename, data):
+    filepath = SYSCTLD_CONF_DIR + '/' + filename
+    filedata = '# Written by os-net-config, do not modify\n' + data
+    logger.info("Writing file %s with content %s", filepath, filedata)
+    if get_noop():
+        return
+    try:
+        with open(filepath, 'w') as f:
+            f.write(str(filedata))
+            return True
+    except IOError:
+        logger.error("Error writing file: %s", filename)
+        raise
 
 
 def update_dcb_map(device, pci_addr, driver, noop, dscp2prio=None):
