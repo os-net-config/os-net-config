@@ -560,11 +560,6 @@ def get_iface_config(
         )
         return []
 
-    for iface_json in iface_array:
-        if iface_json.get('type') != 'route_table':
-            iface_json.update({'nic_mapping': iface_map})
-            iface_json.update({'persist_mapping': persist_map})
-
     validation_errors = validator.validate_config(iface_array)
     if validation_errors:
         if strict_validate:
@@ -575,6 +570,12 @@ def get_iface_config(
         else:
             for e in validation_errors:
                 logger.warning(e)
+
+    for iface_json in iface_array:
+        if iface_json.get('type') != 'route_table':
+            iface_json.update({'nic_mapping': iface_map})
+            iface_json.update({'persist_mapping': persist_map})
+
     return iface_array
 
 
