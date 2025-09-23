@@ -20,6 +20,7 @@ import importlib
 import json
 import os
 import sys
+import traceback
 import yaml
 
 from os_net_config import common
@@ -511,10 +512,11 @@ def config_provider(provider_name,
 
     except Exception as e:
         logger.error(
-            "%s: ***Failed to configure %s ***\n%s",
+            "%s: ***Failed to configure %s ***\n%s\n%s",
             provider_name,
             config_name,
-            e
+            e,
+            traceback.format_exc()
         )
         return ExitCode.ERROR
 
