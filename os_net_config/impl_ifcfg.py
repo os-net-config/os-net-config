@@ -750,6 +750,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             data += "MTU=%i\n" % base_opt.mtu
         if base_opt.use_dhcpv6 or base_opt.v6_addresses():
             data += "IPV6INIT=yes\n"
+            keep_addr_sysctl = "net.ipv6.conf.default.keep_addr_on_down=1\n" +\
+                               "net.ipv6.conf.all.keep_addr_on_down=1"
+            common.write_sysctld_conf("90-v6_keep_addr.conf", keep_addr_sysctl)
             if base_opt.mtu:
                 data += "IPV6_MTU=%i\n" % base_opt.mtu
         if base_opt.use_dhcpv6:
