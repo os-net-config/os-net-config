@@ -942,3 +942,18 @@ def set_accept_ra_sysctl(iface, noop):
         if os.path.exists(filename):
             with open(filename, 'w') as f:
                 f.write("0")
+
+
+def set_keep_addr_sysctl(iface, noop):
+    """Set /proc/sys/net/ipv6/conf/<iface>/keep_addr_on_down """
+    filename = "/proc/sys/net/ipv6/conf/{}/keep_addr_on_down".format(iface)
+    logger.info(
+        "%s: Setting sysctl net.ipv6.conf.%s.keep_addr_on_down=1",
+        iface,
+        iface
+    )
+    if not noop:
+        # Set sysctl
+        if os.path.exists(filename):
+            with open(filename, 'w') as f:
+                f.write("1")
