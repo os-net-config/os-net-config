@@ -1,0 +1,40 @@
+# Set the fallback config such that the SSH is restored in case of
+# failures in configuring network_config.
+fallback_config:
+- type: interface
+  name: nic2
+  use_dhcp: false
+  addresses:
+  - ip_netmask: 192.168.122.100/24
+  routes:
+  - default: true
+    next_hop: 192.168.122.1
+
+# network_config will have the complete network configuration required
+network_config:
+- type: interface
+  name: nic2
+  use_dhcp: false
+  addresses:
+  - ip_netmask: 192.168.122.100/24
+  routes:
+  - default: true
+    next_hop: 192.168.122.1
+- type: sriov_pf
+  name: nic3
+  mtu: 9000
+  numvfs: 5
+  use_dhcp: false
+  defroute: false
+  nm_controlled: true
+  hotplug: true
+  drivers_autoprobe: true
+- type: sriov_pf
+  name: nic4
+  mtu: 9000
+  numvfs: 5
+  use_dhcp: false
+  defroute: false
+  nm_controlled: true
+  hotplug: true
+  drivers_autoprobe: true
