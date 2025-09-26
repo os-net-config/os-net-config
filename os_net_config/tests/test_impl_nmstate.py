@@ -16,6 +16,9 @@
 
 from libnmstate.schema import Ethernet
 from libnmstate.schema import Ethtool
+
+from libnmstate.schema import InterfaceType
+from libnmstate.schema import OVSBridge
 import os.path
 import random
 import tempfile
@@ -3346,3 +3349,292 @@ class TestNmstateNetConfigApply(base.TestCase):
         self.assertEqual(yaml.load(_BASE_IFACE_CFG_APPLIED,
                                    Loader=yaml.SafeLoader),
                          updated_files)
+
+
+class TestNmstateNetConfigDeviceRemoval(base.TestCase):
+
+    def setUp(self):
+        super(TestNmstateNetConfigDeviceRemoval, self).setUp()
+        self.provider = impl_nmstate.NmstateNetConfig()
+
+    def test_remove_devices_empty_list(self):
+        # Test with empty list
+        self.provider.remove_devices([])
+        # Should complete without errors
+
+    def test_remove_devices_ordered_processing(self):
+        # Test ordered processing of different device types
+        devices = [
+            objects.RemoveNetDevice('sriov-pf', 'sriov_pf'),
+            objects.RemoveNetDevice('bond0', 'linux_bond'),
+            objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port'),
+            objects.RemoveNetDevice('dpdkbond0', 'ovs_dpdk_bond'),
+            objects.RemoveNetDevice('ovsbond0', 'ovs_bond'),
+            objects.RemoveNetDevice('eth0', 'interface'),
+            objects.RemoveNetDevice('vlan10', 'vlan'),
+            objects.RemoveNetDevice('br0', 'ovs_bridge'),
+            objects.RemoveNetDevice('br-user', 'ovs_user_bridge'),
+            objects.RemoveNetDevice('vf0', 'sriov_vf')
+        ]
+
+        # Mock the processing method to track call order
+        processed_devices = []
+
+        def mock_process_device_removal(self, device):
+            processed_devices.append((device.remove_name, device.remove_type))
+            return
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.'
+            '_process_device_removal',
+            mock_process_device_removal)
+
+        # Mock backup functionality to avoid permission issues
+        self.stub_out('os.makedirs', lambda *args, **kwargs: None)
+        self.stub_out('os_net_config.utils.backup_map_files',
+                      lambda *args: None)
+
+        self.provider.remove_devices(devices)
+        # Verify devices were processed in correct order
+        expected_order = [
+            ('dpdk0', 'ovs_dpdk_port'),      # DPDK ports first
+            ('dpdkbond0', 'ovs_dpdk_bond'),  # DPDK bonds second
+            ('ovsbond0', 'ovs_bond'),        # Then OVS bonds
+            ('vlan10', 'vlan'),              # Then VLANs
+            ('eth0', 'interface'),           # Then interfaces
+            ('vf0', 'sriov_vf'),             # Then SR-IOV VFs
+            ('br0', 'ovs_bridge'),           # Then OVS bridges
+            ('br-user', 'ovs_user_bridge'),  # Then OVS user bridges
+            ('bond0', 'linux_bond'),         # Then linux bonds
+            ('sriov-pf', 'sriov_pf')         # Finally SR-IOV PFs
+        ]
+        self.assertEqual(processed_devices, expected_order)
+
+    def test_process_device_removal_noop_mode(self):
+        # Test noop mode
+        self.provider.noop = True
+        device = objects.RemoveNetDevice('eth0', 'interface')
+
+        # Should complete without actual processing
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_dpdk_port(self):
+        # Test DPDK port removal
+        device = objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_nmstate import RemoveDeviceNmstateData
+        device.provider_data = RemoveDeviceNmstateData(
+            dev_name='dpdk0',
+            dev_type=InterfaceType.OVS_INTERFACE,
+            pci_address=['0000:05:00.0']
+        )
+
+        def mock_remove_dpdk_interface(pci_address):
+            assert pci_address == '0000:05:00.0'
+
+        def mock_clean_iface(self, iface_name, nmstate_type):
+            assert iface_name == 'dpdk0'
+            assert nmstate_type == InterfaceType.OVS_INTERFACE
+
+        self.stub_out(
+            'os_net_config.utils.remove_dpdk_interface',
+            mock_remove_dpdk_interface)
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig._clean_iface',
+            mock_clean_iface)
+
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_dpdk_bond(self):
+        # Test DPDK bond removal
+        device = objects.RemoveNetDevice('dpdkbond0', 'ovs_dpdk_bond')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_nmstate import RemoveDeviceNmstateData
+        device.provider_data = RemoveDeviceNmstateData(
+            dev_name='dpdkbond0',
+            dev_type=InterfaceType.OVS_INTERFACE,
+            pci_address=['0000:05:00.0', '0000:06:00.0']
+        )
+
+        # Track which PCI addresses were removed
+        removed_pci_addresses = []
+
+        def mock_remove_dpdk_interface(pci_address):
+            removed_pci_addresses.append(pci_address)
+
+        def mock_clean_iface(self, iface_name, nmstate_type):
+            assert iface_name == 'dpdkbond0'
+            assert nmstate_type == InterfaceType.OVS_INTERFACE
+
+        self.stub_out(
+            'os_net_config.utils.remove_dpdk_interface',
+            mock_remove_dpdk_interface)
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig._clean_iface',
+            mock_clean_iface)
+
+        self.provider._process_device_removal(device)
+        # Verify both PCI addresses were processed
+        self.assertEqual(sorted(removed_pci_addresses),
+                         sorted(['0000:05:00.0', '0000:06:00.0']))
+
+    def test_process_device_removal_ovs_user_bridge(self):
+        # Test OVS user bridge removal
+        device = objects.RemoveNetDevice('br-user', 'ovs_user_bridge')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_nmstate import RemoveDeviceNmstateData
+        device.provider_data = RemoveDeviceNmstateData(
+            dev_name='br-user',
+            dev_type=OVSBridge.TYPE
+        )
+
+        def mock_clean_iface(self, iface_name, nmstate_type):
+            assert iface_name == 'br-user'
+            assert nmstate_type == OVSBridge.TYPE
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig._clean_iface',
+            mock_clean_iface)
+
+        self.provider._process_device_removal(device)
+
+    def test_remove_devices_with_backup(self):
+        # Test backup functionality when removing devices that require backup
+        devices = [
+            objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port'),
+            objects.RemoveNetDevice('eth0', 'sriov_pf')
+        ]
+
+        backup_called = False
+        backup_path_created = None
+
+        def mock_backup_map_files(backup_path):
+            nonlocal backup_called, backup_path_created
+            backup_called = True
+            backup_path_created = backup_path
+
+        def mock_makedirs(path, exist_ok=False):
+            pass
+
+        def mock_get_timestamp():
+            return "20240101_120000"
+
+        # Mock the backup functions
+        self.stub_out('os_net_config.utils.backup_map_files',
+                      mock_backup_map_files)
+        self.stub_out('os.makedirs', mock_makedirs)
+        self.stub_out('os_net_config.common.get_timestamp', mock_get_timestamp)
+
+        # Mock device processing to avoid actual operations
+        def mock_process_device_removal(self, device):
+            return
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.'
+            '_process_device_removal',
+            mock_process_device_removal)
+
+        result = self.provider.remove_devices(devices)
+
+        # Verify backup was called
+        self.assertTrue(backup_called)
+        self.assertIn("20240101_120000", backup_path_created)
+        self.assertEqual(0, result)
+
+    def test_remove_devices_no_backup_needed(self):
+        # Test no backup when devices don't require it
+        devices = [
+            objects.RemoveNetDevice('eth0', 'interface'),
+            objects.RemoveNetDevice('br0', 'ovs_bridge')
+        ]
+
+        backup_called = False
+
+        def mock_backup_map_files(backup_path):
+            nonlocal backup_called
+            backup_called = True
+
+        # Mock the backup function
+        self.stub_out('os_net_config.utils.backup_map_files',
+                      mock_backup_map_files)
+
+        # Mock device processing to avoid actual operations
+        def mock_process_device_removal(self, device):
+            return
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig.'
+            '_process_device_removal',
+            mock_process_device_removal)
+
+        result = self.provider.remove_devices(devices)
+
+        # Verify backup was NOT called
+        self.assertFalse(backup_called)
+        self.assertEqual(0, result)
+
+    def test_remove_devices_backup_noop_mode(self):
+        # Test backup intent logged but not executed in noop mode
+        self.provider.noop = True
+        devices = [objects.RemoveNetDevice('dpdk0', 'ovs_dpdk_port')]
+
+        backup_called = False
+
+        def mock_backup_map_files(backup_path):
+            nonlocal backup_called
+            backup_called = True
+
+        # Mock the backup function
+        self.stub_out('os_net_config.utils.backup_map_files',
+                      mock_backup_map_files)
+
+        self.provider.remove_devices(devices)
+
+        # Verify backup was NOT called in noop mode
+        self.assertFalse(backup_called)
+
+    def test_process_device_removal_sriov_pf(self):
+        # Test SR-IOV PF removal
+        device = objects.RemoveNetDevice('eth0', 'sriov_pf')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_nmstate import RemoveDeviceNmstateData
+        device.provider_data = RemoveDeviceNmstateData(
+            dev_name='eth0',
+            dev_type=InterfaceType.ETHERNET
+        )
+
+        def mock_remove_entries_for_sriov_dev(pfname):
+            assert pfname == 'eth0'
+
+        def mock_clean_iface(self, iface_name, nmstate_type):
+            assert iface_name == 'eth0'
+            assert nmstate_type == InterfaceType.ETHERNET
+
+        self.stub_out(
+            'os_net_config.utils.remove_entries_for_sriov_dev',
+            mock_remove_entries_for_sriov_dev)
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig._clean_iface',
+            mock_clean_iface)
+
+        self.provider._process_device_removal(device)
+
+    def test_process_device_removal_with_errors(self):
+        # Test that device removal returns 1 when an error occurs
+        device = objects.RemoveNetDevice('failing_device', 'interface')
+        # Set provider_data so the device is actually processed
+        from os_net_config.impl_nmstate import RemoveDeviceNmstateData
+        device.provider_data = RemoveDeviceNmstateData(
+            dev_name='failing_device',
+            dev_type=InterfaceType.ETHERNET
+        )
+
+        def mock_clean_iface(self, iface_name, nmstate_type):
+            raise RuntimeError("Simulated removal failure")
+
+        self.stub_out(
+            'os_net_config.impl_nmstate.NmstateNetConfig._clean_iface',
+            mock_clean_iface)
+
+        # Should raise exception when removal fails
+        self.assertRaises(RuntimeError,
+                          self.provider._process_device_removal,
+                          device)
