@@ -1269,13 +1269,16 @@ def ethtool_path():
 
 def sysctl_path():
     """Find 'sysctl' executable."""
+    if common.get_noop():
+        return "/sbin/sysctl"
+
     if os.access('/sbin/sysctl', os.X_OK):
         sysctlcmd = '/sbin/sysctl'
     elif os.access('/usr/sbin/sysctl', os.X_OK):
         sysctlcmd = '/usr/sbin/sysctl'
     else:
         logger.warning("Could not execute /sbin/sysctl or /usr/sbin/sysctl")
-        return False
+        return ""
     return sysctlcmd
 
 

@@ -236,6 +236,11 @@ class TestNmstateNetConfig(base.TestCase):
         common.DPDK_MAPPING_FILE = '/tmp/dpdk_mapping.yaml'
         common.SRIOV_CONFIG_FILE = '/tmp/sriov_config.yaml'
 
+        def sysctl_path_stub():
+            return "/sbin/sysctl"
+        self.stub_out('os_net_config.utils.sysctl_path',
+                      sysctl_path_stub)
+
         self.stub_out("os_net_config.common.interface_mac",
                       generate_random_mac)
         impl_nmstate.DISPATCHER_SCRIPT_PREFIX = ""
