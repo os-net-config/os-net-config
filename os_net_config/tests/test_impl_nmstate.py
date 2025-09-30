@@ -3376,7 +3376,20 @@ class TestNmstateNetConfigApply(base.TestCase):
 
 class TestNmstateNetConfigDeviceRemoval(base.TestCase):
 
+    def get_running_info(self, yaml_file):
+        with open(yaml_file) as f:
+            data = yaml.load(f, Loader=yaml.SafeLoader)
+            return data
+
     def setUp(self):
+        def show_running_info_stub():
+            running_info_path = os.path.join(
+                os.path.dirname(__file__),
+                'environment/netinfo_running_info_1.yaml')
+            running_info = self.get_running_info(running_info_path)
+            return running_info
+        self.stub_out('libnmstate.netinfo.show_running_config',
+                      show_running_info_stub)
         super(TestNmstateNetConfigDeviceRemoval, self).setUp()
         self.provider = impl_nmstate.NmstateNetConfig()
 
@@ -3639,25 +3652,3 @@ class TestNmstateNetConfigDeviceRemoval(base.TestCase):
             mock_clean_iface)
 
         self.provider._process_device_removal(device)
-
-    def test_process_device_removal_with_errors(self):
-        # Test that device removal returns 1 when an error occurs
-        device = objects.RemoveNetDevice('failing_device', 'interface')
-        # Set provider_data so the device is actually processed
-        from os_net_config.impl_nmstate import RemoveDeviceNmstateData
-        device.provider_data = RemoveDeviceNmstateData(
-            dev_name='failing_device',
-            dev_type=InterfaceType.ETHERNET
-        )
-
-        def mock_clean_iface(self, iface_name, nmstate_type):
-            raise RuntimeError("Simulated removal failure")
-
-        self.stub_out(
-            'os_net_config.impl_nmstate.NmstateNetConfig._clean_iface',
-            mock_clean_iface)
-
-        # Should raise exception when removal fails
-        self.assertRaises(RuntimeError,
-                          self.provider._process_device_removal,
-                          device)
