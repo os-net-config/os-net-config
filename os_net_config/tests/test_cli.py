@@ -976,3 +976,515 @@ class TestCli(base.TestCase):
         self.assertEqual(len(rm_cfg), 2)
         if os.path.exists(temp_path):
             os.remove(temp_path)
+
+    def test_safe_fallback_no_config(self):
+        """Test safe_fallback when no fallback_config is provided."""
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=None,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.SUCCESS)
+
+    def test_safe_fallback_empty_config(self):
+        """Test safe_fallback with empty fallback_config."""
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=[],
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.SUCCESS)
+
+    def test_safe_fallback_long_config(self):
+        """Test safe_fallback with empty fallback_config."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            },
+            {
+                "type": "interface",
+                "name": "eth1",
+                "use_dhcp": True
+            },
+            {
+                "type": "interface",
+                "name": "eth2",
+                "use_dhcp": True
+            }
+        ]
+
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=fallback_config,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.FALLBACK_FAILED)
+
+    def test_safe_fallback_success(self):
+        """Test safe_fallback with valid config returns success."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        def mock_config_provider(*args, **kwargs):
+            return ExitCode.SUCCESS
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=fallback_config,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.SUCCESS)
+
+    def test_safe_fallback_success_with_config_changed(self):
+        """Test safe_fallback when config_provider returns 2."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        def mock_config_provider(*args, **kwargs):
+            return ExitCode.FILES_CHANGED
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=fallback_config,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.SUCCESS)
+
+    def test_safe_fallback_failure(self):
+        """Test safe_fallback when config_provider fails."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        def mock_config_provider(*args, **kwargs):
+            return ExitCode.ERROR
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        ret = cli.safe_fallback(
+            provider="ifcfg",
+            fb_config=fallback_config,
+            no_activate=False,
+            root_dir="",
+            noop=False
+        )
+        self.assertEqual(ret, ExitCode.FALLBACK_FAILED)
+
+    def test_safe_fallback_calls_config_provider_correctly(self):
+        """Test that safe_fallback calls config_provider correctly."""
+        fallback_config = [
+            {
+                "type": "interface",
+                "name": "eth0",
+                "use_dhcp": True
+            }
+        ]
+
+        called_args = []
+
+        def mock_config_provider(*args, **kwargs):
+            called_args.extend(args)
+            return ExitCode.SUCCESS
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+
+        cli.safe_fallback(
+            provider="nmstate",
+            fb_config=fallback_config,
+            no_activate=True,
+            root_dir="/tmp",
+            noop=True
+        )
+
+        expected_args = [
+            "nmstate",
+            "fallback_config",
+            fallback_config,
+            "/tmp",
+            True,
+            True,
+            False
+        ]
+        self.assertEqual(called_args, expected_args)
+
+    def test_get_iface_config_fallback_section(self):
+        """Test get_iface_config can extract fallback_config section."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_fallback_config.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            # Test extracting fallback_config
+            result = cli.get_iface_config(
+                'fallback_config', config_file, {}, False
+            )
+            expected = [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True,
+                    'nic_mapping': {},
+                    'persist_mapping': False,
+                }
+            ]
+            self.assertEqual(result, expected)
+
+            # Test extracting network_config still works
+            result = cli.get_iface_config(
+                'network_config', config_file, {}, False
+            )
+            expected = [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True,
+                    'nic_mapping': {},
+                    'persist_mapping': False,
+                }
+            ]
+            self.assertEqual(result, expected)
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_get_iface_config_missing_fallback_section(self):
+        """Test get_iface_config returns empty list for missing fallback."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_missing_fallback.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        try:
+            result = cli.get_iface_config(
+                'fallback_config', config_file, {}, False
+            )
+            self.assertEqual(result, [])
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_with_fallback_on_failure(self):
+        """Test main function triggers fallback when network_config fails."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_fallback.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            if section == "network_config":
+                return ExitCode.ERROR  # Simulate failure
+            elif section == "fallback_config":
+                return ExitCode.SUCCESS  # Simulate success
+            return ExitCode.SUCCESS
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg',
+                '--detailed-exit-codes'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return NETWORK_CONFIG_FAILED because fallback recovered
+            self.assertEqual(ret, ExitCode.NETWORK_CONFIG_FAILED)
+
+            # Should have called config_provider twice: once for
+            # network_config, once for fallback
+            self.assertEqual(len(config_provider_calls), 2)
+
+            # First call should be for network_config
+            self.assertEqual(config_provider_calls[0][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+            # Second call should be for fallback_config
+            self.assertEqual(config_provider_calls[1][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[1][1], 'fallback_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_no_fallback_on_success(self):
+        """Test main function does not trigger fallback on success."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_no_fallback.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            return ExitCode.SUCCESS  # Always succeed
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return SUCCESS because network_config succeeded
+            self.assertEqual(ret, ExitCode.SUCCESS)
+
+            # Should have called config_provider only once for network_config
+            self.assertEqual(len(config_provider_calls), 1)
+
+            # Should be network_config only
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_fallback_without_fallback_config(self):
+        """Test main function when network_config fails but no fallback."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_no_fallback_section.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            if section == "network_config":
+                return ExitCode.ERROR  # Simulate failure
+            return ExitCode.SUCCESS
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return ERROR because network_config failed and
+            # fallback failed too
+            self.assertEqual(ret, ExitCode.ERROR)
+
+            # Should have called config_provider only once for network_config
+            # (fallback won't call config_provider if no fallback_config)
+            self.assertEqual(len(config_provider_calls), 1)
+
+            # Should be network_config only
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
+    def test_main_fallback_fails_when_fallback_config_fails(self):
+        """Test main when both network_config and fallback_config fail."""
+        config_data = {
+            'network_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth0',
+                    'use_dhcp': True
+                }
+            ],
+            'fallback_config': [
+                {
+                    'type': 'interface',
+                    'name': 'eth1',
+                    'use_dhcp': True
+                }
+            ]
+        }
+
+        config_file = '/tmp/test_main_fallback_fails.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            # Both network_config and fallback_config fail
+            return ExitCode.ERROR
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg',
+                '--detailed-exit-codes'
+            ]
+
+            ret = cli.main(argv)
+
+            # Should return FALLBACK_FAILED because fallback also failed
+            self.assertEqual(
+                ret,
+                ExitCode.FALLBACK_FAILED | ExitCode.NETWORK_CONFIG_FAILED
+            )
+
+            # Should have called config_provider twice: once for
+            # network_config, once for fallback
+            self.assertEqual(len(config_provider_calls), 2)
+
+            # First call should be for network_config
+            self.assertEqual(config_provider_calls[0][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[0][1], 'network_config')
+
+            # Second call should be for fallback_config
+            self.assertEqual(config_provider_calls[1][0], 'ifcfg')
+            self.assertEqual(config_provider_calls[1][1], 'fallback_config')
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
