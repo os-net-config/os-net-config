@@ -213,8 +213,12 @@ def main(argv=sys.argv, main_logger=None):
         main_logger = common.configure_logger(log_file=not opts.noop)
     common.logger_level(main_logger, opts.verbose, opts.debug)
     main_logger.info("Using config file at: %s", opts.config_file)
-    iface_array = []
-    remove_config = []
+
+    config_data = {
+        "remove_config": [],
+        "network_config": [],
+        "fallback_config": [],
+    }
 
     # Read the interface mapping file, if it exists
     # This allows you to override the default network naming abstraction
@@ -271,24 +275,28 @@ def main(argv=sys.argv, main_logger=None):
         print(json.dumps(reported_nics))
         return onc_ret_code
 
-    # Parse the remove_config section first
-    try:
-        remove_config = get_iface_config(
-            "remove_config",
-            opts.config_file,
-            iface_mapping,
-            persist_mapping,
-            strict_validate=opts.exit_on_validation_errors
-        )
-    except objects.InvalidConfigException as e:
-        main_logger.error("Schema validation failed for remove_config\n%s", e)
-        return get_exit_code(
-            opts.detailed_exit_codes,
-            onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED
-        )
+    for section in config_data.keys():
+        try:
+            config_data[section] = get_iface_config(
+                section,
+                opts.config_file,
+                iface_mapping,
+                persist_mapping,
+                strict_validate=opts.exit_on_validation_errors,
+            )
+        except objects.InvalidConfigException as e:
+            main_logger.error(
+                "%s: Schema validation failed with error: \n%s", section, e
+            )
+            return get_exit_code(
+                opts.detailed_exit_codes,
+                onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED
+            )
 
-    if remove_config:
-        ret_code = apply_remove_config(remove_config, opts.root_dir, opts.noop)
+    if config_data["remove_config"]:
+        ret_code = apply_remove_config(
+            config_data["remove_config"], opts.root_dir, opts.noop
+        )
         if ret_code == ExitCode.REMOVE_CONFIG_FAILED:
             main_logger.error("Failed to apply remove_config")
             return get_exit_code(
@@ -298,39 +306,11 @@ def main(argv=sys.argv, main_logger=None):
         else:
             main_logger.info("remove_config applied successfully")
 
-    try:
-        iface_array = get_iface_config(
-            "network_config",
-            opts.config_file,
-            iface_mapping,
-            persist_mapping,
-            strict_validate=opts.exit_on_validation_errors,
+    if not config_data["network_config"]:
+        return get_exit_code(
+            opts.detailed_exit_codes,
+            onc_ret_code | ExitCode.ERROR
         )
-    except objects.InvalidConfigException as e:
-        main_logger.error(
-            "Schema validation failed for network_config with error: \n%s", e
-        )
-        return get_exit_code(opts.detailed_exit_codes,
-                             onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED)
-
-    if not iface_array:
-        return get_exit_code(opts.detailed_exit_codes,
-                             onc_ret_code | ExitCode.ERROR)
-
-    try:
-        fb_config = get_iface_config(
-            "fallback_config",
-            opts.config_file,
-            iface_mapping,
-            persist_mapping,
-            strict_validate=opts.exit_on_validation_errors,
-        )
-    except objects.InvalidConfigException as e:
-        main_logger.error(
-            "Schema validation failed for fallback_config\n%s", e)
-        return get_exit_code(opts.detailed_exit_codes,
-                             onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED)
-
     # Reset the DCB Config during rerun.
     # This is required to apply the new values and clear the old ones
     if utils.is_dcb_config_required():
@@ -339,19 +319,19 @@ def main(argv=sys.argv, main_logger=None):
     if opts.purge_provider:
         purge_ret = unconfig_provider(
             opts.purge_provider,
-            iface_array,
+            config_data["network_config"],
             opts.root_dir,
             opts.noop
         )
         onc_ret_code |= purge_ret
         if purge_ret == ExitCode.PURGE_FAILED:
             main_logger.error(
-                "%s: Failed to purge provider", opts.purge_provider
+                "%s: Purge provider failed", opts.purge_provider
             )
             return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
         else:
             main_logger.info(
-                "%s: Purged provider successfully", opts.purge_provider
+                "%s: Purge provider completed", opts.purge_provider
             )
 
     if not opts.provider:
@@ -367,52 +347,52 @@ def main(argv=sys.argv, main_logger=None):
                               "system.")
             return get_exit_code(opts.detailed_exit_codes,
                                  onc_ret_code | ExitCode.ERROR)
-    logger.info("%s: Applying network_config section", opts.provider)
-    ret_code = config_provider(
-        opts.provider,
-        "network_config",
-        iface_array,
-        opts.root_dir,
-        opts.noop,
-        opts.no_activate,
-        opts.cleanup,
-    )
-    if ret_code == ExitCode.ERROR:
-        logger.error(
-            "%s: Failed to configure network_config. ",
+
+    if config_data["network_config"]:
+        logger.info("%s: Applying network config", opts.provider)
+
+        ret_code = config_provider(
             opts.provider,
-        )
-        onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
-        ret_code = safe_fallback(
-            opts.provider,
-            fb_config,
-            opts.no_activate,
+            "network_config",
+            config_data["network_config"],
             opts.root_dir,
-            opts.noop
+            opts.noop,
+            opts.no_activate,
+            opts.cleanup,
         )
-        onc_ret_code |= ret_code
-        return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
-    else:
-        onc_ret_code |= ret_code
-        main_logger.info(
-            "%s: Configured network_config successfully", opts.provider
-        )
+        if ret_code == ExitCode.ERROR:
+            main_logger.error("%s: Network config failed", opts.provider)
+            onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
+            ret_code = safe_fallback(
+                opts.provider,
+                config_data["fallback_config"],
+                opts.no_activate,
+                opts.root_dir,
+                opts.noop
+            )
+            onc_ret_code |= ret_code
+            return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
+        else:
+            onc_ret_code |= ret_code
+            main_logger.info("%s: Network config completed", opts.provider)
 
-    # If the configuration is successful, apply the DCB config
-    if has_failures(onc_ret_code) is False:
-        if utils.is_dcb_config_required():
-
+        # If the configuration is successful, apply the DCB config
+        if has_failures(onc_ret_code) is False and \
+            utils.is_dcb_config_required():
             # Apply the DCB Config
             try:
                 from os_net_config import dcb_config
             except ImportError as e:
-                logger.error("cannot apply DCB configuration: %s", e)
-                return (onc_ret_code | ExitCode.DCB_CONFIG_FAILED)
+                logger.error("DCB configuration failed: %s", e)
+                return get_exit_code(
+                    opts.detailed_exit_codes,
+                    onc_ret_code | ExitCode.DCB_CONFIG_FAILED
+                )
 
             utils.configure_dcb_config_service()
             dcb_apply = dcb_config.DcbApplyConfig()
             dcb_apply.apply()
-
+            main_logger.info("%s: DCB config completed", opts.provider)
     return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
 
 
@@ -686,7 +666,6 @@ def get_iface_config(
         try:
             with open(config_file) as cf:
                 iface_array = yaml.safe_load(cf.read()).get(config_name)
-                common.print_config(iface_array, config_name)
         except IOError:
             logger.error("Error reading file: %s", config_file)
             return []
@@ -694,15 +673,18 @@ def get_iface_config(
             logger.error("Invalid YAML in config file %s: %s", config_file, e)
             return []
     else:
-        logger.error("No config file exists at: %s", config_file)
+        logger.error("The config file %s is not found", config_file)
         return []
 
     if not isinstance(iface_array, list):
-        logger.error(
-            "No interfaces defined in config: %s", config_file
+        logger.info(
+            "interfaces are not defined in %s section of %s",
+            config_name,
+            config_file
         )
         return []
 
+    common.print_config(iface_array, config_name)
     validation_errors = validator.validate_config(iface_array)
     if validation_errors:
         if strict_validate:
