@@ -2959,6 +2959,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
             for device in devices_of_type:
                 self._process_device_removal(device)
+
+        self.execute("Reloading network", "nmcli", "connection", "reload")
         return ExitCode.SUCCESS
 
     def phy_dev_up(self, interface):

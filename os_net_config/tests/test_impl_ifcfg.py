@@ -3562,6 +3562,11 @@ class TestIfcfgNetConfigDeviceRemoval(base.TestCase):
             'os_net_config.impl_ifcfg.IfcfgNetConfig._process_device_removal',
             mock_process_device_removal)
 
+        # Mock execute method to avoid nmcli command execution
+        def mock_execute(*args, **kwargs):
+            return
+        self.stub_out('os_net_config.NetConfig.execute', mock_execute)
+
         self.provider.noop = False
         self.provider.remove_devices(devices)
 
@@ -3592,6 +3597,11 @@ class TestIfcfgNetConfigDeviceRemoval(base.TestCase):
         self.stub_out(
             'os_net_config.impl_ifcfg.IfcfgNetConfig._process_device_removal',
             mock_process_device_removal)
+
+        # Mock execute method to avoid nmcli command execution
+        def mock_execute(*args, **kwargs):
+            return
+        self.stub_out('os_net_config.NetConfig.execute', mock_execute)
 
         self.provider.noop = False
         self.provider.remove_devices(devices)
