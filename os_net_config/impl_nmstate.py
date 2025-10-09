@@ -1191,7 +1191,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.migration_enabled = True
         logger.info("nmstate: Migration is enabled.")
 
-    def _add_common(self, base_opt):
+    def _add_common(self, base_opt, ipv6_dispatch_scripts=True):
         """Add common atrributes of the interface
 
         Add the common attributes of networks like IPv4, IPv6 addresses,
@@ -1199,6 +1199,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         :param base_opt: The network object that has the device configs
             defined in the form objects._BaseOpts
+        :param ipv6_dispatch_scripts: Whether to add IPv6 dispatch scripts
+            for OVS interfaces and OVS bridges
         """
         data = {Interface.IPV4: {InterfaceIPv4.ENABLED: False},
                 Interface.IPV6: {InterfaceIPv6.ENABLED: False},
@@ -1273,14 +1275,17 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     data[Interface.IPV6][InterfaceIPv6.ADDRESS].append(
                         v6ip_netmask)
                 # Set keep_addr_on_down sysctl when using static IPv6 IPs
-                _name = base_opt.name
-                sysctl_script = SYSCTL_SCRIPT.format(
-                    sysctl_cmd=utils.sysctl_path(),
-                    sysctl_setting=f"net.ipv6.conf.{_name}.keep_addr_on_down=1"
-                )
-                self.add_dispatch_script(
-                    data, POST_ACTIVATION, sysctl_script
-                )
+                # Skip OVS interfaces and OVS bridges
+                if ipv6_dispatch_scripts:
+                    _name = base_opt.name
+                    sysctl_script = SYSCTL_SCRIPT.format(
+                        sysctl_cmd=utils.sysctl_path(),
+                        sysctl_setting=f"net.ipv6.conf.{_name}."
+                        f"keep_addr_on_down=1"
+                    )
+                    self.add_dispatch_script(
+                        data, POST_ACTIVATION, sysctl_script
+                    )
 
         if base_opt.dhclient_args:
             msg = "DHCP Client args not supported in impl_nmstate, ignoring"
@@ -2196,7 +2201,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             bridge.domain.clear()
         if bridge.mtu:
             bridge.mtu = None
-        data = self._add_common(bridge)
+        data = self._add_common(bridge, ipv6_dispatch_scripts=False)
 
         data[Interface.TYPE] = OVSBridge.TYPE
         # address bits can't be on the ovs-bridge
@@ -2381,7 +2386,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self._clean_iface(ovs_patch_port.name, OVSInterface.TYPE)
 
         logger.info("%s: adding ovs patch port", ovs_patch_port.name)
-        data = self._add_common(ovs_patch_port)
+        data = self._add_common(ovs_patch_port, ipv6_dispatch_scripts=False)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
         data[OVSInterface.PATCH_CONFIG_SUBTREE] = \
@@ -2400,7 +2405,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self._clean_iface(ovs_interface.name, OVSInterface.TYPE)
 
         logger.info("%s: adding ovs interface", ovs_interface.name)
-        data = self._add_common(ovs_interface)
+        data = self._add_common(ovs_interface, ipv6_dispatch_scripts=False)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
@@ -2433,7 +2438,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         # checks are added at the object creation stage.
         ifname = ovs_dpdk_port.members[0].name
 
-        data = self._add_common(ovs_dpdk_port)
+        data = self._add_common(ovs_dpdk_port, ipv6_dispatch_scripts=False)
         data[Interface.TYPE] = OVSInterface.TYPE
         data[Interface.STATE] = InterfaceState.UP
 
