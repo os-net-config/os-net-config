@@ -3329,6 +3329,7 @@ class TestNmstateNetConfigApply(base.TestCase):
         super(TestNmstateNetConfigApply, self).setUp()
         common.set_noop(True)
         impl_nmstate.CONFIG_RULES_FILE = "/tmp/nmstate_files/rules.yaml"
+        impl_nmstate.DISPATCHER_SCRIPT_PREFIX = ""
 
         def test_iface_state(iface_data='', verify_change=True):
             # This function returns None
