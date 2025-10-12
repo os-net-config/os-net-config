@@ -234,9 +234,10 @@ def main(argv=sys.argv, main_logger=None):
 
     # If --interfaces is specified, either return the real name of the
     # interfaces specified, or return the map of all nic abstractions/names.
+    # update the nic mapping initially, so that it is consistent throughout
+    mapped_nics = objects.mapped_nics(iface_mapping)
     if opts.interfaces is not None:
         reported_nics = {}
-        mapped_nics = objects.mapped_nics(iface_mapping)
         if len(opts.interfaces) > 0:
             for requested_nic in opts.interfaces:
                 found = False

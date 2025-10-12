@@ -2264,4 +2264,5 @@ class RemoveNetDevice(object):
                                           'remove_name', 'RemoveNetDevice')
         remove_type = _get_required_field(json,
                                           'remove_type', 'RemoveNetDevice')
-        return RemoveNetDevice(remove_name, remove_type)
+        nic_mapping = json.get('nic_mapping')
+        return RemoveNetDevice(remove_name, remove_type, nic_mapping)
