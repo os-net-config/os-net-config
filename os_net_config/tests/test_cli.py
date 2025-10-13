@@ -977,6 +977,74 @@ class TestCli(base.TestCase):
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+    def test_parse_opts_remove_config_flag(self):
+        """Test that --remove-config flag is parsed correctly"""
+        opts = cli.parse_opts(['os-net-config', '--remove-config'])
+        self.assertTrue(opts.remove_config)
+
+    def test_remove_config_entry_requires_flag(self):
+        """Test that remove_config processing requires --remove-config flag"""
+        # Config with only remove_config section
+        config_data = {
+            'remove_config': [
+                {'remove_type': 'interface', 'remove_name': 'eth1'}
+            ],
+            'network_config': [
+                {'type': 'interface', 'name': 'nic1', 'use_dhcp': True}
+            ]
+        }
+        config_file = '/tmp/test_remove_config_entry.yaml'
+
+        with open(config_file, 'w') as f:
+            yaml.dump(config_data, f)
+
+        config_provider_calls = []
+
+        def mock_config_provider(provider, section, config, *args, **kwargs):
+            config_provider_calls.append((provider, section, config))
+            if section == "network_config":
+                return ExitCode.SUCCESS  # Simulate failure
+            elif section == "remove_config":
+                return ExitCode.SUCCESS  # Simulate success
+            return ExitCode.SUCCESS
+
+        def mock_is_dcb_config_required():
+            return False
+
+        self.stub_out('os_net_config.cli.config_provider',
+                      mock_config_provider)
+        self.stub_out('os_net_config.utils.is_dcb_config_required',
+                      mock_is_dcb_config_required)
+        try:
+            # Simulate CLI args
+            argv = [
+                'os-net-config',
+                '--config-file', config_file,
+                '--provider', 'ifcfg',
+                '--detailed-exit-codes'
+            ]
+
+            ret = cli.main(argv)
+            self.assertEqual(ret, ExitCode.SUCCESS)
+
+            # Should have called config_provider only once for network_config
+            # (won't call config_provider if no remove-config flag enabled)
+            self.assertEqual(len(config_provider_calls), 1)
+
+            # Test WITH --remove-config flag - should process remove_config
+            stdout, stderr = self.run_cli(
+                'ARG0 --remove-config --exit-on-validation-errors '
+                '-c %s' % config_file,
+                exitcodes=(ExitCode.SUCCESS,)
+            )
+            # Should successfully process remove_config
+            self.assertEqual('', stderr)
+            self.assertEqual(len(config_provider_calls), 2)
+
+        finally:
+            if os.path.exists(config_file):
+                os.remove(config_file)
+
     def test_safe_fallback_no_config(self):
         """Test safe_fallback when no fallback_config is provided."""
         ret = cli.safe_fallback(
