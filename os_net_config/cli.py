@@ -136,6 +136,14 @@ def parse_opts(argv):
              "(WARNING, permanently renames nics).",
         required=False)
 
+    parser.add_argument(
+        '--remove-config',
+        dest="remove_config",
+        action='store_true',
+        help="""Parse and apply the remove_config section in input. """
+             """Disabled by default.""",
+        required=False)
+
     opts = parser.parse_args(argv[1:])
 
     return opts
@@ -271,32 +279,44 @@ def main(argv=sys.argv, main_logger=None):
         print(json.dumps(reported_nics))
         return onc_ret_code
 
-    # Parse the remove_config section first
-    try:
-        remove_config = get_iface_config(
-            "remove_config",
-            opts.config_file,
-            iface_mapping,
-            persist_mapping,
-            strict_validate=opts.exit_on_validation_errors
-        )
-    except objects.InvalidConfigException as e:
-        main_logger.error("Schema validation failed for remove_config\n%s", e)
-        return get_exit_code(
-            opts.detailed_exit_codes,
-            onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED
-        )
-
-    if remove_config:
-        ret_code = apply_remove_config(remove_config, opts.root_dir, opts.noop)
-        if ret_code == ExitCode.REMOVE_CONFIG_FAILED:
-            main_logger.error("Failed to apply remove_config")
+    # If enabled, parse the remove_config section first
+    if opts.remove_config:
+        try:
+            remove_config = get_iface_config(
+                "remove_config",
+                opts.config_file,
+                iface_mapping,
+                persist_mapping,
+                strict_validate=opts.exit_on_validation_errors
+            )
+        except objects.InvalidConfigException as e:
+            main_logger.error(
+                "Schema validation failed for remove_config\n%s", e)
             return get_exit_code(
                 opts.detailed_exit_codes,
-                onc_ret_code | ExitCode.REMOVE_CONFIG_FAILED
+                onc_ret_code | ExitCode.SCHEMA_VALIDATION_FAILED
             )
+
+        if remove_config:
+            ret_code = apply_remove_config(
+                remove_config, opts.root_dir, opts.noop)
+            if ret_code == ExitCode.REMOVE_CONFIG_FAILED:
+                main_logger.error("Failed to apply remove_config")
+                return get_exit_code(
+                    opts.detailed_exit_codes,
+                    onc_ret_code | ExitCode.REMOVE_CONFIG_FAILED
+                )
+            else:
+                main_logger.info("remove_config applied successfully")
         else:
-            main_logger.info("remove_config applied successfully")
+            onc_ret_code |= ExitCode.REMOVE_CONFIG_FAILED
+            main_logger.error(
+               "--remove-config flag provided, but no 'remove_config' section "
+               "found in '%s'. Please add a 'remove_config' section with device "
+               "entries or remove the --remove-config flag. "
+               "Proceeding with further section(s) of config.",
+                opts.config_file
+            )
 
     try:
         iface_array = get_iface_config(
@@ -698,8 +718,8 @@ def get_iface_config(
         return []
 
     if not isinstance(iface_array, list):
-        logger.error(
-            "No interfaces defined in config: %s", config_file
+        logger.info(
+            "%s: No interfaces defined in config %s", config_name, config_file
         )
         return []
 
