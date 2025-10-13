@@ -178,6 +178,15 @@ def parse_opts(argv):
              "(WARNING, permanently renames nics).",
         required=False)
 
+    parser.add_argument(
+        '--remove-config',
+        dest="remove_config",
+        action='store_true',
+        help="""Apply remove_config section before applying network_config."""
+        """ This is useful to clean previously configured interfaces. """
+        """Disabled by default.""",
+        required=False)
+
     opts = parser.parse_args(argv[1:])
 
     return opts
@@ -336,17 +345,33 @@ def main(argv=sys.argv, main_logger=None):
             )
 
     if config_data["remove_config"]:
-        ret_code = apply_remove_config(
-            config_data["remove_config"], opts.root_dir, opts.noop
-        )
-        if ret_code == ExitCode.REMOVE_CONFIG_FAILED:
-            main_logger.error("Failed to apply remove_config")
-            return get_exit_code(
-                opts.detailed_exit_codes,
-                onc_ret_code | ExitCode.REMOVE_CONFIG_FAILED
+        if opts.remove_config:
+            ret_code = apply_remove_config(
+                config_data["remove_config"], opts.root_dir, opts.noop
             )
+            if ret_code == ExitCode.REMOVE_CONFIG_FAILED:
+                main_logger.error("Failed to apply remove_config")
+                return get_exit_code(
+                    opts.detailed_exit_codes,
+                    onc_ret_code | ExitCode.REMOVE_CONFIG_FAILED
+                )
+            else:
+                main_logger.info("remove_config applied successfully")
         else:
-            main_logger.info("remove_config applied successfully")
+            onc_ret_code |= ExitCode.REMOVE_CONFIG_FAILED
+            main_logger.warning(
+                "--remove-config flag not set, so skipping 'remove_config' "
+                "section. Proceeding with further section(s) of config file."
+            )
+    else:
+        if opts.remove_config:
+            main_logger.warning(
+                "--remove-config flag is set, but no 'remove_config' section "
+                "found in '%s'. Please add 'remove_config' section with device"
+                " entries or unset the --remove-config flag."
+                "Proceeding with further section(s) of config.",
+                opts.config_file
+            )
 
     if not config_data["network_config"]:
         return get_exit_code(
