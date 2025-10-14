@@ -2468,9 +2468,13 @@ class TestIfcfgNetConfigApply(base.TestCase):
 
     def tearDown(self):
         self.temp_ifcfg_file.close()
+        self.temp_bond_file.close()
         self.temp_route_file.close()
         self.temp_route6_file.close()
+        self.temp_route_table_file.close()
+        self.temp_rule_file.close()
         self.temp_bridge_file.close()
+        self.temp_sysctl_file.close()
         if os.path.exists(self.temp_cleanup_file.name):
             self.temp_cleanup_file.close()
         super(TestIfcfgNetConfigApply, self).tearDown()
