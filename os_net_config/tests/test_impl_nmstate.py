@@ -309,6 +309,8 @@ class TestNmstateNetConfig(base.TestCase):
                       test_bind_dpdk_interfaces)
 
     def tearDown(self):
+        # Close temporary files before cleanup
+        self.temp_route_table_file.close()
         super(TestNmstateNetConfig, self).tearDown()
         if os.path.isfile(common.SRIOV_CONFIG_FILE):
             os.remove(common.SRIOV_CONFIG_FILE)
