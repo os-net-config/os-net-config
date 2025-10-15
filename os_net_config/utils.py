@@ -612,12 +612,11 @@ def get_interface_maxmtu(name):
     """
     noop = common.get_noop()
     cmd = ['ip', '-d', '-j', 'link', 'show', name]
-    logger.info("%s: running %s", name, " ".join(cmd))
     if not noop:
         try:
             out, err = processutils.execute(*cmd)
             if err:
-                logger.error("Failed to get interface mtu : %s", err)
+                logger.info("%s: Unable to get max_mtu : %s", name, err)
                 return -1
             if out:
                 data = json.loads(out)
@@ -626,7 +625,14 @@ def get_interface_maxmtu(name):
                     logger.debug("%s: Max MTU supported is %s", name, maxmtu)
                     return maxmtu
         except processutils.ProcessExecutionError as exc:
-            logger.debug("%s: Failed to execute cmnd %s\n%s", name, cmd, exc)
+            # Check if the error is due to device not existing
+            if 'does not exist' in str(exc).lower():
+                logger.info(
+                    "%s: Interface does not exist, skipping MTU validation",
+                    name
+                )
+            else:
+                logger.info("%s: Unable to get max_mtu, error: %s", name, exc)
             return -1
     return -1
 
