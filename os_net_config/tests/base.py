@@ -15,6 +15,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import gc
+import logging
 import os
 
 import fixtures
@@ -74,4 +76,13 @@ class TestCase(testtools.TestCase):
         self.useFixture(fixtures.MonkeyPatch(old, new))
 
     def tearDown(self):
+        # Close all logger handlers before cleanup to prevent file access
+        # issues during temporary file cleanup
+        logger = logging.getLogger("os_net_config")
+        for handler in logger.handlers[:]:
+            handler.close()
+            logger.removeHandler(handler)
+        # Force garbage collection to clean up any temporary files before
+        # the NestedTempfile fixture deletes the temp directory
+        gc.collect()
         super(TestCase, self).tearDown()
