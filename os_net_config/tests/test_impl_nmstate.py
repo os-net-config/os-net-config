@@ -1341,6 +1341,71 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertCountEqual(yaml.safe_load(expected_bond0_config),
                               self.get_linuxbond_config('bond0'))
 
+    def test_linux_bond_with_ovs_extra(self):
+        """Test LinuxBond with ovs_extra when used as OVS bridge member"""
+        expected_brctl2_cfg = """
+        name: br-ctlplane2
+        type: ovs-bridge
+        bridge:
+            allow-extra-patch-ports: True
+            options:
+                fail-mode: standalone
+                mcast-snooping-enable: False
+                rstp: False
+                stp: False
+            port:
+                - name: bond0
+                - name: br-ctlplane2
+        ovs-db:
+            external_ids: {}
+            other_config: {}
+        state: up
+        ovs-db:
+            external_ids: {}
+            other_config: { mac-table-size: 50000 }
+        """
+        expected_bond0_config = """
+      name: bond0
+      type: bond
+      state: up
+      link-aggregation:
+          mode: active-backup
+          port:
+              - em3
+              - em2
+          options:
+              primary: em3
+      ipv4:
+          enabled: False
+          dhcp: False
+      ipv6:
+          enabled: False
+          autoconf: False
+          dhcp: False
+      ovs-db:
+          external_ids:
+              bond-id: bond-12345
+          other_config:
+              bond-detect-mode: miimon
+    """
+        interface1 = objects.Interface('em2')
+        interface2 = objects.Interface('em3', primary=True)
+
+        ovs_extra = [
+            "set interface {name} external-ids:bond-id=bond-12345",
+            "set interface {name} other-config:bond-detect-mode=miimon"
+        ]
+        bond = objects.LinuxBond('bond0', members=[interface1, interface2],
+                                 ovs_extra=ovs_extra)
+        bridge = objects.OvsBridge('br-ctlplane2', use_dhcp=True,
+                                   members=[bond])
+        self.provider.add_bridge(bridge)
+        self.provider.add_linux_bond(bond)
+        self.assertEqual(yaml.safe_load(expected_brctl2_cfg),
+                         self.get_bridge_config('br-ctlplane2'))
+        self.assertCountEqual(yaml.safe_load(expected_bond0_config),
+                              self.get_linuxbond_config('bond0'))
+
     def test_vlan_interface(self):
         expected_vlan1_cfg = """
         name: vlan502
@@ -3185,8 +3250,8 @@ class TestNmstateNetConfig(base.TestCase):
 
     def test_ovs_interface_unsupported_command_type(self):
         """Test OVS interface with unsupported command type raises error"""
-        # Commands other than external-ids are not supported for interfaces
-        ovs_extra = ["set interface {name} other_config:datapath-id=12345"]
+        # Commands other than external-ids and other-config are not supported
+        ovs_extra = ["set interface {name} statistics:rx_bytes=12345"]
         interface = objects.Interface('eno2', ovs_extra=ovs_extra)
         interface.ovs_port = True
 
@@ -3210,7 +3275,7 @@ class TestNmstateNetConfig(base.TestCase):
         # Multiple invalid commands
         ovs_extra = [
             "set interface {name} external-ids:valid=12345",     # Valid
-            "set interface {name} other_config:invalid=test",    # Invalid
+            "set interface {name} junk:invalid=test",    # Invalid
             "set interface eth1 external-ids:mismatch=test"      # Wrong name
         ]
         interface = objects.Interface('eno2', ovs_extra=ovs_extra)
