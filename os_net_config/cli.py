@@ -136,6 +136,14 @@ def parse_opts(argv):
              "(WARNING, permanently renames nics).",
         required=False)
 
+    parser.add_argument(
+        '--remove-config',
+        dest="remove_config",
+        action='store_true',
+        help="""Parse and apply the remove_config section in input. """
+             """Disabled by default.""",
+        required=False)
+
     opts = parser.parse_args(argv[1:])
 
     return opts
@@ -276,6 +284,9 @@ def main(argv=sys.argv, main_logger=None):
         return onc_ret_code
 
     for section in config_data.keys():
+        if section == "remove_config" and not opts.remove_config:
+            continue
+
         try:
             config_data[section] = get_iface_config(
                 section,
@@ -305,6 +316,15 @@ def main(argv=sys.argv, main_logger=None):
             )
         else:
             main_logger.info("remove_config applied successfully")
+    elif opts.remove_config:
+        onc_ret_code |= ExitCode.REMOVE_CONFIG_FAILED
+        main_logger.error(
+            "--remove-config flag provided, but no 'remove_config' section "
+            "found in '%s'. Please add a 'remove_config' section with device "
+            "entries or remove the --remove-config flag."
+            "Proceeding with further section(s) of config.",
+            opts.config_file
+        )
 
     if not config_data["network_config"]:
         return get_exit_code(
