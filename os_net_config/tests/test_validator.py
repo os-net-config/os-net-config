@@ -428,6 +428,60 @@ class TestDeviceTypes(base.TestCase):
         }
         self.assertTrue(v.is_valid(data))
 
+    def test_linux_bond_with_ovs_extra_list(self):
+        """Test linux_bond schema validation with ovs_extra as list"""
+        schema = validator.get_schema_for_defined_type("linux_bond")
+        v = jsonschema.Draft4Validator(schema)
+        data = {
+            "type": "linux_bond",
+            "name": "bond1",
+            "use_dhcp": True,
+            "bonding_options": "mode=active-backup",
+            "ovs_extra": [
+                "set port bond1 other_config:stp-path-cost=2",
+                "set port bond1 other_config:stp-port-priority=32"
+            ],
+            "members": [
+                {"type": "interface", "name": "em1"},
+                {"type": "interface", "name": "em2"}
+            ]
+        }
+        self.assertTrue(v.is_valid(data))
+
+    def test_linux_bond_with_ovs_extra_string(self):
+        """Test linux_bond schema validation with ovs_extra as string"""
+        schema = validator.get_schema_for_defined_type("linux_bond")
+        v = jsonschema.Draft4Validator(schema)
+        data = {
+            "type": "linux_bond",
+            "name": "bond1",
+            "use_dhcp": True,
+            "bonding_options": "mode=active-backup",
+            "ovs_extra": "set port bond1 other_config:stp-path-cost=2",
+            "members": [
+                {"type": "interface", "name": "em1"},
+                {"type": "interface", "name": "em2"}
+            ]
+        }
+        self.assertTrue(v.is_valid(data))
+
+    def test_linux_bond_with_ovs_extra_param(self):
+        """Test linux_bond schema validation with ovs_extra as param"""
+        schema = validator.get_schema_for_defined_type("linux_bond")
+        v = jsonschema.Draft4Validator(schema)
+        data = {
+            "type": "linux_bond",
+            "name": "bond1",
+            "use_dhcp": True,
+            "bonding_options": "mode=active-backup",
+            "ovs_extra": {"get_param": "ovs_bond_extra"},
+            "members": [
+                {"type": "interface", "name": "em1"},
+                {"type": "interface", "name": "em2"}
+            ]
+        }
+        self.assertTrue(v.is_valid(data))
+
     def test_nfvswitch_bridge(self):
         schema = validator.get_schema_for_defined_type("nfvswitch_bridge")
         v = jsonschema.Draft4Validator(schema)

@@ -1115,7 +1115,7 @@ class LinuxBond(_BaseOpts):
                  members=None, bonding_options=None, nic_mapping=None,
                  persist_mapping=False, defroute=True, dhclient_args=None,
                  dns_servers=None, nm_controlled=False, onboot=True,
-                 domain=None, ethtool_opts=None):
+                 domain=None, ethtool_opts=None, ovs_extra=None):
         addresses = addresses or []
         routes = routes or []
         rules = rules or []
@@ -1129,6 +1129,7 @@ class LinuxBond(_BaseOpts):
         self.members = members
         self.bonding_options = bonding_options
         self.ethtool_opts = ethtool_opts
+        self.ovs_extra = format_ovs_extra(self, ovs_extra)
         noop = common.get_noop()
         for member in self.members:
             if isinstance(member, SriovPF):
@@ -1194,6 +1195,9 @@ class LinuxBond(_BaseOpts):
              json, include_primary=False)
         bonding_options = json.get('bonding_options')
         ethtool_opts = json.get('ethtool_opts', None)
+        ovs_extra = json.get('ovs_extra', [])
+        if not isinstance(ovs_extra, list):
+            ovs_extra = [ovs_extra]
 
         members = _update_members(json, nic_mapping, persist_mapping)
 
@@ -1205,7 +1209,9 @@ class LinuxBond(_BaseOpts):
                          persist_mapping=persist_mapping, defroute=defroute,
                          dhclient_args=dhclient_args, dns_servers=dns_servers,
                          nm_controlled=nm_controlled, onboot=onboot,
-                         domain=domain, ethtool_opts=ethtool_opts)
+                         domain=domain, ethtool_opts=ethtool_opts,
+                         ovs_extra=ovs_extra
+                         )
 
 
 class OvsBond(_BaseOpts):

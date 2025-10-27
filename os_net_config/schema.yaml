@@ -1306,6 +1306,8 @@ definitions:
                       - $ref: "#/definitions/sriov_pf"
             bonding_options:
                 $ref: "#/definitions/bonding_options"
+            ovs_extra:
+                $ref: "#/definitions/ovs_extra_or_param"
             # common options:
             use_dhcp:
                 $ref: "#/definitions/bool_or_param"

@@ -1456,6 +1456,121 @@ class TestLinuxBond(base.TestCase):
         self.assertEqual("-K ${DEVICE} tx-gre-csum-segmentation off",
                          interface2.ethtool_opts)
 
+    def test_linux_bond_with_ovs_extra_list(self):
+        """Test LinuxBond with ovs_extra as a list"""
+        data = """{
+"type": "linux_bond",
+"name": "bond1",
+"use_dhcp": true,
+"ovs_extra": [
+    "set port bond1 other_config:stp-path-cost=2",
+    "set port bond1 other_config:stp-port-priority=32"
+],
+"members": [
+    {
+    "type": "interface",
+    "name": "em1"
+    },
+    {
+    "type": "interface",
+    "name": "em2"
+    }
+]
+}
+"""
+        bond = objects.object_from_json(json.loads(data))
+        self.assertEqual("bond1", bond.name)
+        self.assertTrue(bond.use_dhcp)
+        self.assertIsNotNone(bond.ovs_extra)
+        self.assertEqual(2, len(bond.ovs_extra))
+        self.assertIn("set port bond1 other_config:stp-path-cost=2",
+                      bond.ovs_extra)
+        self.assertIn("set port bond1 other_config:stp-port-priority=32",
+                      bond.ovs_extra)
+
+    def test_linux_bond_with_ovs_extra_string(self):
+        """Test LinuxBond with ovs_extra as a single string"""
+        data = """{
+"type": "linux_bond",
+"name": "bond1",
+"use_dhcp": true,
+"ovs_extra": "set port bond1 other_config:stp-path-cost=2",
+"members": [
+    {
+    "type": "interface",
+    "name": "em1"
+    },
+    {
+    "type": "interface",
+    "name": "em2"
+    }
+]
+}
+"""
+        bond = objects.object_from_json(json.loads(data))
+        self.assertEqual("bond1", bond.name)
+        self.assertTrue(bond.use_dhcp)
+        self.assertIsNotNone(bond.ovs_extra)
+        self.assertEqual(1, len(bond.ovs_extra))
+        self.assertEqual("set port bond1 other_config:stp-path-cost=2",
+                         bond.ovs_extra[0])
+
+    def test_linux_bond_without_ovs_extra(self):
+        """Test LinuxBond without ovs_extra (should be empty list)"""
+        data = """{
+"type": "linux_bond",
+"name": "bond1",
+"use_dhcp": true,
+"members": [
+    {
+    "type": "interface",
+    "name": "em1"
+    },
+    {
+    "type": "interface",
+    "name": "em2"
+    }
+]
+}
+"""
+        bond = objects.object_from_json(json.loads(data))
+        self.assertEqual("bond1", bond.name)
+        self.assertTrue(bond.use_dhcp)
+        self.assertEqual([], bond.ovs_extra)
+
+    def test_linux_bond_ovs_extra_with_templates(self):
+        """Test LinuxBond ovs_extra with template variables"""
+        data = """{
+"type": "linux_bond",
+"name": "bond1",
+"use_dhcp": true,
+"ovs_extra": [
+    "set port $DEVICE other_config:stp-path-cost=2",
+    "set port $DEVICE other_config:stp-port-priority=32"
+],
+"members": [
+    {
+    "type": "interface",
+    "name": "em1"
+    },
+    {
+    "type": "interface",
+    "name": "em2"
+    }
+]
+}
+"""
+        bond = objects.object_from_json(json.loads(data))
+        self.assertEqual("bond1", bond.name)
+        self.assertTrue(bond.use_dhcp)
+        self.assertIsNotNone(bond.ovs_extra)
+        self.assertEqual(2, len(bond.ovs_extra))
+        # Check that templates are processed
+        self.assertIn("set port $DEVICE other_config:stp-path-cost=2",
+                      bond.ovs_extra)
+        self.assertIn("set port $DEVICE other_config:stp-port-priority=32",
+                      bond.ovs_extra)
+
 
 class TestOvsTunnel(base.TestCase):
 
