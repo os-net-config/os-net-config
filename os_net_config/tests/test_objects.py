@@ -908,6 +908,32 @@ class TestBridge(base.TestCase):
                                "del-controller br-foo"],
                               bridge.ovs_extra)
 
+    def test_ovs_bridge_vlan_invalid_base_iface_does_not_raise(self):
+        data = """{
+"type": "ovs_bridge",
+"name": "br-foo",
+"use_dhcp": true,
+"members": [
+    {
+    "type": "interface",
+    "name": "em1",
+    "primary": "true"
+    },
+    {
+    "device": "em1",
+    "vlan_id": 100,
+    "type": "vlan"
+    }]
+}
+"""
+        # Should not raise, code logs an error but continues
+        bridge = objects.object_from_json(json.loads(data))
+        self.assertEqual("br-foo", bridge.name)
+        self.assertEqual(2, len(bridge.members))
+        vlan_member = bridge.members[1]
+        self.assertEqual(100, vlan_member.vlan_id)
+        self.assertTrue(vlan_member.ovs_port)
+
 
 class TestLinuxBridge(base.TestCase):
     def setUp(self):
@@ -1455,6 +1481,21 @@ class TestLinuxBond(base.TestCase):
                          interface1.ethtool_opts)
         self.assertEqual("-K ${DEVICE} tx-gre-csum-segmentation off",
                          interface2.ethtool_opts)
+
+    def test_linux_bond_vlan_invalid_base_iface_raises(self):
+        data = """{
+        "type": "linux_bond",
+        "name": "bond0",
+        "members": [
+            { "type": "interface", "name": "nic1" },
+            { "type": "vlan", "vlan_id": 147, "device": "bond1" }
+        ]
+        }
+        """
+        err = self.assertRaises(objects.InvalidConfigException,
+                                objects.object_from_json,
+                                json.loads(data))
+        self.assertIn("Invalid base_iface", str(err))
 
 
 class TestOvsTunnel(base.TestCase):
