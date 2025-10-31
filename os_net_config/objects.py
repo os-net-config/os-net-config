@@ -749,6 +749,19 @@ class OvsBridge(_BaseOpts):
             member.bridge_name = name
             if isinstance(member, SriovVF):
                 OvsBridge.update_vf_config(member)
+            if isinstance(member, Vlan):
+                base_iface = getattr(member, 'device', None)
+                if base_iface and base_iface != name:
+                    logger.error(
+                        "Invalid base_iface device:%s set for vlan member %s, "
+                        "(%s will be set as parent)",
+                        base_iface, member.name, name
+                    )
+                else:
+                    logger.debug(
+                        "%s: VLAN member base_iface: %s",
+                        member.name, name
+                    )
             if not isinstance(member, OvsTunnel):
                 member.ovs_port = True
             if member.primary:
@@ -907,6 +920,19 @@ class LinuxBridge(_BaseOpts):
         for member in self.members:
             member.linux_bridge_name = name
             member.ovs_port = False
+            if isinstance(member, Vlan):
+                base_iface = getattr(member, 'device', None)
+                if base_iface and base_iface != name:
+                    logger.error(
+                        "Invalid base_iface device:%s set for vlan member %s, "
+                        "(%s will be set as parent)",
+                        base_iface, member.name, name
+                    )
+                else:
+                    logger.debug(
+                        "%s: VLAN member base_iface: %s",
+                        member.name, name
+                    )
             if member.primary:
                 if self.primary_interface_name:
                     msg = 'Only one primary interface allowed per bridge.'
@@ -1143,6 +1169,19 @@ class LinuxBond(_BaseOpts):
             if isinstance(member, SriovVF):
                 LinuxBond.update_vf_config(member)
             member.linux_bond_name = name
+            if isinstance(member, Vlan):
+                base_iface = getattr(member, 'device', None)
+                if base_iface and base_iface != name:
+                    msg = ("Invalid base_iface %s set for vlan member: %s, "
+                           "%s should be set instead." %
+                           (base_iface, member.name, name))
+                    raise InvalidConfigException(msg)
+                else:
+                    logger.debug(
+                        "%s: VLAN member base_iface: %s",
+                        member.name, name
+                    )
+
             if member.primary:
                 if self.primary_interface_name:
                     msg = 'Only one primary interface allowed per bond.'
