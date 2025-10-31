@@ -749,6 +749,19 @@ class OvsBridge(_BaseOpts):
             member.bridge_name = name
             if isinstance(member, SriovVF):
                 OvsBridge.update_vf_config(member)
+            if isinstance(member, Vlan):
+                parent_device = getattr(member, 'device', None)
+                if parent_device and parent_device != name:
+                    logger.error(
+                        "Invalid parent device:%s set for vlan member %s, "
+                        "(%s will be set as parent)",
+                        parent_device, member.name, name
+                    )
+                else:
+                    logger.debug(
+                        "%s: VLAN member parent device: %s",
+                        member.name, name
+                    )
             if not isinstance(member, OvsTunnel):
                 member.ovs_port = True
             if member.primary:
