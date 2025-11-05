@@ -492,32 +492,44 @@ class NetConfig(object):
         in noop mode, this just prints a message.
 
         :param parse_errors: If True, raises ProcessExecutionError when 'error'
-                            is found in stdout or stderr. Default: False.
+                             is found in stdout or stderr. Default: False.
         """
         parse_errors = kwargs.pop('parse_errors', False)
         logger.info("%s%s", self.log_prefix, msg)
+
         if not self.noop:
-            out, err = processutils.execute(cmd, *args, **kwargs)
-            if err:
-                logger.error("stderr : %s", err)
-                # Check if error is mentioned in stderr
-                if parse_errors and 'error' in err.lower():
-                    raise processutils.ProcessExecutionError(
-                        exit_code=None,
-                        stdout=out,
-                        stderr=err,
-                        cmd=' '.join([str(cmd)] + [str(a) for a in args])
-                    )
-            if out:
-                logger.debug("stdout : %s", out)
-                # Check if error is mentioned in stdout
-                if parse_errors and 'error' in out.lower():
-                    raise processutils.ProcessExecutionError(
-                        exit_code=None,
-                        stdout=out,
-                        stderr=err,
-                        cmd=' '.join([str(cmd)] + [str(a) for a in args])
-                    )
+            try:
+                out, err = processutils.execute(cmd, *args, **kwargs)
+
+                # Handle stderr
+                if err:
+                    if parse_errors and 'error' in err.lower():
+                        logger.error("stderr : %s", err)
+                        raise processutils.ProcessExecutionError(
+                            exit_code=None,
+                            stdout=out,
+                            stderr=err,
+                            cmd=' '.join([str(cmd)] + [str(a) for a in args])
+                        )
+                    else:
+                        logger.warning("stderr : %s", err)
+
+                # Handle stdout
+                if out:
+                    if parse_errors and 'error' in out.lower():
+                        logger.error("stdout : %s", out)
+                        raise processutils.ProcessExecutionError(
+                            exit_code=None,
+                            stdout=out,
+                            stderr=err,
+                            cmd=' '.join([str(cmd)] + [str(a) for a in args])
+                        )
+                    else:
+                        logger.debug("stdout : %s", out)
+
+            except processutils.ProcessExecutionError as e:
+                logger.error("Command failed: %s", e)
+                raise
 
     def write_config(self, filename, data, msg=None):
         msg = msg or "Writing config %s" % filename
