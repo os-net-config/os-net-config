@@ -690,6 +690,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 self.member_names[base_opt.name] = members
             if base_opt.bonding_options:
                 data += "BONDING_OPTS=\"%s\"\n" % base_opt.bonding_options
+            if base_opt.ovs_extra:
+                if base_opt.bridge_name:
+                    ovs_extra.extend(base_opt.ovs_extra)
+                else:
+                    msg = "Only ovs bridge members can have ovs_extra defined"
+                    raise objects.InvalidConfigException(msg)
         elif isinstance(base_opt, objects.LinuxTeam):
             if base_opt.primary_interface_name:
                 primary_name = base_opt.primary_interface_name
