@@ -2513,9 +2513,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 message = 'Failure(s) occurred when applying configuration'
                 logger.error(message)
                 for e in self.errors:
-                    logger.error(
-                        '\nstdout: %s \nstderr: %s', e.stdout, e.stderr
-                    )
+                    logger.error('stdout: %s, stderr: %s', e.stdout, e.stderr)
                 raise os_net_config.ConfigurationError(message)
 
         return update_files
@@ -2731,7 +2729,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
     def _check_dpdk_files_for_pci_address(self, net_device, dev_name,
                                           dev_pci_address):
-        """Check ifcfg files for DPDK ports/bonds matching device's PCI.
+        """Check ifcfg files for DPDK ports/bonds matching device's PCI address.
 
         :param net_device: RemoveNetDevice object for the SR-IOV VF/ interface
         :param dev_name: Name of the VF/ interface to match
