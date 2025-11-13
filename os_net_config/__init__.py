@@ -495,7 +495,7 @@ class NetConfig(object):
         if not self.noop:
             out, err = processutils.execute(cmd, *args, **kwargs)
             if err:
-                logger.error("stderr : %s", err)
+                logger.warning("stderr : %s", err)
             if out:
                 logger.debug("stdout : %s", out)
 
