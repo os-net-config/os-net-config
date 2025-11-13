@@ -125,7 +125,9 @@ def parse_opts(argv):
         '--cleanup',
         dest="cleanup",
         action='store_true',
-        help="Cleanup unconfigured interfaces.",
+        help="Cleanup unconfigured interfaces."
+             "[DEPRECATED] For internal/developer use only "
+             "(Use of --remove-config is recommended).",
         required=False)
 
     parser.add_argument(
@@ -569,6 +571,11 @@ def config_provider(provider_name,
     pf_files_changed = []
     sriovpf_bond_ovs_ports = []
     logger.info("%s: Configuring %s", provider_name, config_name)
+    if cleanup:
+        logger.warning(
+            "!!! Deprecated cleanup flag set. "
+            "Use of --remove-config is recommended.)"
+        )
     try:
         provider = load_provider(provider_name, noop, root_dir)
     except ImportError as e:
