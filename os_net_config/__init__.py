@@ -490,34 +490,14 @@ class NetConfig(object):
 
         Print a message and run a command with processutils
         in noop mode, this just prints a message.
-
-        :param parse_errors: If True, raises ProcessExecutionError when 'error'
-                            is found in stdout or stderr. Default: False.
         """
-        parse_errors = kwargs.pop('parse_errors', False)
         logger.info("%s%s", self.log_prefix, msg)
         if not self.noop:
             out, err = processutils.execute(cmd, *args, **kwargs)
             if err:
                 logger.error("stderr : %s", err)
-                # Check if error is mentioned in stderr
-                if parse_errors and 'error' in err.lower():
-                    raise processutils.ProcessExecutionError(
-                        exit_code=None,
-                        stdout=out,
-                        stderr=err,
-                        cmd=' '.join([str(cmd)] + [str(a) for a in args])
-                    )
             if out:
                 logger.debug("stdout : %s", out)
-                # Check if error is mentioned in stdout
-                if parse_errors and 'error' in out.lower():
-                    raise processutils.ProcessExecutionError(
-                        exit_code=None,
-                        stdout=out,
-                        stderr=err,
-                        cmd=' '.join([str(cmd)] + [str(a) for a in args])
-                    )
 
     def write_config(self, filename, data, msg=None):
         msg = msg or "Writing config %s" % filename
@@ -546,15 +526,12 @@ class NetConfig(object):
         to self.errors for later handling.  This allows callers to continue
         trying to bring up interfaces even if one fails.
 
-        This method enables error parsing to detect and fail on 'error'
-        messages in stdout/stderr from the ifup command.
-
         :param interface: The name of the interface to be started.
         :param iftype: The type of the interface.
         """
         msg = 'running ifup on %s: %s' % (iftype, interface)
         try:
-            self.execute(msg, '/sbin/ifup', interface, parse_errors=True)
+            self.execute(msg, '/sbin/ifup', interface)
         except processutils.ProcessExecutionError as e:
             self.errors.append(e)
 
