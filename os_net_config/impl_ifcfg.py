@@ -1272,6 +1272,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         pci_address = self._get_dpdk_pci_addresses(ifcfg_dpdk)
         self.del_device["dpdk_port"].extend(pci_address)
 
+        ifname = ovs_dpdk_port.members[0].name
+        if common.is_vf_by_name(ifname):
+            self.del_device["sriov_vf"].append(ifname)
+        else:
+            self.del_device["iface"].append(ifname)
+
     def add_ovs_dpdk_bond(self, ovs_dpdk_bond):
         """Add an OvsDPDKBond object to the net config object.
 
@@ -1318,6 +1324,14 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         ifcfg_dpdk = self.root_dir + ifcfg_config_path(ovs_dpdk_bond.name)
         pci_address = self._get_dpdk_pci_addresses(ifcfg_dpdk)
         self.del_device["dpdk_port"].extend(pci_address)
+
+        for dpdk_port in ovs_dpdk_bond.members:
+            if len(dpdk_port.members) > 0:
+                ifname = dpdk_port.members[0].name
+                if common.is_vf_by_name(ifname):
+                    self.del_device["sriov_vf"].append(ifname)
+                else:
+                    self.del_device["iface"].append(ifname)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
