@@ -11,6 +11,9 @@ Overview
 backend configuration providers. One of: ifcfg (network-init-scripts), 
 nmstate (NetworkManager), or eni (basic support for /etc/network/interfaces)
 
+* Issues: https://github.com/os-net-config/os-net-config/issues
+* Documentation: https://github.com/os-net-config/os-net-config/tree/master/doc
+
 Features
 --------
 
@@ -45,10 +48,22 @@ Installation
 ------------
 
 * RPM based
-  os-net-config is part of Openstack RHEL8+, you may install it using 'sudo yum install os-net-config'
+  os-net-config is available for RHEL8+ and similar distributions.
+  Install it using: ``sudo yum install os-net-config`` or ``sudo dnf install os-net-config``
 
 * From source code
-  Use git to download source and then 'cd os-net-confg', 'python setup.py install --prefix=/usr'
+  Use git to download source and then ``cd os-net-config``, ``python setup.py install --prefix=/usr``
+  or ``pip install .``
+
+Community
+---------
+
+os-net-config is now maintained as an independent community project. While it was
+originally developed under OpenStack governance, the project continues to evolve
+as a standalone tool for declarative network configuration.
+
+* GitHub Organization: https://github.com/os-net-config
+* Main Repository: https://github.com/os-net-config/os-net-config
 
 License
 -------
