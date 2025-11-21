@@ -50,40 +50,51 @@ def parse_opts(argv):
     parser = argparse.ArgumentParser(
         description='Configure host network interfaces using a JSON'
         ' config file format.')
-    parser.add_argument('-c', '--config-file', metavar='CONFIG_FILE',
-                        help="""path to the configuration file.""",
-                        default='/etc/os-net-config/config.yaml')
-    parser.add_argument('-m', '--mapping-file', metavar='MAPPING_FILE',
-                        help="""path to the interface mapping file.""",
-                        default='/etc/os-net-config/mapping.yaml')
-    parser.add_argument('-i', '--interfaces', metavar='INTERFACES',
-                        help="""Identify the real interface for a nic name. """
-                        """If a real name is given, it is returned if live. """
-                        """If no value is given, display full NIC mapping. """
-                        """Exit after printing, ignoring other parameters. """,
-                        nargs='*', default=None)
-    parser.add_argument('-r', '--root-dir', metavar='ROOT_DIR',
-                        help="""The root directory of the filesystem.""",
-                        default='')
-    parser.add_argument('-p', '--provider', metavar='PROVIDER',
-                        help="""The provider to use. """
-                        """One of: ifcfg, eni, nmstate, iproute.""",
-                        choices=_PROVIDERS.keys(),
-                        default=None)
-    parser.add_argument('--purge-provider', metavar='PURGE_PROVIDER',
-                        help="""Cleans the network configurations created """
-                        """by the specified provider. There shall be no """
-                        """change in the input network config.yaml during """
-                        """the purge operation. One of: ifcfg, nmstate.""",
-                        choices=_PROVIDERS.keys(),
-                        default=None)
-    parser.add_argument('--detailed-exit-codes',
-                        action='store_true',
-                        help="""Enable detailed exit codes. """
-                        """If enabled an exit code of FILES_CHANGED means """
-                        """that files were modified. """
-                        """Disabled by default.""",
-                        default=False)
+    parser.add_argument(
+        '-c', '--config-file',
+        metavar='CONFIG_FILE',
+        help="""path to the configuration file.""",
+        default='/etc/os-net-config/config.yaml')
+    parser.add_argument(
+        '-m', '--mapping-file',
+        metavar='MAPPING_FILE',
+        help="""path to the interface mapping file.""",
+        default='/etc/os-net-config/mapping.yaml')
+    parser.add_argument(
+        '-i', '--interfaces',
+        metavar='INTERFACES',
+        help="""Identify the real interface for a nic name. If a real name """
+        """is given, it is returned if live. If no value is given, display """
+        """full NIC mapping. Exit after printing, ignoring other """
+        """parameters.""",
+        nargs='*',
+        default=None)
+    parser.add_argument(
+        '-r', '--root-dir',
+        metavar='ROOT_DIR',
+        help="""The root directory of the filesystem.""",
+        default='')
+    parser.add_argument(
+        '-p', '--provider',
+        metavar='PROVIDER',
+        help="""The provider to use. One of: ifcfg, eni, nmstate, iproute.""",
+        choices=_PROVIDERS.keys(),
+        default=None)
+    parser.add_argument(
+        '--purge-provider',
+        metavar='PURGE_PROVIDER',
+        help="""Cleans the network configurations created by the specified """
+        """provider. There shall be no change in the input network """
+        """config.yaml during the purge operation. One of: ifcfg, nmstate.""",
+        choices=_PROVIDERS.keys(),
+        default=None)
+    parser.add_argument(
+        '--detailed-exit-codes',
+        action='store_true',
+        help="""Enable detailed exit codes. If enabled an exit code of """
+        """FILES_CHANGED means that files were modified. Disabled by """
+        """default.""",
+        default=False)
 
     parser.add_argument(
         '--exit-on-validation-errors',
@@ -105,8 +116,10 @@ def parse_opts(argv):
         help="Print verbose output.",
         required=False)
 
-    parser.add_argument('--version', action='version',
-                        version=version.version_info.version_string())
+    parser.add_argument(
+        '--version',
+        action='version',
+        version=version.version_info.version_string())
     parser.add_argument(
         '--noop',
         dest="noop",
@@ -120,6 +133,35 @@ def parse_opts(argv):
         action='store_true',
         help="Install the configuration but don't start/stop interfaces.",
         required=False)
+
+    parser.add_argument(
+        '--minimum-config',
+        action='store_true',
+        help="""Apply minimum_config section before applying """
+        """network_config. This is useful to apply temporary networking """
+        """during migrating between providers, or to initialize networking """
+        """before applying network_config. This option is not idempotent """
+        """and should not be used repeatedly.""",
+        dest='minimum_config',
+        default=False)
+
+    parser.add_argument(
+        '--no-network-config',
+        action='store_true',
+        help="""Skip applying network_config section. This is useful """
+        """when only --remove-config needs to be performed or when """
+        """--purge-provider is used.""",
+        dest='no_network_config',
+        default=False)
+
+    parser.add_argument(
+        '--no-fallback-config',
+        action='store_true',
+        help="""Skip applying fallback_config section if errors occur """
+        """while applying network_config. This is useful to leave the """
+        """system in the same failed state as network_config. """,
+        dest='no_fallback_config',
+        default=False)
 
     parser.add_argument(
         '--cleanup',
@@ -320,7 +362,7 @@ def main(argv=sys.argv, main_logger=None):
         common.reset_dcb_map()
 
     if opts.purge_provider:
-        if not config_data["minimum_config"]:
+        if not config_data["minimum_config"] or not opts.minimum_config:
             logger.warning(
                 "minimum_config is needed for safe migration. "
                 "Please provide minimum_config section in the config file "
@@ -357,25 +399,40 @@ def main(argv=sys.argv, main_logger=None):
             return get_exit_code(opts.detailed_exit_codes,
                                  onc_ret_code | ExitCode.ERROR)
 
-    if config_data["minimum_config"]:
-        # Apply minimum _config using the new provider.
-        ret_code = minimum_config(
-            opts.provider,
-            config_data["minimum_config"],
-            opts.no_activate,
-            opts.root_dir,
-            opts.noop)
-        if ret_code == ExitCode.MINIMUM_CONFIG_FAILED:
-            main_logger.error("%s: Minimum config failed", opts.provider)
-            return get_exit_code(opts.detailed_exit_codes, ret_code)
+    if opts.minimum_config:
+        if config_data["minimum_config"]:
+            # Apply minimum _config using the new provider.
+            ret_code = minimum_config(
+                opts.provider,
+                config_data["minimum_config"],
+                opts.no_activate,
+                opts.root_dir,
+                opts.noop)
+            if ret_code == ExitCode.MINIMUM_CONFIG_FAILED:
+                main_logger.error("%s: Minimum config failed", opts.provider)
+                return get_exit_code(opts.detailed_exit_codes, ret_code)
+            else:
+                main_logger.info(
+                    "%s: Minimum config completed", opts.provider
+                )
         else:
-            main_logger.info(
-                "%s: Minimum config completed", opts.provider
+            onc_ret_code |= ExitCode.MINIMUM_CONFIG_FAILED
+            main_logger.error(
+                "--minimum-config flag provided, but no 'minimum_config' "
+                "section found in '%s'. Please add a 'minimum_config' section "
+                "with device entries or remove the --minimum-config flag. "
+                "Proceeding with further section(s) of config.",
+                opts.config_file
             )
 
-    if config_data["network_config"]:
+    if not opts.no_network_config:
+        if not config_data["network_config"]:
+            main_logger.error("network_config is not provided")
+            return get_exit_code(
+                opts.detailed_exit_codes,
+                onc_ret_code | ExitCode.NETWORK_CONFIG_FAILED
+            )
         logger.info("%s: Applying network config", opts.provider)
-
         ret_code = config_provider(
             opts.provider,
             "network_config",
@@ -388,18 +445,21 @@ def main(argv=sys.argv, main_logger=None):
         if ret_code == ExitCode.ERROR:
             main_logger.error("%s: Network config failed", opts.provider)
             onc_ret_code |= ExitCode.NETWORK_CONFIG_FAILED
-            ret_code = safe_fallback(
-                opts.provider,
-                config_data["fallback_config"],
-                opts.no_activate,
-                opts.root_dir,
-                opts.noop
-            )
-            onc_ret_code |= ret_code
-            return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
+            if not opts.no_fallback_config and config_data["fallback_config"]:
+                ret_code = safe_fallback(
+                    opts.provider,
+                    config_data["fallback_config"],
+                    opts.no_activate,
+                    opts.root_dir,
+                    opts.noop
+                )
+                onc_ret_code |= ret_code
+                return get_exit_code(opts.detailed_exit_codes, onc_ret_code)
         else:
             onc_ret_code |= ret_code
             main_logger.info("%s: Network config completed", opts.provider)
+    else:
+        main_logger.info("%s: skipping network_config section", opts.provider)
 
         # If the configuration is successful, apply the DCB config
         if has_failures(onc_ret_code) is False and \
@@ -739,8 +799,8 @@ def safe_fallback(provider,
                   root_dir,
                   noop):
     if not fb_config:
-        logger.warning("fallback_config is not provided")
-        return ExitCode.SUCCESS
+        logger.error("fallback_config is not provided")
+        return ExitCode.FALLBACK_FAILED
 
     if len(fb_config) > 2:
         logger.error(
@@ -772,10 +832,10 @@ def minimum_config(provider,
                    root_dir,
                    noop):
     if not min_config:
-        logger.warning(
+        logger.error(
             "minimum_config is not provided in config file"
         )
-        return ExitCode.SUCCESS
+        return ExitCode.MINIMUM_CONFIG_FAILED
 
     logger.info("%s: Running minimum config", provider)
     ret = config_provider(
