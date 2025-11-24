@@ -1600,6 +1600,17 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(expected_rule),
                          self.get_rule_config())
 
+    def test_duplicate_vlan_id_different_base_interface(self):
+        """Test that duplicate VLAN IDs on different interfaces raise error."""
+        # First VLAN: vlan_id 136 on em1
+        vlan1 = objects.Vlan('em1', 136)
+        self.provider.add_vlan(vlan1)
+
+        # Second VLAN: same vlan_id 136 but on em2 - should raise error
+        vlan2 = objects.Vlan('em2', 136)
+        self.assertRaises(os_net_config.ConfigurationError,
+                          self.provider.add_vlan, vlan2)
+
     def test_sriov_pf_without_nicpart(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping

@@ -1668,6 +1668,34 @@ class NmstateNetConfig(os_net_config.NetConfig):
             data[VLAN.CONFIG_SUBTREE][VLAN.ID] = vlan.vlan_id
             data[VLAN.CONFIG_SUBTREE][VLAN.BASE_IFACE] = base_iface
 
+            # Check if a VLAN with the same ID already exists with a different
+            # base interface
+            if vlan.name in self.vlan_data:
+                existing_vlan = self.vlan_data[vlan.name]
+                # Check if this is also a regular VLAN (not OVS)
+                if existing_vlan.get(Interface.TYPE) == InterfaceType.VLAN:
+                    existing_base = (existing_vlan.get(VLAN.CONFIG_SUBTREE, {})
+                                     .get(VLAN.BASE_IFACE))
+                    if existing_base and existing_base != base_iface:
+                        msg = (
+                            f"VLAN with ID {vlan.vlan_id} already "
+                            f"configured on interface {existing_base}. "
+                            f"The name vlan{vlan.vlan_id} cannot be used for "
+                            f"creating vlans on multiple devices. "
+                            f"To configure the same VLAN ID on multiple "
+                            f"interfaces, use 'type: interface' with "
+                            f"explicit VLAN interface names instead:\n\n"
+                            f"network_config:\n"
+                            f"  - type: interface\n"
+                            f"    name: <device1>.{vlan.vlan_id}\n"
+                            f"  - type: interface\n"
+                            f"    name: <device2>.{vlan.vlan_id}\n\n"
+                            f"Where <device1> and <device2> are your "
+                            f"interface names (e.g., nic5, nic6 or "
+                            f"{existing_base}, {base_iface})."
+                        )
+                        raise os_net_config.ConfigurationError(msg)
+
         self.vlan_data[vlan.name] = data
         self.__dump_key_config(data, msg=f"{vlan.name}: Prepared config")
 
