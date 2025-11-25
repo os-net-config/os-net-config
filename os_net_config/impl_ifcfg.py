@@ -1690,6 +1690,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             for e in self.errors:
                 logger.error('stdout: %s, stderr: %s', e.stdout, e.stderr)
             raise os_net_config.ConfigurationError(message)
+
+        self.execute("Reloading network", "nmcli", "connection", "reload")
         return 0
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
