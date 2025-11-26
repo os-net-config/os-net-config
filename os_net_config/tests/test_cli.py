@@ -89,6 +89,11 @@ class TestCli(base.TestCase):
         stderr = sys.stderr.getvalue()
         return (stdout, stderr)
 
+    def get_running_info(self, yaml_file):
+        with open(yaml_file) as f:
+            data = yaml.load(f, Loader=yaml.SafeLoader)
+            return data
+
     def stub_get_pci_address(self, ifname):
         address_map = {
             "eth0": "0000:00:07.0",
@@ -1015,6 +1020,16 @@ class TestCli(base.TestCase):
                       mock_config_provider)
         self.stub_out('os_net_config.utils.is_dcb_config_required',
                       mock_is_dcb_config_required)
+
+        def show_running_info_stub():
+            running_info_path = os.path.join(
+                os.path.dirname(__file__),
+                'environment/netinfo_running_info_1.yaml')
+            running_info = self.get_running_info(running_info_path)
+            return running_info
+        self.stub_out('libnmstate.netinfo.show_running_config',
+                      show_running_info_stub)
+
         try:
             # Simulate CLI args
             argv = [
