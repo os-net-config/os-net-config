@@ -1567,6 +1567,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
         iface_data = {Interface.NAME: interface.name,
                       Interface.TYPE: InterfaceType.ETHERNET,
                       Interface.STATE: InterfaceState.ABSENT}
+        if re.match(r'\w+\.\d+$', interface.name):
+            iface_data[Interface.TYPE] = InterfaceType.VLAN
+
         self.del_device["iface"].append(iface_data)
 
     def add_interface(self, interface):
