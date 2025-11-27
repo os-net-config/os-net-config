@@ -805,7 +805,7 @@ class TestCli(base.TestCase):
             # Mock validator to return no errors
             def mock_validate_config(config):
                 return []
-            self.stub_out('os_net_config.validator.validate_config',
+            self.stub_out('os_net_config.cli.validator.validate_config',
                           mock_validate_config)
 
             result = cli.get_iface_config(
@@ -832,7 +832,7 @@ class TestCli(base.TestCase):
         # Mock validator to return errors
         def mock_validate_config(config):
             return ['Validation error 1', 'Validation error 2']
-        self.stub_out('os_net_config.validator.validate_config',
+        self.stub_out('os_net_config.cli.validator.validate_config',
                       mock_validate_config)
         self.assertRaises(
             os_net_config.objects.InvalidConfigException,
@@ -862,7 +862,7 @@ class TestCli(base.TestCase):
             # Mock validator to return errors
             def mock_validate_config(config):
                 return ['Warning: Invalid configuration']
-            self.stub_out('os_net_config.validator.validate_config',
+            self.stub_out('os_net_config.cli.validator.validate_config',
                           mock_validate_config)
 
             result = cli.get_iface_config(
@@ -938,7 +938,7 @@ class TestCli(base.TestCase):
         # Mock validator to return errors
         def mock_validate_config(config):
             return ['Validation error 1', 'Validation error 2']
-        self.stub_out('os_net_config.validator.validate_config',
+        self.stub_out('os_net_config.cli.validator.validate_config',
                       mock_validate_config)
         self.assertRaises(
             os_net_config.objects.InvalidConfigException,
