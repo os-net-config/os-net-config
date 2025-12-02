@@ -69,24 +69,23 @@ def ifcfg_config_path(name):
 
 
 def remove_ifcfg_config(ifname):
-    if re.match(r'[\w-]+$', ifname):
-        ifcfg_file = ifcfg_config_path(ifname)
-        route_file = route_config_path(ifname)
-        route6_file = route6_config_path(ifname)
-        rule_file = route_rule_config_path(ifname)
+    ifcfg_file = ifcfg_config_path(ifname)
+    route_file = route_config_path(ifname)
+    route6_file = route6_config_path(ifname)
+    rule_file = route_rule_config_path(ifname)
 
-        src_files = [
-            ifcfg_file,
-            route_file,
-            route6_file,
-            rule_file
-        ]
-        for src in src_files:
-            try:
-                logger.info("%s: removing file %s", ifname, src)
-                os.remove(src)
-            except FileNotFoundError:
-                logger.debug("%s: not found", src)
+    src_files = [
+        ifcfg_file,
+        route_file,
+        route6_file,
+        rule_file
+    ]
+    for src in src_files:
+        try:
+            logger.info("%s: removing file %s", ifname, src)
+            os.remove(src)
+        except FileNotFoundError:
+            logger.debug("%s: not found", src)
 
 
 # NOTE(dprince): added here for testability
@@ -962,8 +961,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param interface: The Interface object to be deleted.
         """
-        logger.info("%s: Deleting", interface)
-        self._del_common(interface)
+        if re.match(r'\w+\.\d+$', interface.name):
+            logger.info("%s: Deleting vlan ", interface.name)
+            self.del_device["vlan"].append(interface.name)
+        else:
+            logger.info("%s: Deleting", interface.name)
+            self._del_common(interface)
 
     def add_vlan(self, vlan):
         """Add a Vlan object to the net config object.
@@ -984,7 +987,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
 
         :param vlan: The vlan object to be deleted.
         """
-        logger.info("%s: Deleting vlan ", vlan)
+        logger.info("%s: Deleting vlan ", vlan.name)
         self.del_device["vlan"].append(vlan.name)
 
     def add_ivs_interface(self, ivs_interface):
@@ -1272,6 +1275,12 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         pci_address = self._get_dpdk_pci_addresses(ifcfg_dpdk)
         self.del_device["dpdk_port"].extend(pci_address)
 
+        ifname = ovs_dpdk_port.members[0].name
+        if common.is_vf_by_name(ifname):
+            self.del_device["sriov_vf"].append(ifname)
+        else:
+            self.del_device["iface"].append(ifname)
+
     def add_ovs_dpdk_bond(self, ovs_dpdk_bond):
         """Add an OvsDPDKBond object to the net config object.
 
@@ -1318,6 +1327,14 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         ifcfg_dpdk = self.root_dir + ifcfg_config_path(ovs_dpdk_bond.name)
         pci_address = self._get_dpdk_pci_addresses(ifcfg_dpdk)
         self.del_device["dpdk_port"].extend(pci_address)
+
+        for dpdk_port in ovs_dpdk_bond.members:
+            if len(dpdk_port.members) > 0:
+                ifname = dpdk_port.members[0].name
+                if common.is_vf_by_name(ifname):
+                    self.del_device["sriov_vf"].append(ifname)
+                else:
+                    self.del_device["iface"].append(ifname)
 
     def add_sriov_pf(self, sriov_pf):
         """Add a SriovPF object to the net config object
@@ -1676,6 +1693,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             for e in self.errors:
                 logger.error('stdout: %s, stderr: %s', e.stdout, e.stderr)
             raise os_net_config.ConfigurationError(message)
+
+        self.execute("Reloading network", "nmcli", "connection", "reload")
         return 0
 
     def apply(self, cleanup=False, activate=True, config_rules_dns=True):
