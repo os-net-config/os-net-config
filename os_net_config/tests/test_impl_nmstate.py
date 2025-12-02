@@ -1068,6 +1068,105 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(expected_brctl2_cfg),
                          self.get_bridge_config('br-ctlplane2'))
 
+    def test_network_ovs_bridge_with_bond_and_vlan(self):
+        """Test ovs_bridge with both ovs_bond and vlan members (OSPRH-22390).
+
+        This tests that VLANs (as OVS internal ports) can coexist with
+        ovs_bond in the same ovs_bridge configuration.
+        """
+        expected_brctl2_p_cfg = """
+        name: br-ex
+        state: up
+        type: ovs-interface
+        ipv4:
+            auto-dns: True
+            auto-gateway: True
+            auto-routes: True
+            dhcp: True
+            enabled: True
+        ipv6:
+            autoconf: False
+            dhcp: False
+            enabled: False
+        """
+        expected_brctl2_cfg = """
+        name: br-ex
+        type: ovs-bridge
+        bridge:
+            allow-extra-patch-ports: True
+            options:
+                fail-mode: standalone
+                mcast-snooping-enable: False
+                rstp: False
+                stp: False
+            port:
+                - name: bond0
+                  link-aggregation:
+                      mode: active-backup
+                      port:
+                          - name: em2
+                          - name: em3
+                      ovs-db:
+                          other_config:
+                              bond-primary: em2
+                - name: vlan212
+                  vlan:
+                      mode: access
+                      tag: 212
+                - name: vlan214
+                  vlan:
+                      mode: access
+                      tag: 214
+                - name: br-ex
+        ovs-db:
+            external_ids: {}
+            other_config: { mac-table-size: 50000 }
+        state: up
+        """
+        expected_vlan212_cfg = """
+        name: vlan212
+        ipv4:
+            dhcp: false
+            enabled: false
+        ipv6:
+            autoconf: false
+            dhcp: false
+            enabled: false
+        state: up
+        type: ovs-interface
+        """
+        expected_vlan214_cfg = """
+        name: vlan214
+        ipv4:
+            dhcp: false
+            enabled: false
+        ipv6:
+            autoconf: false
+            dhcp: false
+            enabled: false
+        state: up
+        type: ovs-interface
+        """
+
+        interface1 = objects.Interface('em2')
+        interface2 = objects.Interface('em3')
+        bond = objects.OvsBond('bond0', members=[interface1, interface2])
+        vlan1 = objects.Vlan(None, 212)
+        vlan2 = objects.Vlan(None, 214)
+        bridge = objects.OvsBridge('br-ex', use_dhcp=True,
+                                   members=[bond, vlan1, vlan2])
+        self.provider.add_bridge(bridge)
+        self.provider.add_vlan(vlan1)
+        self.provider.add_vlan(vlan2)
+        self.assertEqual(yaml.safe_load(expected_brctl2_p_cfg),
+                         self.get_interface_config('br-ex-if'))
+        self.assertEqual(yaml.safe_load(expected_brctl2_cfg),
+                         self.get_bridge_config('br-ex'))
+        self.assertEqual(yaml.safe_load(expected_vlan212_cfg),
+                         self.get_vlan_config('vlan212'))
+        self.assertEqual(yaml.safe_load(expected_vlan214_cfg),
+                         self.get_vlan_config('vlan214'))
+
     def test_network_ovs_bridge_with_ovs_extra(self):
         expected_brctl2_cfg = """
         name: br-ctlplane2
@@ -1966,6 +2065,138 @@ class TestNmstateNetConfig(base.TestCase):
                       port:
                           - name: dpdk2
                           - name: dpdk3
+                - name: br-bond
+        ovs-db:
+            external_ids: {}
+            other_config: {'mac-table-size': 50000}
+        """
+
+        exp_dpdk2_config = """
+        dpdk:
+          devargs: "0000:07:00.1"
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        name: dpdk2
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        exp_dpdk3_config = """
+        dpdk:
+          devargs: "0000:08:00.1"
+        ipv4:
+          dhcp: False
+          enabled: False
+        ipv6:
+          autoconf: False
+          dhcp: False
+          enabled: False
+        name: dpdk3
+        ovs-db:
+          external_ids: {}
+          other_config: {}
+        state: up
+        type: ovs-interface
+        """
+
+        self.assertEqual(yaml.safe_load(exp_dpdk2_config),
+                         self.get_interface_config('dpdk2'))
+        self.assertEqual(yaml.safe_load(exp_dpdk3_config),
+                         self.get_interface_config('dpdk3'))
+        self.assertEqual(yaml.safe_load(exp_bridge_config),
+                         self.get_bridge_config('br-bond'))
+
+    def test_dpdkbond_with_vlan(self):
+        """Test ovs_user_bridge with ovs_dpdk_bond and vlan members."""
+        common.set_noop(False)
+        nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+
+        self.stub_out('os_net_config.common.get_dpdk_pci_address',
+                      stub_get_dpdk_pci_address)
+        ovs_config = """
+        type: ovs_user_bridge
+        name: br-bond
+        members:
+          -
+            type: ovs_dpdk_bond
+            name: dpdkbond1
+            ovs_options: "bond_mode=active-backup"
+            members:
+              -
+                type: ovs_dpdk_port
+                name: dpdk2
+                members:
+                  -
+                    type: interface
+                    name: nic2
+              -
+                type: ovs_dpdk_port
+                name: dpdk3
+                members:
+                  -
+                    type: interface
+                    name: nic3
+          -
+            type: vlan
+            vlan_id: 100
+            addresses:
+              - ip_netmask: 192.168.100.1/24
+          -
+            type: vlan
+            vlan_id: 200
+            addresses:
+              - ip_netmask: 192.168.200.1/24
+        """
+
+        def test_bind_dpdk_interfaces(ifname, driver, noop):
+            return
+        self.stub_out('os_net_config.utils.bind_dpdk_interfaces',
+                      test_bind_dpdk_interfaces)
+
+        ovs_obj = objects.object_from_json(yaml.safe_load(ovs_config))
+        dpdk_bond = ovs_obj.members[0]
+        self.provider.add_ovs_user_bridge(ovs_obj)
+        self.provider.add_ovs_dpdk_bond(dpdk_bond)
+
+        exp_bridge_config = """
+        name: br-bond
+        state: up
+        type: ovs-bridge
+        bridge:
+            allow-extra-patch-ports: True
+            options:
+                datapath: netdev
+                fail-mode: standalone
+                mcast-snooping-enable: False
+                rstp: False
+                stp: False
+            port:
+                - name: dpdkbond1
+                  link-aggregation:
+                      mode: active-backup
+                      ovs-db:
+                          other_config:
+                              bond-primary: dpdk2
+                      port:
+                          - name: dpdk2
+                          - name: dpdk3
+                - name: vlan100
+                  vlan:
+                      mode: access
+                      tag: 100
+                - name: vlan200
+                  vlan:
+                      mode: access
+                      tag: 200
                 - name: br-bond
         ovs-db:
             external_ids: {}

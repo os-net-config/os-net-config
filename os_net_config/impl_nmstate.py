@@ -2275,9 +2275,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         if dpdk:
             ovs_bridge_options[OVSBridge.Options.DATAPATH] = 'netdev'
         if bridge.members:
-            members = []
-            ovs_bond = False
-            ovs_port = False
+            bridge_members = []
             for member in bridge.members:
                 if (isinstance(member, objects.OvsBond) or
                         isinstance(member, objects.OvsDpdkBond)):
@@ -2289,12 +2287,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         member.name,
                         bond_options,
                     )
-                    if ovs_port:
-                        msg = (
-                            f"{bridge.name}: Ovs Bond and ovs port can't"
-                            "be members to the same ovs bridge"
-                        )
-                        raise os_net_config.ConfigurationError(msg)
                     if member.primary_interface_name:
                         add_bond_setting = "other_config:bond-primary="\
                                            f"{member.primary_interface_name}"
@@ -2323,50 +2315,43 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     )
                     bond_port = [{
                         OVSBridge.Port.LINK_AGGREGATION_SUBTREE: bond_data,
-                        OVSBridge.Port.NAME: member.name},
-                        ovs_int_port]
+                        OVSBridge.Port.NAME: member.name}]
                     data[OVSBridge.CONFIG_SUBTREE
                          ][OVSBridge.PORT_SUBTREE] = bond_port
 
-                    ovs_bond = True
                     if member.members:
-                        members = [m.name for m in member.members]
-                elif ovs_bond:
-                    msg = (
-                        f"{bridge.name}: ovs bond and ovs port can't be"
-                        "members to the ovs bridge"
-                    )
-                    raise os_net_config.ConfigurationError(msg)
+                        bond_members = [m.name for m in member.members]
+                        bps = self.get_ovs_ports(bridge.name, bond_members)
+                        bond_data[OVSBridge.Port.LinkAggregation.PORT_SUBTREE
+                                  ] = bps
+                        bps_names = [port.get("name", "") for port in bps]
+                        logger.debug(
+                            "%s: adding bond ports - %s",
+                            member.name,
+                            " ".join(bps_names),
+                        )
                 else:
-                    ovs_port = True
-                    members.append(member.name)
-            if members:
-                bps = self.get_ovs_ports(bridge.name, members)
+                    bridge_members.append(member.name)
+
+            if bridge_members:
+                bps = self.get_ovs_ports(bridge.name, bridge_members)
             else:
-                msg = f"{bridge.name}: no member added to ovs bridge"
-                raise os_net_config.ConfigurationError(msg)
+                bps = []
 
-            self.member_names[bridge.name] = members
+            bps.append(ovs_int_port)
 
-            if ovs_port:
-                # Add the internal ovs interface
-                bps.append(ovs_int_port)
+            if data[OVSBridge.CONFIG_SUBTREE].get(OVSBridge.PORT_SUBTREE):
                 data[OVSBridge.CONFIG_SUBTREE][
                     OVSBridge.PORT_SUBTREE].extend(bps)
-                bps_names = [port.get("name", "") for port in bps]
-                logger.debug(
-                    "%s: adding ovs ports - %s",
-                    bridge.name,
-                    " ".join(bps_names),
-                )
-            elif ovs_bond:
-                bond_data[OVSBridge.Port.LinkAggregation.PORT_SUBTREE] = bps
-                bps_names = [port.get("name", "") for port in bps]
-                logger.debug(
-                    "%s: adding ovs ports - %s",
-                    bridge.members[0].name,
-                    " ".join(bps_names),
-                )
+            else:
+                data[OVSBridge.CONFIG_SUBTREE][OVSBridge.PORT_SUBTREE] = bps
+
+            bps_names = [port.get("name", "") for port in bps]
+            logger.debug(
+                "%s: adding ovs ports - %s",
+                bridge.name,
+                " ".join(bps_names),
+            )
 
         self.bridge_data[bridge.name] = data
         self.__dump_config(data, msg=f"{bridge.name}: Prepared config")
