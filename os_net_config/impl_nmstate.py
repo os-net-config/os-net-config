@@ -2278,6 +2278,9 @@ class NmstateNetConfig(os_net_config.NetConfig):
             members = []
             ovs_bond = False
             ovs_port = False
+            bond_members = []
+            ovs_port_members = []
+            bond_name = None
             for member in bridge.members:
                 if (isinstance(member, objects.OvsBond) or
                         isinstance(member, objects.OvsDpdkBond)):
@@ -2289,12 +2292,6 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         member.name,
                         bond_options,
                     )
-                    if ovs_port:
-                        msg = (
-                            f"{bridge.name}: Ovs Bond and ovs port can't"
-                            "be members to the same ovs bridge"
-                        )
-                        raise os_net_config.ConfigurationError(msg)
                     if member.primary_interface_name:
                         add_bond_setting = "other_config:bond-primary="\
                                            f"{member.primary_interface_name}"
@@ -2329,17 +2326,19 @@ class NmstateNetConfig(os_net_config.NetConfig):
                          ][OVSBridge.PORT_SUBTREE] = bond_port
 
                     ovs_bond = True
+                    bond_name = member.name
                     if member.members:
-                        members = [m.name for m in member.members]
-                elif ovs_bond:
-                    msg = (
-                        f"{bridge.name}: ovs bond and ovs port can't be"
-                        "members to the ovs bridge"
-                    )
-                    raise os_net_config.ConfigurationError(msg)
+                        bond_members = [m.name for m in member.members]
                 else:
                     ovs_port = True
-                    members.append(member.name)
+                    ovs_port_members.append(member.name)
+
+            # Combine members list based on what we have
+            if ovs_bond:
+                members = list(bond_members)
+            if ovs_port:
+                members.extend(ovs_port_members)
+
             if members:
                 bps = self.get_ovs_ports(bridge.name, members)
             else:
@@ -2348,8 +2347,30 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
             self.member_names[bridge.name] = members
 
-            if ovs_port:
-                # Add the internal ovs interface
+            if ovs_bond and ovs_port:
+                # Both bond and OVS ports (VLANs) - add bond members to bond,
+                # and OVS ports (VLANs) to bridge
+                bond_bps = self.get_ovs_ports(bridge.name, bond_members)
+                bond_data[OVSBridge.Port.LinkAggregation.PORT_SUBTREE] = \
+                    bond_bps
+                bps_names = [port.get("name", "") for port in bond_bps]
+                logger.debug(
+                    "%s: adding bond ports - %s",
+                    bond_name,
+                    " ".join(bps_names),
+                )
+                # Add OVS internal ports (VLANs) to bridge
+                # Note: ovs_int_port is already in bond_port, don't add again
+                ovs_bps = self.get_ovs_ports(bridge.name, ovs_port_members)
+                data[OVSBridge.CONFIG_SUBTREE][
+                    OVSBridge.PORT_SUBTREE].extend(ovs_bps)
+                ovs_bps_names = [port.get("name", "") for port in ovs_bps]
+                logger.debug(
+                    "%s: adding ovs ports - %s",
+                    bridge.name,
+                    " ".join(ovs_bps_names),
+                )
+            elif ovs_port:
                 bps.append(ovs_int_port)
                 data[OVSBridge.CONFIG_SUBTREE][
                     OVSBridge.PORT_SUBTREE].extend(bps)
@@ -2363,8 +2384,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 bond_data[OVSBridge.Port.LinkAggregation.PORT_SUBTREE] = bps
                 bps_names = [port.get("name", "") for port in bps]
                 logger.debug(
-                    "%s: adding ovs ports - %s",
-                    bridge.members[0].name,
+                    "%s: adding bond ports - %s",
+                    bond_name,
                     " ".join(bps_names),
                 )
 
