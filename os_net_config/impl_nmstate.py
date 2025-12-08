@@ -43,6 +43,7 @@ import yaml
 
 import os_net_config
 from os_net_config import common
+from os_net_config.common import get_type_value
 from os_net_config.exit_codes import ExitCode
 from os_net_config import objects
 from os_net_config import utils
@@ -132,17 +133,6 @@ def route_table_config_path():
     return "/etc/iproute2/rt_tables"
 
 
-def _get_type_value(str_val):
-    if isinstance(str_val, str):
-        if str_val.isdigit():
-            return int(str_val)
-        if str_val.lower() in ['true', 'yes', 'on']:
-            return True
-        if str_val.lower() in ['false', 'no', 'off']:
-            return False
-    return str_val
-
-
 def get_route_options(route_options, key):
     """Parse `route_options` and return the value corresponding to `key`
 
@@ -156,7 +146,7 @@ def get_route_options(route_options, key):
     iter_list = iter(items)
     for item in iter_list:
         if key in item:
-            return _get_type_value(next(iter_list))
+            return get_type_value(next(iter_list))
     return
 
 
@@ -246,7 +236,7 @@ def parse_bonding_options(bond_options_str):
     if bond_options_str:
         options = re.findall(r'(.+?)=(.+?)($|\s)', bond_options_str)
         for option in options:
-            bond_options_dict[option[0]] = _get_type_value(option[1])
+            bond_options_dict[option[0]] = get_type_value(option[1])
     return bond_options_dict
 
 
@@ -1037,7 +1027,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
 
         # skip first 2 entries as they are already validated
         for index in range(2, len(command) - 1, 2):
-            value = _get_type_value(command[index + 1])
+            value = get_type_value(command[index + 1])
             if command[index] in ethtool_map.keys():
                 config[ethtool_map[command[index]]] = value
             elif (sub_config['sub-options'] == 'copy'):
@@ -1428,10 +1418,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 parse_complete = True
                 item = next(items_iter)
                 if item in nm_rule_map.keys():
-                    value = _get_type_value(nm_rule_map[item]['nm_value'])
+                    value = get_type_value(nm_rule_map[item]['nm_value'])
                     if not value:
                         parse_complete = False
-                        value = _get_type_value(next(items_iter))
+                        value = get_type_value(next(items_iter))
                         if 'nm_parse_value' in nm_rule_map[item]:
                             value = nm_rule_map[item]['nm_parse_value'](value)
                     rule_config[nm_rule_map[item]['nm_key']] = value
@@ -1741,7 +1731,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                     elif 'value_pattern' in cfg:
                         m = re.search(cfg['value_pattern'], ovs_extra[idx])
                         if m:
-                            value = _get_type_value(m.group(1))
+                            value = get_type_value(m.group(1))
                     if value is None:
                         msg = (
                             "ovs_extra: Invalid format detected. \n"
@@ -1810,7 +1800,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         m = re.search(cfg['value_pattern'],
                                       ovs_extra[index + 1])
                         if m:
-                            value = _get_type_value(m.group(1))
+                            value = get_type_value(m.group(1))
                     if value is None:
                         msg = (
                             "ovs_extra: Invalid format detected.\n"
