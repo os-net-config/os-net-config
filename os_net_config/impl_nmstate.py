@@ -43,6 +43,7 @@ import yaml
 
 import os_net_config
 from os_net_config import common
+from os_net_config.common import _get_type_value
 from os_net_config.exit_codes import ExitCode
 from os_net_config import objects
 from os_net_config import utils
@@ -130,17 +131,6 @@ class RemoveDeviceNmstateData:
 
 def route_table_config_path():
     return "/etc/iproute2/rt_tables"
-
-
-def _get_type_value(str_val):
-    if isinstance(str_val, str):
-        if str_val.isdigit():
-            return int(str_val)
-        if str_val.lower() in ['true', 'yes', 'on']:
-            return True
-        if str_val.lower() in ['false', 'no', 'off']:
-            return False
-    return str_val
 
 
 def get_route_options(route_options, key):

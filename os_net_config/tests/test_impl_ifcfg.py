@@ -3090,6 +3090,34 @@ class TestIfcfgNetConfigApply(base.TestCase):
         self.assertEqual(1, self.ifup_interface_names.count("em2"))
         self.assertEqual(1, self.ifup_interface_names.count("bond0"))
 
+    def test_bond_mode_for_linux_bond(self):
+        interface1 = objects.Interface('em1')
+        interface2 = objects.Interface('em2')
+        vlan = objects.Vlan('bond1', 100)
+        bond = objects.LinuxBond('bond1', members=[interface1, interface2])
+        bond.bonding_options = 'mode=1 miimon=100'
+        self.provider.add_linux_bond(bond)
+        self.provider.add_interface(interface1)
+        self.provider.add_interface(interface2)
+        self.provider.add_vlan(vlan)
+        self.provider.apply()
+        self.assertIn('bond1', self.ifup_interface_names)
+        self.assertIn('em1', self.ifup_interface_names)
+        self.assertIn('em2', self.ifup_interface_names)
+        self.assertIn('vlan100', self.ifup_interface_names)
+
+    def test_invalid_mode_for_linux_bond(self):
+        """Test that balance-tcp (OVS mode) is rejected for Linux bond."""
+        interface1 = objects.Interface('em1')
+        interface2 = objects.Interface('em2')
+        bond = objects.LinuxBond('bond1', members=[interface1, interface2])
+        bond.bonding_options = 'mode=balance-tcp miimon=100'
+        # Validation happens during add_linux_bond now, not during apply
+        err = self.assertRaises(ValueError,
+                                self.provider.add_linux_bond, bond)
+        self.assertIn('Invalid bond mode', str(err))
+        self.assertIn('balance-tcp', str(err))
+
     def test_vlan_apply(self):
         vlan = objects.Vlan('em1', 5)
         self.provider.add_vlan(vlan)
