@@ -1,13 +1,4 @@
 ---
-- job:
-    name: openstack-services-content-provider
-    parent: cifmw-tcib-base
-    nodeset: centos-stream-9-vexxhost
-    description: |
-      Zuul job to build rpms for openstack projects from opendev, tcib and
-      os-net-config from github. It also builds openstack services container
-      for openstack projects.
-
 - project:
     name: os-net-config/os-net-config
     github-check:
@@ -18,12 +9,11 @@
             nodeset: rdo-centos-9-stream
         - tox-pep8:
             nodeset: rdo-centos-9-stream
-        - openstack-services-content-provider:
-            override-checkout: main
+        - openstack-k8s-operators-content-provider:
             files: &_files
               - ^os_net_config/*
         - podified-multinode-edpm-deployment-crc:
             override-checkout: main
             files: *_files
             dependencies:
-              - openstack-services-content-provider
+              - openstack-k8s-operators-content-provider
