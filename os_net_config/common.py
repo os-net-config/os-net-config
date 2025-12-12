@@ -149,6 +149,22 @@ def get_timestamp():
     return time.strftime("%Y%m%d_%H%M%S", time.localtime())
 
 
+def _get_type_value(str_val):
+    """Convert string value to appropriate type (int, bool, or str).
+
+    :param str_val: String value to convert
+    :returns: Converted value (int, bool, or str)
+    """
+    if isinstance(str_val, str):
+        if str_val.isdigit():
+            return int(str_val)
+        if str_val.lower() in ['true', 'yes', 'on']:
+            return True
+        if str_val.lower() in ['false', 'no', 'off']:
+            return False
+    return str_val
+
+
 def get_dev_path(ifname, path=None):
     if not path:
         path = ""

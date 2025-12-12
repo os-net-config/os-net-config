@@ -159,6 +159,24 @@ def stop_dhclient_process(interface):
             )
 
 
+def get_bonding_options(bond_options_str):
+    """Parse the bonding options for linux bond/ovs-bond.
+
+    Parses a space-separated string of key=value pairs into a dictionary.
+    Values are automatically converted to appropriate types (int, bool, str).
+
+    :param bond_options_str: A string having the bond_options in
+        space separated key value pair format (e.g., "mode=3 miimon=100")
+    :returns: A dict of bond options with typed values
+    """
+    bond_options_dict = {}
+    if bond_options_str:
+        options = re.findall(r'(.+?)=(.+?)($|\s)', bond_options_str)
+        for option in options:
+            bond_options_dict[option[0]] = common._get_type_value(option[1])
+    return bond_options_dict
+
+
 class RemoveDeviceIfcfgData:
     def __init__(self, dev_name, dev_type, ifcfg_file, pci_address=[],
                  nm_controlled=True):
@@ -214,6 +232,25 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             "sriov_vf": [],
             "sriov_pf": [],
             "dpdk_port": [],  # PCI address of the DPDK port is added here
+        }
+        # Linux bond mode mapping
+        # Mode of operation: 0 for bal-rr, 1 for act-bkup, 2 for bal-xor,
+        # 3 for broadcast, 4 for 802.3ad, 5 for bal-tlb, 6 for bal-alb
+        self.linux_bond_mode = {
+            0: 'balance-rr',
+            1: 'active-backup',
+            2: 'balance-xor',
+            3: 'broadcast',
+            4: '802.3ad',
+            5: 'balance-tlb',
+            6: 'balance-alb',
+            'balance-rr': 0,
+            'active-backup': 1,
+            'balance-xor': 2,
+            'broadcast': 3,
+            '802.3ad': 4,
+            'balance-tlb': 5,
+            'balance-alb': 6,
         }
         logger.info('Ifcfg net config provider created.')
 
@@ -688,6 +725,27 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                 members = [member.name for member in base_opt.members]
                 self.member_names[base_opt.name] = members
             if base_opt.bonding_options:
+                # Validate bond mode against dict before writing to ifcfg file
+                bond_opts = get_bonding_options(
+                    base_opt.bonding_options)
+                if 'mode' in bond_opts:
+                    mode_value = bond_opts['mode']
+                    # Check if mode is in the dictionary
+                    # Accept both numeric (0-6) and string values
+                    if isinstance(mode_value, (int, str)):
+                        mode_str = str(mode_value).lower()
+                        # Check if mode exists in dictionary (as key)
+                        if mode_value not in self.linux_bond_mode and \
+                            mode_str not in self.linux_bond_mode:
+                            valid = [k for k in self.linux_bond_mode.keys()
+                                     if isinstance(k, str)]
+                            raise ValueError(
+                                f"Invalid bond mode '{mode_value}' "
+                                f"for {base_opt.name}. "
+                                f"Valid modes: {', '.join(sorted(valid))} "
+                                f"or numeric values 0-6."
+                            )
+
                 data += "BONDING_OPTS=\"%s\"\n" % base_opt.bonding_options
         elif isinstance(base_opt, objects.LinuxTeam):
             if base_opt.primary_interface_name:
