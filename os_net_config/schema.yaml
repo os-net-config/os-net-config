@@ -649,7 +649,6 @@ definitions:
                     oneOf:
                       - $ref: "#/definitions/interface"
                       - $ref: "#/definitions/vlan"
-                      - $ref: "#/definitions/ovs_bond"
                       - $ref: "#/definitions/ovs_patch_port"
                       - $ref: "#/definitions/ovs_tunnel"
                       - $ref: "#/definitions/ovs_dpdk_bond"
@@ -710,7 +709,6 @@ definitions:
                     oneOf:
                       - $ref: "#/definitions/interface"
                       - $ref: "#/definitions/sriov_vf"
-                      - $ref: "#/definitions/vlan"
                       - $ref: "#/definitions/sriov_pf"
                 minItems: 1
             ovs_options:
@@ -1278,7 +1276,6 @@ definitions:
                 items:
                     oneOf:
                       - $ref: "#/definitions/interface"
-                      - $ref: "#/definitions/vlan"
                       - $ref: "#/definitions/sriov_vf"
                       - $ref: "#/definitions/sriov_pf"
             bonding_options:
