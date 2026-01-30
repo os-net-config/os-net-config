@@ -335,6 +335,19 @@ class TestDeviceTypes(base.TestCase):
         }
         self.assertTrue(v.is_valid(data))
 
+    def test_ovs_bond_with_vlan_member(self):
+        schema = validator.get_schema_for_defined_type("ovs_bond")
+        v = jsonschema.Draft4Validator(schema)
+        data = {
+            "type": "ovs_bond",
+            "name": "bond2",
+            "members": [
+                {"type": "interface", "name": "em2"},
+                {"type": "vlan", "device": "em1", "vlan_id": 200}
+            ]
+        }
+        self.assertFalse(v.is_valid(data))
+
     def test_ovs_user_bridge(self):
         schema = validator.get_schema_for_defined_type("ovs_user_bridge")
         v = jsonschema.Draft4Validator(schema)
@@ -364,6 +377,26 @@ class TestDeviceTypes(base.TestCase):
             }]
         }
         self.assertTrue(v.is_valid(data))
+
+    def test_usrbridge_with_ovsbond_member(self):
+        schema = validator.get_schema_for_defined_type("ovs_user_bridge")
+        v = jsonschema.Draft4Validator(schema)
+        data = {
+            "type": "ovs_user_bridge",
+            "name": "br-data0",
+            "members": [{
+                "type": "ovs_dpdk_port", "name": "dpdk1",
+                    "members": [{
+                        "type": "interface", "name": "em1"
+                    }]
+                }, {
+                "type": "ovs_bond", "name": "br-2",
+                    "members": [{
+                        "type": "interface", "name": "em2"
+                    }]
+            }]
+        }
+        self.assertFalse(v.is_valid(data))
 
     def test_ovs_patch_port(self):
         schema = validator.get_schema_for_defined_type("ovs_patch_port")
