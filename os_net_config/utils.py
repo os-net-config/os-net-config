@@ -978,6 +978,23 @@ def set_accept_ra_sysctl(iface, noop):
                 f.write("0")
 
 
+def get_sysctl_value(sysctl_path):
+    """Read a sysctl value from /proc/sys filesystem
+
+    :param sysctl_path: Sysctl param path
+                        (e.g. 'net.ipv6.conf.all.disable_ipv6')
+    :returns: The sysctl value as a string, or None if not found
+    """
+    filename = "/proc/sys/{}".format(sysctl_path.replace('.', '/'))
+    try:
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                return f.read().strip()
+    except (IOError, OSError) as e:
+        logger.debug("Failed to read sysctl %s: %s", sysctl_path, e)
+    return None
+
+
 def set_keep_addr_sysctl(iface, noop):
     """Set /proc/sys/net/ipv6/conf/<iface>/keep_addr_on_down """
     filename = "/proc/sys/net/ipv6/conf/{}/keep_addr_on_down".format(iface)
