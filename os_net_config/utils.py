@@ -23,6 +23,8 @@ import shutil
 import time
 import yaml
 
+import netaddr
+
 from os_net_config import common
 from os_net_config import sriov_config
 from oslo_concurrency import processutils
@@ -219,12 +221,53 @@ def _ordered_nics(check_active):
     return active_nics
 
 
+def _normalize_ipv6(addr_str):
+    """Normalize an IPv6 address or CIDR to its canonical compressed form.
+
+    Handles addresses with or without a prefix length.
+    Returns the original string unchanged if it is not a valid IPv6 address
+    or is an IPv4 address.
+    """
+    if not addr_str or ':' not in addr_str:
+        return addr_str
+    try:
+        if '/' in addr_str:
+            return str(netaddr.IPNetwork(addr_str))
+        return str(netaddr.IPAddress(addr_str))
+    except (netaddr.AddrFormatError, ValueError):
+        return addr_str
+
+
+def _normalize_ipv6_in_ifcfg(data):
+    """Normalize IPv6 addresses in ifcfg file content for comparison."""
+    lines = []
+    for line in data.split('\n'):
+        if not line.startswith('#') and '=' in line:
+            key, value = line.split('=', 1)
+            value = value.strip('"\'')
+            if key in ('IPV6ADDR', 'IPV6_DEFAULTGW'):
+                value = _normalize_ipv6(value)
+                line = '%s=%s' % (key, value)
+            elif key == 'IPV6ADDR_SECONDARIES':
+                addrs = ' '.join(
+                    _normalize_ipv6(a) for a in value.split())
+                line = '%s="%s"' % (key, addrs)
+            elif key.startswith('DNS') and ':' in value:
+                value = _normalize_ipv6(value)
+                line = '%s=%s' % (key, value)
+        lines.append(line)
+    return '\n'.join(lines)
+
+
 def diff(filename, data):
     file_data = common.get_file_data(filename)
     logger.debug("Diff file data:\n%s", file_data)
     logger.debug("Diff data:\n%s", data)
-    # convert to string as JSON may have unicode in it
-    return not file_data == data
+    if file_data == data:
+        return False
+    normalized_file_data = _normalize_ipv6_in_ifcfg(file_data)
+    normalized_data = _normalize_ipv6_in_ifcfg(data)
+    return not normalized_file_data == normalized_data
 
 
 def update_dpdk_map(ifname, driver):
