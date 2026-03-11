@@ -997,8 +997,7 @@ class TestNmstateNetConfig(base.TestCase):
                           - name: em2
                           - name: em3
                       ovs-db:
-                          other_config:
-                              bond-primary: em2
+                          other_config: {}
                 - name: br-ctlplane2
         ovs-db:
             external_ids: {}
@@ -1038,7 +1037,6 @@ class TestNmstateNetConfig(base.TestCase):
                               bond-detect-mode: miimon
                               bond-miimon-interval: 100
                               bond-rebalance-interval: 10000
-                              bond-primary: em2
                               lacp-fallback-ab: true
                               lacp-time: fast
                       port:
@@ -1107,8 +1105,7 @@ class TestNmstateNetConfig(base.TestCase):
                           - name: em2
                           - name: em3
                       ovs-db:
-                          other_config:
-                              bond-primary: em2
+                          other_config: {}
                 - name: vlan212
                   vlan:
                       mode: access
@@ -1187,7 +1184,6 @@ class TestNmstateNetConfig(base.TestCase):
                           - name: em3
                       ovs-db:
                           other_config:
-                              bond-primary: em2
                               zig: zag
                           external_ids:
                               foo: bar
@@ -2060,8 +2056,7 @@ class TestNmstateNetConfig(base.TestCase):
                   link-aggregation:
                       mode: active-backup
                       ovs-db:
-                          other_config:
-                              bond-primary: dpdk2
+                          other_config: {}
                       port:
                           - name: dpdk2
                           - name: dpdk3
@@ -2184,8 +2179,7 @@ class TestNmstateNetConfig(base.TestCase):
                   link-aggregation:
                       mode: active-backup
                       ovs-db:
-                          other_config:
-                              bond-primary: dpdk2
+                          other_config: {}
                       port:
                           - name: dpdk2
                           - name: dpdk3
@@ -2309,8 +2303,7 @@ class TestNmstateNetConfig(base.TestCase):
                   link-aggregation:
                       mode: balance-slb
                       ovs-db:
-                          other_config:
-                              bond-primary: dpdk2
+                          other_config: {}
                       port:
                           - name: dpdk2
                           - name: dpdk3
@@ -2443,7 +2436,6 @@ class TestNmstateNetConfig(base.TestCase):
                       bond-updelay: 1000
                       ovs-db:
                           other_config:
-                              bond-primary: dpdk2
                               bond-detect-mode: miimon
                               bond-miimon-interval: 100
                       port:
@@ -2578,7 +2570,6 @@ class TestNmstateNetConfig(base.TestCase):
                       bond-updelay: 1000
                       ovs-db:
                           other_config:
-                              bond-primary: dpdk2
                               bond-detect-mode: miimon
                               bond-miimon-interval: 100
                       port:
@@ -2672,10 +2663,10 @@ class TestNmstateNetConfig(base.TestCase):
                     vfid: 2
                     vlan_id: 112
                     qos: 4
-                    primary: true
               -
                 type: ovs_dpdk_port
                 name: dpdk3
+                primary: true
                 members:
                   -
                     type: sriov_vf
@@ -2768,7 +2759,7 @@ class TestNmstateNetConfig(base.TestCase):
                       mode: active-backup
                       ovs-db:
                           other_config:
-                              bond-primary: dpdk2
+                              bond-primary: dpdk3
                       port:
                           - name: dpdk2
                           - name: dpdk3
@@ -2914,8 +2905,7 @@ class TestNmstateNetConfig(base.TestCase):
                   link-aggregation:
                       mode: active-backup
                       ovs-db:
-                          other_config:
-                              bond-primary: dpdk2
+                          other_config: {}
                       port:
                           - name: dpdk2
                           - name: dpdk3
