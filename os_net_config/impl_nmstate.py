@@ -2280,7 +2280,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
                         member.name,
                         bond_options,
                     )
-                    if member.primary_interface_name:
+                    if any(m.primary for m in member.members):
                         add_bond_setting = "other_config:bond-primary="\
                                            f"{member.primary_interface_name}"
                         if member.ovs_options:
