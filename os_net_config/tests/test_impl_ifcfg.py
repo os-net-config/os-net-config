@@ -232,6 +232,12 @@ IPV6_FORCE_ACCEPT_RA=no
 IPV6ADDR=2001:abc:a::/64
 """
 
+_NO_IP_IPV6_RA_DISABLED = _BASE_IFCFG + """BOOTPROTO=none
+IPV6_AUTOCONF=no
+IPV6_SET_SYSCTLS=yes
+IPV6_FORCE_ACCEPT_RA=no
+"""
+
 _V6_IFCFG_MULTIPLE = (_V6_IFCFG + "IPV6ADDR_SECONDARIES=\"2001:abc:b::1/64 " +
                       "2001:abc:c::2/96\"\n")
 
@@ -810,6 +816,20 @@ class TestIfcfgNetConfig(base.TestCase):
             return "0000:00:02.0"
         if 'em1' in ifname:
             return "0000:00:01.0"
+
+    def make_sysctl_stub(self, overrides=None):
+        defaults = {
+            'net.ipv6.conf.default.disable_ipv6': '0',
+            'net.ipv6.conf.default.accept_ra': '0',
+        }
+
+        if overrides:
+            defaults.update(overrides)
+
+        def stub_get_sysctl_value(sysctl_path):
+            return defaults.get(sysctl_path)
+
+        return stub_get_sysctl_value
 
     def test_add_route_table(self):
         route_table1 = objects.RouteTable('table1', 200)
@@ -2611,6 +2631,69 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
         finally:
             if os.path.exists(tmp.name):
                 os.remove(tmp.name)
+
+    def test_interface_no_ip_with_ipv6_disabled(self):
+        """Test interface with no addrs when IPv6 is disabled globally"""
+        self.stub_out(
+            'os_net_config.utils.get_sysctl_value',
+            self.make_sysctl_stub({
+                'net.ipv6.conf.default.disable_ipv6': '1'
+            })
+        )
+
+        # Create interface with no addresses
+        interface = objects.Interface('em1')
+        self.provider.add_interface(interface)
+
+        # Should NOT include IPV6_AUTOCONF=no settings
+        self.assertEqual(_NO_IP, self.get_interface_config())
+
+    def test_interface_no_ip_with_global_accept_ra_disabled(self):
+        """Test intf with no addr when global accept_ra is disabled"""
+        # Mock sysctl values: IPv6 enabled (0), accept_ra disabled (0)
+        self.stub_out(
+            'os_net_config.utils.get_sysctl_value',
+            self.make_sysctl_stub({
+                'net.ipv6.conf.default.accept_ra': '0'
+            })
+        )
+
+        # Create interface with no addresses
+        interface = objects.Interface('em1')
+        self.provider.add_interface(interface)
+
+        # Should include IPV6_AUTOCONF=no settings
+        self.assertEqual(_NO_IP_IPV6_RA_DISABLED, self.get_interface_config())
+
+    def test_interface_no_ip_with_global_accept_ra_enabled(self):
+        """Test intf with no addrs when global accept_ra is enabled"""
+        self.stub_out(
+            'os_net_config.utils.get_sysctl_value',
+            self.make_sysctl_stub({
+                'net.ipv6.conf.default.accept_ra': '1'
+            })
+        )
+        # Create interface with no addresses
+        interface = objects.Interface('em1')
+        self.provider.add_interface(interface)
+
+        # Should NOT include IPV6_AUTOCONF=no settings
+        self.assertEqual(_NO_IP, self.get_interface_config())
+
+    def test_interface_with_addresses_ignores_accept_ra_check(self):
+        """Test that intf with static addr doesn't trigger accept_ra check"""
+        # Mock sysctl values: IPv6 enabled, accept_ra disabled
+        self.stub_out(
+            'os_net_config.utils.get_sysctl_value',
+            self.make_sysctl_stub()
+        )
+        # Create interface with IPv4 address
+        v4_addr = objects.Address('192.168.1.2/24')
+        interface = objects.Interface('em1', addresses=[v4_addr])
+        self.provider.add_interface(interface)
+
+        # Should use standard V4 config (not trigger no-address path)
+        self.assertEqual(_V4_IFCFG, self.get_interface_config())
 
 
 class TestIfcfgNetConfigApply(base.TestCase):
