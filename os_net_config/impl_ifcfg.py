@@ -345,6 +345,9 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         new_values = self.parse_ifcfg(new_data)
         restart_required = False
         # Certain changes can be applied without restarting the interface
+        # IPV6_DEFAULTGW and IPV6_DEFAULTDEV are no longer generated, but kept
+        # here so that removing them from existing ifcfg files does not trigger
+        # an unnecessary restart.
         permitted_changes = [
             'IPADDR', 'NETMASK',
             'MTU', 'ONBOOT', 'ETHTOOL_OPTS',
@@ -882,11 +885,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     secondaries_v6 = " ".join(map(lambda a: a.ip_netmask,
                                                   v6_addresses[1:]))
                     data += "IPV6ADDR_SECONDARIES=\"%s\"\n" % secondaries_v6
-            for route in base_opt.routes:
-                if route.default or (route.ip_netmask == "::/0"):
-                    if ":" in route.next_hop:
-                        data += f"IPV6_DEFAULTGW={route.next_hop}\n"
-                        data += f"IPV6_DEFAULTDEV={base_opt.name}\n"
         # If no static addr is configured and IPv6 is globally enabled with
         # accept_ra disabled, explicitly disable RA to avoid unintended
         # IPv6 auto-configuration.
