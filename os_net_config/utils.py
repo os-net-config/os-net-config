@@ -245,7 +245,7 @@ def _normalize_ipv6_in_ifcfg(data):
         if not line.startswith('#') and '=' in line:
             key, value = line.split('=', 1)
             value = value.strip('"\'')
-            if key in ('IPV6ADDR', 'IPV6_DEFAULTGW'):
+            if key == 'IPV6ADDR':
                 value = _normalize_ipv6(value)
                 line = '%s=%s' % (key, value)
             elif key == 'IPV6ADDR_SECONDARIES':
