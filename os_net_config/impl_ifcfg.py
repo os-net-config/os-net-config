@@ -349,8 +349,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             'IPADDR', 'NETMASK',
             'MTU', 'ONBOOT', 'ETHTOOL_OPTS',
             'DOMAIN', 'DNS1', 'DNS2',
-            'IPV6_SET_SYSCTLS', 'IPV6_DEFAULTGW',
-            'IPV6_DEFAULTDEV', 'IPV6_FORCE_ACCEPT_RA'
+            'IPV6_SET_SYSCTLS', 'IPV6_FORCE_ACCEPT_RA'
         ]
         # Check whether any of the changes require restart
         for change in self.enumerate_ifcfg_changes(file_values, new_values):
@@ -882,11 +881,6 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                     secondaries_v6 = " ".join(map(lambda a: a.ip_netmask,
                                                   v6_addresses[1:]))
                     data += "IPV6ADDR_SECONDARIES=\"%s\"\n" % secondaries_v6
-            for route in base_opt.routes:
-                if route.default or (route.ip_netmask == "::/0"):
-                    if ":" in route.next_hop:
-                        data += f"IPV6_DEFAULTGW={route.next_hop}\n"
-                        data += f"IPV6_DEFAULTDEV={base_opt.name}\n"
 
         if base_opt.hwaddr:
             data += "HWADDR=%s\n" % base_opt.hwaddr
