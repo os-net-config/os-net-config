@@ -9,4 +9,4 @@ PyYAML>=3.10.0 # MIT
 jsonschema>=3.2.0 # MIT
 pyudev>=0.16.1 # LGPLv2.1+
 pyroute2>=0.7.10 # Apache-2.0 GPL-2.0+
-setuptools<71.0.0
+setuptools==74.1.3
