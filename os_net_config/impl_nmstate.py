@@ -344,7 +344,7 @@ class NmstateNetConfig(os_net_config.NetConfig):
         self.route_data = {}
         # List of the rules data
         self.rules_data = []
-        self.dns_data = {'server': [], 'domain': []}
+        self.dns_data = {'server': [], 'domain': [], 'options': []}
         # Dict of the ovs bridges, with keys being the device name
         self.bridge_data = {}
         # Dict of the linux bond data, with keys being the device name
@@ -842,8 +842,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
         :param dns_data:  config json
         :return dns config
         """
-        state = {DNS.KEY: {DNS.CONFIG: {DNS.SERVER: self.dns_data['server'],
-                                        DNS.SEARCH: self.dns_data['domain']}}}
+        dns_config = {
+            DNS.SERVER: self.dns_data['server'],
+            DNS.SEARCH: self.dns_data['domain']
+        }
+        if self.dns_data['options']:
+            dns_config['options'] = self.dns_data['options']
+        state = {DNS.KEY: {DNS.CONFIG: dns_config}}
         if self.noop:
             self.__dump_config(state, msg="Prepared DNS")
         return state
@@ -1281,6 +1286,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self._add_dns_servers(base_opt.dns_servers)
         if base_opt.domain:
             self._add_dns_domain(base_opt.domain)
+        if base_opt.dns_options:
+            self._add_dns_options(base_opt.dns_options)
         if base_opt.routes:
             self._add_routes(base_opt.name, base_opt.routes)
         if base_opt.rules:
@@ -1496,6 +1503,16 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if domain not in self.dns_data['domain']:
                 logger.debug("DNS: Adding DNS domain %s", domain)
                 self.dns_data['domain'].append(domain)
+
+    def _add_dns_options(self, dns_options):
+        """Add dns options in nmstate schema format
+
+        :param dns_options: A list of DNS options (e.g., timeout:2, attempts:3)
+        """
+        for option in dns_options:
+            if option not in self.dns_data['options']:
+                logger.debug("DNS: Adding DNS option %s", option)
+                self.dns_data['options'].append(option)
 
     def add_dispatch_script(self, device_data, stage, cmd):
         """Add the dispatch script for device

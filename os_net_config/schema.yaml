@@ -131,6 +131,14 @@ definitions:
                 $ref: "#/definitions/domain_name_string"
             minItems: 0
           - $ref: "#/definitions/domain_name_string"
+    dns_option_string:
+        type: string
+        pattern: "^[a-zA-Z][a-zA-Z0-9_-]*(:[a-zA-Z0-9_-]+)?$"
+    list_of_dns_options:
+        type: array
+        items:
+            $ref: "#/definitions/dns_option_string"
+        minItems: 0
 
     # os-net-config derived types
     address:
@@ -387,6 +395,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
             linkdelay:
                 $ref: "#/definitions/int_or_param"
             dcb:
@@ -463,6 +473,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
             link_mode:
                 $ref: "#/definitions/sriov_link_mode_or_param"
             vdpa:
@@ -539,6 +551,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
             ethtool_opts:
                 $ref: "#/definitions/string_or_param"
             ovs_extra:
@@ -589,6 +603,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
             ovs_options:
                 $ref: "#/definitions/ovs_options_string_or_param"
             ovs_extra:
@@ -654,6 +670,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -713,6 +731,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -767,6 +787,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -819,6 +841,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -870,6 +894,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -927,6 +953,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
             dcb:
                 $ref: "#/definitions/dcb"
         required:
@@ -993,6 +1021,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -1039,6 +1069,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -1084,6 +1116,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
             members:
                 type: array
                 items:
@@ -1281,6 +1315,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -1334,6 +1370,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
             ethtool_opts:
                 $ref: "#/definitions/string_or_param"
         required:
@@ -1386,6 +1424,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -1432,6 +1472,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - members
@@ -1477,6 +1519,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - vlan_id
@@ -1525,6 +1569,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - options
@@ -1571,6 +1617,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - vlan_id
@@ -1616,6 +1664,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - name
@@ -1661,6 +1711,8 @@ definitions:
                 $ref: "#/definitions/bool_or_param"
             domain:
                 $ref: "#/definitions/list_of_domain_name_string_or_domain_name_string"
+            dns_options:
+                $ref: "#/definitions/list_of_dns_options"
         required:
           - type
           - parent
