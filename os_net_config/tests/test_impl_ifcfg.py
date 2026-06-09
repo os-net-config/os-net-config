@@ -785,7 +785,6 @@ class TestIfcfgNetConfig(base.TestCase):
         defaults = {
             'net.ipv6.conf.default.disable_ipv6': '0',
             'net.ipv6.conf.default.accept_ra': '0',
-            'net.ipv6.conf.default.forwarding': '1'
         }
 
         if overrides:
@@ -2420,8 +2419,7 @@ OVS_EXTRA="set Interface dpdk0 options:dpdk-devargs=0000:00:08.0 \
         self.stub_out(
             'os_net_config.utils.get_sysctl_value',
             self.make_sysctl_stub({
-                'net.ipv6.conf.default.accept_ra': '0',
-                'net.ipv6.conf.default.forwarding': '0'
+                'net.ipv6.conf.default.accept_ra': '0'
             })
         )
 
