@@ -931,31 +931,36 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         for route in routes:
             options = ""
             table = ""
+            metric = ""
             if route.route_options:
                 options = " %s" % route.route_options
             if route.route_table:
                 if route.route_options.find('table ') == -1:
                     table = " table %s" % route.route_table
+            # route_options takes precedence over standalone metric field
+            if route.metric:
+                if route.route_options.find('metric ') == -1:
+                    metric = " metric %s" % route.metric
             if ":" not in route.next_hop:
                 # Route is an IPv4 route
                 if route.default:
-                    first_line = "default via %s dev %s%s%s\n" % (
+                    first_line = "default via %s dev %s%s%s%s\n" % (
                         route.next_hop, interface_name,
-                        table, options)
+                        table, metric, options)
                 else:
-                    data += "%s via %s dev %s%s%s\n" % (
+                    data += "%s via %s dev %s%s%s%s\n" % (
                         route.ip_netmask, route.next_hop,
-                        interface_name, table, options)
+                        interface_name, table, metric, options)
             else:
                 # Route is an IPv6 route
                 if route.default:
-                    first_line6 = "default via %s dev %s%s%s\n" % (
+                    first_line6 = "default via %s dev %s%s%s%s\n" % (
                         route.next_hop, interface_name,
-                        table, options)
+                        table, metric, options)
                 else:
-                    data6 += "%s via %s dev %s%s%s\n" % (
+                    data6 += "%s via %s dev %s%s%s%s\n" % (
                         route.ip_netmask, route.next_hop,
-                        interface_name, table, options)
+                        interface_name, table, metric, options)
         self.route_data[interface_name] = first_line + data
         self.route6_data[interface_name] = first_line6 + data6
         logger.debug(
