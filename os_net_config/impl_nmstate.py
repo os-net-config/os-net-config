@@ -2040,7 +2040,12 @@ class NmstateNetConfig(os_net_config.NetConfig):
                       'sub_tree': [OvsDB.KEY, OvsDB.EXTERNAL_IDS],
                       'nm_config': None,
                       'nm_config_regex': r'^external[-_]ids:(.+?)=',
-                      'value_pattern': r'^external[-_]ids:.*=(.+?)$'}
+                      'value_pattern': r'^external[-_]ids:.*=(.+?)$'},
+                     {'config': r'^other[-_]config:[\w+]',
+                      'sub_tree': [OvsDB.KEY, OvsDB.OTHER_CONFIG],
+                      'nm_config': None,
+                      'nm_config_regex': r'^other[-_]config:(.+?)=',
+                      'value_pattern': r'^other[-_]config:.*=(.+?)$'}
                      ]
         cfg_eq_val_pair = [{'command': ['set', 'interface',
                                         '({name}|%s)' % iface_name],
@@ -2595,6 +2600,13 @@ class NmstateNetConfig(os_net_config.NetConfig):
             members = [member.name for member in bond.members]
             self.member_names[bond.name] = members
             data[Bond.CONFIG_SUBTREE][Bond.PORT] = members
+
+        if bond.ovs_port and bond.ovs_extra:
+            self.parse_ovs_extra_for_iface(
+                bond.ovs_extra,
+                bond.name,
+                data
+            )
 
         self.linuxbond_data[bond.name] = data
         self.__dump_config(data, msg=f"{bond.name}: Prepared config")
