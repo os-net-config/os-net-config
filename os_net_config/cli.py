@@ -84,9 +84,12 @@ def parse_opts(argv):
     parser.add_argument(
         '--exit-on-validation-errors',
         action='store_true',
-        help="Exit with an error if configuration file validation fails. "
-             "Without this option, just log a warning and continue.",
-        default=True)
+        help="""Exit with an error if configuration file validation fails. """
+        """It is recommended to enable this flag """
+        """to prevent deploying invalid templates. """
+        """Without this option, just log a warning and continue. """
+        """Disabled by default.""",
+        default=False)
 
     parser.add_argument(
         '-d', '--debug',
