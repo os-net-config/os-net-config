@@ -274,7 +274,8 @@ class IfcfgNetConfig(os_net_config.NetConfig):
         changed_values = {}
         for key in ifcfg_data_old:
             if key in ifcfg_data_new:
-                if key in ['BOND_IFACES', 'OVS_EXTRA']:
+                if key in ['BOND_IFACES', 'OVS_EXTRA',
+                           'BONDING_OPTS', 'OVS_OPTIONS']:
                     if sorted(ifcfg_data_old[key].split()) == \
                         sorted(ifcfg_data_new[key].split()):
                         logger.debug("Ignoring order of list for %s", key)
