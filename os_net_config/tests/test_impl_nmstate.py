@@ -466,6 +466,7 @@ class TestNmstateNetConfig(base.TestCase):
   server:
     - 1.2.3.4
   domain: []
+  options: []
 """
         self.assertEqual(yaml.safe_load(em1_config)[0],
                          self.get_interface_config('em1'))
@@ -484,6 +485,7 @@ class TestNmstateNetConfig(base.TestCase):
   domain:
     - example.com
     - server.org
+  options: []
 """
         self.assertEqual(yaml.safe_load(test_dns_config2),
                          self.get_dns_data())
@@ -500,6 +502,7 @@ class TestNmstateNetConfig(base.TestCase):
     - example.com
     - server.org
     - testdomain.com
+  options: []
 """
         self.assertEqual(yaml.safe_load(test_dns_config3),
                          self.get_dns_data())

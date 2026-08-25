@@ -77,6 +77,32 @@ ifcfg implementation
 
 Sets ``DOMAIN`` containing all values as a space-separated list.
 
+dns_options
+===========
+
+A list of DNS resolver options to customize resolv.conf behavior. Common
+options include:
+
+- ``timeout:<seconds>`` - Time to wait for a DNS response (default: 5)
+- ``attempts:<count>`` - Number of attempts before giving up (default: 2)
+- ``rotate`` - Round-robin between name servers
+- ``single-request`` - Send A and AAAA queries sequentially
+
+For example:
+
+  .. code-block:: yaml
+
+    dns_options:
+      - timeout:2
+      - attempts:3
+      - rotate
+
+nmstate implementation
+^^^^^^^^^^^^^^^^^^^^^^
+
+Adds the options to the nmstate DNS resolver configuration, which populates
+the ``options`` line in ``/etc/resolv.conf``.
+
 mtu
 ===
 
