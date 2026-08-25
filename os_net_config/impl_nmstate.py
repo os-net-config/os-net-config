@@ -704,8 +704,8 @@ class NmstateNetConfig(os_net_config.NetConfig):
                 )
                 raise os_net_config.ConfigurationError(message)
             else:
-                data += f"{id}\t{route_tables[id]}     "\
-                        f"{_OS_NET_CONFIG_MANAGED}\n"
+                data += (f"{id}\t{route_tables[id]}     "
+                         f"{_OS_NET_CONFIG_MANAGED}\n")
         return data
 
     def iface_state(self, name='', type=None):
@@ -1678,10 +1678,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
                             f"To configure the same VLAN ID on multiple "
                             f"interfaces, use 'type: interface' with "
                             f"explicit VLAN interface names instead:\n\n"
-                            f"network_config:\n"
-                            f"  - type: interface\n"
+                            "network_config:\n"
+                            "  - type: interface\n"
                             f"    name: <device1>.{vlan.vlan_id}\n"
-                            f"  - type: interface\n"
+                            "  - type: interface\n"
                             f"    name: <device2>.{vlan.vlan_id}\n\n"
                             f"Where <device1> and <device2> are your "
                             f"interface names (e.g., nic5, nic6 or "
