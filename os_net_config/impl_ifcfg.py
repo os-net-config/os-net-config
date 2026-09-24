@@ -352,7 +352,7 @@ class IfcfgNetConfig(os_net_config.NetConfig):
             'IPADDR', 'NETMASK',
             'MTU', 'ONBOOT', 'ETHTOOL_OPTS',
             'DOMAIN', 'DNS1', 'DNS2',
-            'IPV6_SET_SYSCTLS', 'IPV6_DEFAULTGW',
+            'IPV6_AUTOCONF', 'IPV6_SET_SYSCTLS', 'IPV6_DEFAULTGW',
             'IPV6_DEFAULTDEV', 'IPV6_FORCE_ACCEPT_RA'
         ]
         # Check whether any of the changes require restart

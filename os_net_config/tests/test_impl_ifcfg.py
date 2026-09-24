@@ -3022,6 +3022,41 @@ class TestIfcfgNetConfigApply(base.TestCase):
 
         shutil.rmtree(tmpdir)
 
+    def test_ipv6_autoconf_addition_no_restart(self):
+        """Adding IPv6 ifcfg keys to an OVS port should not require restart.
+
+        When os-net-config re-applies config on an OVS port that previously
+        had no IPv6 ifcfg keys, the newly emitted IPV6_AUTOCONF,
+        IPV6_SET_SYSCTLS, and IPV6_FORCE_ACCEPT_RA keys must not trigger
+        an interface restart.
+        """
+        tmpdir = tempfile.mkdtemp()
+        interface_filename = tmpdir + '/ifcfg-eth1'
+
+        ovs_port_old = ("DEVICE=eth1\n"
+                        "ONBOOT=yes\n"
+                        "HOTPLUG=no\n"
+                        "NM_CONTROLLED=no\n"
+                        "PEERDNS=no\n"
+                        "DEVICETYPE=ovs\n"
+                        "TYPE=OVSPort\n"
+                        "OVS_BRIDGE=br-ex\n"
+                        "BOOTPROTO=none\n"
+                        "MTU=1450\n")
+
+        ovs_port_new = (ovs_port_old +
+                        "IPV6_AUTOCONF=no\n"
+                        "IPV6_SET_SYSCTLS=yes\n"
+                        "IPV6_FORCE_ACCEPT_RA=no\n")
+
+        file = open(interface_filename, 'w')
+        file.write(ovs_port_old)
+        file.close()
+        self.assertFalse(self.provider.ifcfg_requires_restart(
+                         interface_filename, ovs_port_new))
+
+        shutil.rmtree(tmpdir)
+
     def test_ipv6_format_diff_no_change(self):
         """utils.diff() returns False when only IPv6 format differs."""
         tmpdir = tempfile.mkdtemp()
