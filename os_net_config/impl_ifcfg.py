@@ -288,6 +288,18 @@ class IfcfgNetConfig(os_net_config.NetConfig):
                         if (new_values[change].upper() == 'DHCP'):
                             restart_required = True
                             logger.debug("DHCP on %s requires restart", change)
+                elif change == 'IPV6_AUTOCONF':
+                    new_val = new_values.get('IPV6_AUTOCONF', '').lower()
+                    current_autoconf = utils.get_sysctl_value(
+                        'net.ipv6.conf.default.autoconf')
+                    if new_val == 'no' and current_autoconf == '0':
+                        logger.debug("IPV6_AUTOCONF=no matches sysctl "
+                                     "autoconf=0, no restart required")
+                    else:
+                        restart_required = True
+                        logger.debug("IPV6_AUTOCONF change requires restart "
+                                     "(new=%s, sysctl=%s)",
+                                     new_val, current_autoconf)
                 else:
                     restart_required = True
         if not restart_required:
