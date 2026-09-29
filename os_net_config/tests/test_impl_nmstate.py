@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+from libnmstate.schema import DNS
 from libnmstate.schema import Ethernet
 from libnmstate.schema import Ethtool
 
@@ -466,6 +467,7 @@ class TestNmstateNetConfig(base.TestCase):
   server:
     - 1.2.3.4
   domain: []
+  options: []
 """
         self.assertEqual(yaml.safe_load(em1_config)[0],
                          self.get_interface_config('em1'))
@@ -484,6 +486,7 @@ class TestNmstateNetConfig(base.TestCase):
   domain:
     - example.com
     - server.org
+  options: []
 """
         self.assertEqual(yaml.safe_load(test_dns_config2),
                          self.get_dns_data())
@@ -500,9 +503,31 @@ class TestNmstateNetConfig(base.TestCase):
     - example.com
     - server.org
     - testdomain.com
+  options: []
 """
         self.assertEqual(yaml.safe_load(test_dns_config3),
                          self.get_dns_data())
+
+    def test_interface_dns_options(self):
+        interface1 = objects.Interface(
+            'em1',
+            dns_servers=['1.2.3.4'],
+            dns_options=['timeout:2', 'attempts:3', 'rotate'])
+        self.provider.add_interface(interface1)
+        test_dns_config = """
+  server:
+    - 1.2.3.4
+  domain: []
+  options:
+    - timeout:2
+    - attempts:3
+    - rotate
+"""
+        self.assertEqual(yaml.safe_load(test_dns_config),
+                         self.get_dns_data())
+        dns_state = self.provider.set_dns()
+        self.assertEqual(['timeout:2', 'attempts:3', 'rotate'],
+                         dns_state[DNS.KEY][DNS.CONFIG]['options'])
 
     def test_ethtool_opts(self):
         interface1 = objects.Interface('em1',
