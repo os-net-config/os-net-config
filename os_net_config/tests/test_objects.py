@@ -333,6 +333,18 @@ class TestInterface(base.TestCase):
         interface1 = objects.object_from_json(json.loads(data))
         self.assertEqual(["1.2.3.4"], interface1.dns_servers)
 
+    def test_from_json_dns_options(self):
+        data = """{
+"type": "interface",
+"name": "em1",
+"use_dhcp": true,
+"dns_options": ["timeout:2", "attempts:3", "rotate"]
+}
+"""
+        interface1 = objects.object_from_json(json.loads(data))
+        self.assertEqual(["timeout:2", "attempts:3", "rotate"],
+                         interface1.dns_options)
+
     def test_from_json_domain(self):
         data = """{
 "type": "interface",
