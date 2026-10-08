@@ -1825,6 +1825,92 @@ class TestNmstateNetConfig(base.TestCase):
         self.assertEqual(yaml.safe_load(exp_pf_config),
                          list(self.provider.sriov_pf_data.values()))
 
+    def test_apply_pf_config_uses_sriov_rollback_timeout(self):
+        captured = {}
+
+        def capture_apply(desired_state, verify_change=True, **kwargs):
+            captured['rollback_timeout'] = kwargs.get('rollback_timeout')
+
+        self.stub_out('libnmstate.netapplier.apply', capture_apply)
+        nic_mapping = {'nic3': 'eth2'}
+        self.stubbed_mapped_nics = nic_mapping
+        pf = objects.SriovPF(name='nic3', numvfs=10)
+        self.provider.add_sriov_pf(pf)
+        self.provider.noop = False
+        self.provider.apply_pf_config(True)
+        self.assertEqual(impl_nmstate.SRIOV_ROLLBACK_TIMEOUT,
+                         captured['rollback_timeout'])
+        self.assertEqual(300, impl_nmstate.SRIOV_ROLLBACK_TIMEOUT)
+
+    def test_apply_vf_config_uses_sriov_rollback_timeout(self):
+        captured = {}
+
+        def capture_apply(desired_state, verify_change=True, **kwargs):
+            captured['rollback_timeout'] = kwargs.get('rollback_timeout')
+
+        self.stub_out('libnmstate.netapplier.apply', capture_apply)
+        self.stub_out('os_net_config.common.wait_for_vf_driver_binding',
+                      lambda *a, **k: None)
+        self.stub_out('os_net_config.common.get_default_vf_driver',
+                      lambda *a, **k: 'iavf')
+        self.stub_out('os_net_config.common.is_vf_driver_change_required',
+                      lambda *a, **k: False)
+        self.provider.sriov_pf_data['eth2'] = {
+            'name': 'eth2',
+            'type': 'ethernet',
+            'state': 'up',
+            'ethernet': {'sr-iov': {'total-vfs': 1}}
+        }
+        self.provider.sriov_vf_data['eth2'] = [{'id': 0}]
+        self.provider.vf_drv_override['eth2'] = {}
+        self.provider.noop = False
+        self.provider.apply_vf_config(True)
+        self.assertEqual(impl_nmstate.SRIOV_ROLLBACK_TIMEOUT,
+                         captured['rollback_timeout'])
+
+    def test_rollback_to_initial_settings_sriov_timeout(self):
+        captured = {}
+
+        def capture_apply(desired_state, verify_change=True, **kwargs):
+            captured['rollback_timeout'] = kwargs.get('rollback_timeout')
+
+        self.stub_out('libnmstate.netapplier.apply', capture_apply)
+
+        def fake_diff(initial, current):
+            return {
+                'interfaces': [{
+                    'name': 'eth2',
+                    'type': 'ethernet',
+                    'ethernet': {'sr-iov': {'total-vfs': 0}}
+                }]
+            }
+        self.stub_out('libnmstate.gen_diff.generate_differences',
+                      fake_diff)
+        self.provider.rollback_to_initial_settings()
+        self.assertEqual(impl_nmstate.SRIOV_ROLLBACK_TIMEOUT,
+                         captured['rollback_timeout'])
+
+    def test_rollback_to_initial_settings_without_sriov(self):
+        captured = {}
+
+        def capture_apply(desired_state, verify_change=True, **kwargs):
+            captured['kwargs'] = kwargs
+
+        self.stub_out('libnmstate.netapplier.apply', capture_apply)
+
+        def fake_diff(initial, current):
+            return {
+                'interfaces': [{
+                    'name': 'em1',
+                    'type': 'ethernet',
+                    'state': 'up'
+                }]
+            }
+        self.stub_out('libnmstate.gen_diff.generate_differences',
+                      fake_diff)
+        self.provider.rollback_to_initial_settings()
+        self.assertNotIn('rollback_timeout', captured['kwargs'])
+
     def test_sriov_pf_with_switchdev(self):
         nic_mapping = {'nic1': 'eth0', 'nic2': 'eth1', 'nic3': 'eth2'}
         self.stubbed_mapped_nics = nic_mapping
@@ -3655,7 +3741,7 @@ class TestNmstateNetConfigApply(base.TestCase):
         impl_nmstate.CONFIG_RULES_FILE = "/tmp/nmstate_files/rules.yaml"
         impl_nmstate.DISPATCHER_SCRIPT_PREFIX = ""
 
-        def test_iface_state(iface_data='', verify_change=True):
+        def test_iface_state(iface_data='', verify_change=True, **kwargs):
             # This function returns None
             return None
         self.stub_out(
@@ -3697,6 +3783,35 @@ class TestNmstateNetConfigApply(base.TestCase):
         self.assertEqual(yaml.load(_BASE_IFACE_CFG_APPLIED,
                                    Loader=yaml.SafeLoader),
                          updated_files)
+
+    def test_nmstate_apply_passes_sriov_rollback_timeout(self):
+        captured = {}
+
+        def capture_apply(desired_state, verify_change=True, **kwargs):
+            captured['rollback_timeout'] = kwargs.get('rollback_timeout')
+            captured['verify_change'] = verify_change
+
+        self.stub_out('libnmstate.netapplier.apply', capture_apply)
+        self.provider.noop = False
+        self.provider.nmstate_apply(
+            {'interfaces': [{'name': 'eth2'}]},
+            verify=True,
+            rollback_timeout=impl_nmstate.SRIOV_ROLLBACK_TIMEOUT)
+        self.assertEqual(impl_nmstate.SRIOV_ROLLBACK_TIMEOUT,
+                         captured['rollback_timeout'])
+        self.assertTrue(captured['verify_change'])
+
+    def test_nmstate_apply_default_omits_rollback_timeout(self):
+        captured = {}
+
+        def capture_apply(desired_state, verify_change=True, **kwargs):
+            captured['kwargs'] = kwargs
+
+        self.stub_out('libnmstate.netapplier.apply', capture_apply)
+        self.provider.noop = False
+        self.provider.nmstate_apply({'interfaces': [{'name': 'em1'}]},
+                                    verify=True)
+        self.assertNotIn('rollback_timeout', captured['kwargs'])
 
 
 class TestNmstateNetConfigDeviceRemoval(base.TestCase):

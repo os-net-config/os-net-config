@@ -113,6 +113,9 @@ DISPATCH = 'dispatch'
 LOOPBACK = "lo"
 CONFIG_RULES_FILE = '/var/lib/os-net-config/nmstate_files/rules.yaml'
 BACKUP_NMSTATE_FILES_PATH = '/var/lib/os-net-config/nmstate_files'
+# Match nmstate VERIFY_RETRY_COUNT_SRIOV_MAX. netapplier.apply() defaults
+# rollback_timeout to 60s, which overrides nmstate's SR-IOV timeout of 300s.
+SRIOV_ROLLBACK_TIMEOUT = 300
 
 
 class RemoveDeviceNmstateData:
@@ -148,6 +151,19 @@ def get_route_options(route_options, key):
         if key in item:
             return get_type_value(next(iter_list))
     return
+
+
+def _state_has_sriov(state):
+    """Return True if the nmstate config includes SR-IOV settings."""
+    if not isinstance(state, dict):
+        return False
+    for iface in state.get(Interface.KEY, []) or []:
+        if not isinstance(iface, dict):
+            continue
+        ethernet = iface.get(Ethernet.CONFIG_SUBTREE) or {}
+        if ethernet.get(Ethernet.SRIOV_SUBTREE):
+            return True
+    return False
 
 
 def is_dict_subset(superset, subset):
@@ -407,7 +423,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
                                                    cur_state)
         msg = "Applying the difference to go back to initial settings "
         self.__dump_key_config(diff_state, msg=msg)
-        netapplier.apply(diff_state, verify_change=True)
+        apply_kwargs = {'verify_change': True}
+        if _state_has_sriov(diff_state):
+            apply_kwargs['rollback_timeout'] = SRIOV_ROLLBACK_TIMEOUT
+        netapplier.apply(diff_state, **apply_kwargs)
 
     def __dump_config(self, config, msg="Applying config"):
         cfg_dump = yaml.dump(config, default_flow_style=False,
@@ -508,8 +527,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
             if not is_dict_subset(cur_state, pf_state):
                 if not self.noop and activate:
                     logger.debug("%s: Applying the PF config", pf_name)
-                    self.nmstate_apply(self.set_ifaces([pf_state]),
-                                       verify=True)
+                    self.nmstate_apply(
+                        self.set_ifaces([pf_state]),
+                        verify=True,
+                        rollback_timeout=SRIOV_ROLLBACK_TIMEOUT)
                     updated_pfs.append(pf_name)
             else:
                 logger.info("%s: No changes required for PF", pf_name)
@@ -594,8 +615,10 @@ class NmstateNetConfig(os_net_config.NetConfig):
                             "%s: Applying the VF parameters",
                             pf_state["name"],
                         )
-                        self.nmstate_apply(self.set_ifaces([pf_state]),
-                                           verify=True)
+                        self.nmstate_apply(
+                            self.set_ifaces([pf_state]),
+                            verify=True,
+                            rollback_timeout=SRIOV_ROLLBACK_TIMEOUT)
                         # NetworkManager-dispatcher scripts will bind the VFs
                         # with the drivers. Wait for the completion of the
                         # driver bindings.
@@ -876,18 +899,23 @@ class NmstateNetConfig(os_net_config.NetConfig):
             self.__dump_config(state, msg="Prepared rules are")
         return state
 
-    def nmstate_apply(self, new_state, verify=True):
+    def nmstate_apply(self, new_state, verify=True, rollback_timeout=None):
         """Apply the desired rules using nmstate.
 
         :param new_state: desired network config json
         :param verify: boolean that determines if config will be verified
+        :param rollback_timeout: NM checkpoint timeout in seconds. If None,
+            libnmstate uses its default (60s).
         """
         self.__dump_key_config(
             new_state, msg="Applying the config with nmstate"
         )
         if not self.noop:
             try:
-                netapplier.apply(new_state, verify_change=verify)
+                apply_kwargs = {'verify_change': verify}
+                if rollback_timeout is not None:
+                    apply_kwargs['rollback_timeout'] = rollback_timeout
+                netapplier.apply(new_state, **apply_kwargs)
             except error.NmstateVerificationError as exc:
                 logger.error("**** Verification Error *****")
                 logger.error(
