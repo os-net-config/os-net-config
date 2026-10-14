@@ -1462,6 +1462,34 @@ BOOTPROTO=none
         self.assertEqual(_OVS_BOND_DHCP,
                          self.get_interface_config('bond0'))
 
+    def test_ovs_bond_options_anyorder(self):
+        interface1 = objects.Interface('em1')
+        interface2 = objects.Interface('em2')
+        bond = objects.OvsBond('bond0', use_dhcp=True,
+                               members=[interface1, interface2],
+                               ovs_options='bond_mode=balance-slb '
+                                           'lacp=active '
+                                           'other-config:lacp-time=fast')
+        self.provider.add_interface(interface1)
+        self.provider.add_interface(interface2)
+        self.provider.add_bond(bond)
+
+        bond_config = {
+            'DEVICE': 'bond0', 'ONBOOT': 'yes',
+            'HOTPLUG': 'no', 'NM_CONTROLLED': 'no',
+            'DEVICETYPE': 'ovs', 'TYPE': 'OVSBond',
+            'OVSBOOTPROTO': 'dhcp',
+            'BOND_IFACES': 'em2 em1',
+            'OVS_OPTIONS': 'lacp=active bond_mode=balance-slb '
+                           'other-config:lacp-time=fast'
+        }
+
+        new = self.get_interface_config('bond0')
+        new_data = self.get_ifcfg_data(new)
+        changes = self.get_enumerate_ifcfg_changes(bond_config, new_data)
+        self.assertNotEqual(bond_config, new_data)
+        self.assertEqual(0, len(changes))
+
     def test_linux_bond(self):
         interface1 = objects.Interface('em1')
         interface2 = objects.Interface('em2')
@@ -1536,6 +1564,29 @@ BOOTPROTO=none
         # The bond should be configured normally
         self.assertEqual(_LINUX_BOND_WITH_OVS_EXTRA_MULTI,
                          self.get_linux_bond_config('bond0'))
+
+    def test_linux_bond_bonding_opts_anyorder(self):
+        interface1 = objects.Interface('em1')
+        interface2 = objects.Interface('em2')
+        bond = objects.LinuxBond('bond0', use_dhcp=True,
+                                 members=[interface1, interface2])
+        bond.bonding_options = 'mode=active-backup miimon=100 ' \
+                               'updelay=200 downdelay=200'
+        self.provider.add_linux_bond(bond)
+
+        bond_config = {
+            'DEVICE': 'bond0', 'ONBOOT': 'yes',
+            'HOTPLUG': 'no', 'NM_CONTROLLED': 'no',
+            'BOOTPROTO': 'dhcp',
+            'BONDING_OPTS': 'downdelay=200 updelay=200 '
+                            'miimon=100 mode=active-backup'
+        }
+
+        new = self.get_linux_bond_config('bond0')
+        new_data = self.get_ifcfg_data(new)
+        changes = self.get_enumerate_ifcfg_changes(bond_config, new_data)
+        self.assertNotEqual(bond_config, new_data)
+        self.assertEqual(0, len(changes))
 
     def test_linux_team(self):
         interface1 = objects.Interface('em1')
