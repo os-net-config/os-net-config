@@ -1950,3 +1950,132 @@ dpdk {
         self.assertTrue(mocked_logger.called)
         # Verify error was logged for overall failure
         self.assertTrue(mocked_error_logger.called)
+
+    def test_get_pci_device_driver_reads_under_noop(self):
+        """noop must still read the current driver from sysfs."""
+        common.set_noop(True)
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "vfio-pci")
+        driver = common.get_pci_device_driver("0000:8a:00.1")
+        self.assertEqual('vfio-pci', driver)
+
+    def test_set_driverctl_override_noop_skips_driverctl(self):
+        """noop must log intent and not run driverctl."""
+        execute_calls = []
+
+        def fake_execute(*args, **kwargs):
+            execute_calls.append(args)
+            return ('', '')
+
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+        self.prepare_sysfs("eth1", "0000:8a:00.1", "i40e")
+        common.set_noop(True)
+
+        result = common.set_driverctl_override('0000:8a:00.1', 'vfio-pci')
+        self.assertFalse(result)
+        self.assertEqual([], execute_calls)
+
+    def test_unset_driverctl_override_noop_skips_driverctl(self):
+        """noop must log intent and not run driverctl unset."""
+        execute_calls = []
+
+        def fake_execute(*args, **kwargs):
+            execute_calls.append(args)
+            return ('', '')
+
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+        common.set_noop(True)
+
+        result = common.unset_driverctl_override('0000:03:00.0')
+        self.assertEqual(0, result)
+        self.assertEqual([], execute_calls)
+
+    def test_bind_dpdk_interfaces_noop_no_map_or_driverctl(self):
+        """bind_dpdk_interfaces(..., noop=True) must not bind or write map."""
+        execute_calls = []
+
+        def fake_execute(*args, **kwargs):
+            execute_calls.append(args)
+            return ('', '')
+
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+        self.prepare_sysfs("nic2", "0000:8a:00.1", "i40e")
+        self.assertFalse(os.path.exists(common.DPDK_MAPPING_FILE))
+
+        utils.bind_dpdk_interfaces('nic2', 'vfio-pci', True)
+
+        self.assertEqual([], execute_calls)
+        self.assertFalse(os.path.exists(common.DPDK_MAPPING_FILE))
+
+    def test_update_dpdk_map_noop_leaves_map_unchanged(self):
+        """update_dpdk_map under noop must not write dpdk_mapping.yaml."""
+        common.set_noop(True)
+        self.prepare_sysfs("eth1", "0000:03:00.0", "i40e")
+        self.assertFalse(os.path.exists(common.DPDK_MAPPING_FILE))
+
+        utils.update_dpdk_map('eth1', 'vfio-pci')
+
+        self.assertFalse(os.path.exists(common.DPDK_MAPPING_FILE))
+
+    def test__update_dpdk_map_noop_leaves_map_unchanged(self):
+        """_update_dpdk_map under noop must not write dpdk_mapping.yaml."""
+        common.set_noop(True)
+        self.assertFalse(os.path.exists(common.DPDK_MAPPING_FILE))
+
+        utils._update_dpdk_map(
+            'eth1', '0000:03:00.0', '01:02:03:04:05:06', 'vfio-pci')
+
+        self.assertFalse(os.path.exists(common.DPDK_MAPPING_FILE))
+
+    def test_delete_dpdk_map_entry_noop_leaves_map_unchanged(self):
+        """delete_dpdk_map_entry under noop must not modify the map file."""
+        dpdk_map = [
+            {'name': 'eth1', 'pci_address': '0000:03:00.0',
+             'mac_address': '01:02:03:04:05:06', 'driver': 'vfio-pci'}
+        ]
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
+        common.set_noop(True)
+
+        utils.delete_dpdk_map_entry('eth1')
+
+        self.assertTrue(os.path.exists(common.DPDK_MAPPING_FILE))
+        contents = common.get_file_data(common.DPDK_MAPPING_FILE)
+        new_map = yaml.safe_load(contents) if contents else []
+        self.assertEqual(1, len(new_map))
+        self.assertEqual('eth1', new_map[0]['name'])
+
+    def test_remove_dpdk_interface_noop_no_unbind_or_map_change(self):
+        """remove_dpdk_interface under noop must not unbind or edit the map."""
+        detach_calls = []
+        unbind_calls = []
+
+        def fake_detach(pci):
+            detach_calls.append(pci)
+            return 0
+
+        def fake_unbind(pci):
+            unbind_calls.append(pci)
+            return 0
+
+        self.stub_out('os_net_config.utils.detach_dpdk_interfaces',
+                      fake_detach)
+        self.stub_out('os_net_config.utils.unbind_dpdk_interfaces',
+                      fake_unbind)
+
+        dpdk_map = [
+            {'name': 'eth1', 'pci_address': '0000:03:00.0',
+             'mac_address': '01:02:03:04:05:06', 'driver': 'vfio-pci'}
+        ]
+        common.write_yaml_config(common.DPDK_MAPPING_FILE, dpdk_map)
+        common.set_noop(True)
+
+        utils.remove_dpdk_interface('eth1')
+
+        self.assertEqual([], detach_calls)
+        self.assertEqual([], unbind_calls)
+        self.assertTrue(os.path.exists(common.DPDK_MAPPING_FILE))
+        contents = common.get_file_data(common.DPDK_MAPPING_FILE)
+        new_map = yaml.safe_load(contents) if contents else []
+        self.assertEqual(1, len(new_map))

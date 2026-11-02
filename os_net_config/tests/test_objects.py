@@ -2325,6 +2325,44 @@ class TestSriovVF(base.TestCase):
         if os.path.isfile(common.SRIOV_CONFIG_FILE):
             os.remove(common.SRIOV_CONFIG_FILE)
 
+    def test_from_json_noop_skips_driverctl_when_unbound(self):
+        """noop must not bind a default driver when VF appears unbound."""
+        def test_get_vf_devname(device, vfid):
+            return device + '_' + str(vfid)
+
+        def test_get_pci_address(ifname):
+            return '0000:79:10.2'
+
+        def test_get_default_vf_driver(device, vfid):
+            return 'iavf'
+
+        def test_get_pci_device_driver(pci_address):
+            # Simulate unbound VF; previously noop always returned None here
+            # and incorrectly triggered set_driverctl_override.
+            return None
+
+        execute_calls = []
+
+        def fake_execute(*args, **kwargs):
+            execute_calls.append(args)
+            return ('', '')
+
+        self.stub_out('os_net_config.utils.get_vf_devname',
+                      test_get_vf_devname)
+        self.stub_out('os_net_config.common.get_pci_address',
+                      test_get_pci_address)
+        self.stub_out('os_net_config.common.get_default_vf_driver',
+                      test_get_default_vf_driver)
+        self.stub_out('os_net_config.common.get_pci_device_driver',
+                      test_get_pci_device_driver)
+        self.stub_out('oslo_concurrency.processutils.execute',
+                      fake_execute)
+
+        data = '{"type": "sriov_vf", "device": "em1", "vfid": 0}'
+        vf = objects.object_from_json(json.loads(data))
+        self.assertEqual("em1_0", vf.name)
+        self.assertEqual([], execute_calls)
+
     def test_from_json_zero_vfid(self):
         def test_get_vf_devname(device, vfid):
             return device + '_' + str(vfid)

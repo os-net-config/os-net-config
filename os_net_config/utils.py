@@ -375,6 +375,12 @@ def remove_dpdk_interface(identifier):
 
     :param identifier: Interface name or PCI address
     """
+    if common.get_noop():
+        logger.info(
+            "%s: NOOP: Would remove DPDK interface (detach/unbind/map)",
+            identifier,
+        )
+        return
     logger.info("%s: Removing DPDK interface", identifier)
     if is_pci_address_format(identifier):
         pci_address = identifier
@@ -416,6 +422,13 @@ def delete_dpdk_map_entry(identifier):
 
     :param identifier: Interface name or PCI address to remove
     """
+    if common.get_noop():
+        logger.info(
+            "%s: NOOP: Would remove DPDK mapping entry from %s",
+            identifier,
+            common.DPDK_MAPPING_FILE,
+        )
+        return
     dpdk_map = common.get_dpdk_map()
     new_map = []
     removed = False
@@ -574,6 +587,13 @@ def get_dpdk_devargs(ifname, noop):
 # is stored persistently in DPDK_MAPPING_FILE and is used to for nic numbering
 # on subsequent runs of os-net-config.
 def _update_dpdk_map(ifname, pci_address, mac_address, driver):
+    if common.get_noop():
+        logger.info(
+            "%s: NOOP: Would update DPDK map "
+            "(pci=%s, mac=%s, driver=%s)",
+            ifname, pci_address, mac_address, driver,
+        )
+        return
     dpdk_map = common.get_dpdk_map()
     for item in dpdk_map:
         if item['pci_address'] == pci_address:
