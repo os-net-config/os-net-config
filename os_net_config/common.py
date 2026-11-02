@@ -347,12 +347,12 @@ def interface_mac(name):
 def get_pci_device_driver(pci_addr):
     """Fetch the driver attached to the device
 
+    Reading sysfs is safe under noop and is required for correct dry-run
+    decisions (e.g. whether a VF already has a driver bound).
+
     :param pci_addr: PCI address of the the device
     :returns: driver attached to the PCI device
     """
-    if get_noop():
-        logger.info("%s: Fetching the PCI device driver", pci_addr)
-        return
     driver_path = get_pci_dev_path(pci_addr, 'driver')
     try:
         driver = os.readlink(driver_path)
@@ -593,6 +593,11 @@ def _has_driverctl_override(pci_address):
 
 
 def unset_driverctl_override(pci_address):
+    if get_noop():
+        logger.info(
+            "%s: NOOP: Would unset driverctl override", pci_address
+        )
+        return 0
     cmd = ["driverctl", "unset-override", pci_address]
     try:
         logger.info("%s: running %s", pci_address, " ".join(cmd))
@@ -628,6 +633,11 @@ def set_driverctl_override(pci_address, driver):
     iface_driver = get_pci_device_driver(pci_address)
     if iface_driver == driver:
         logger.info("%s: %s is already bound", pci_address, driver)
+        return False
+    if get_noop():
+        logger.info(
+            "%s: NOOP: Would bind with driver %s", pci_address, driver
+        )
         return False
     try:
         if is_vf(pci_address):
